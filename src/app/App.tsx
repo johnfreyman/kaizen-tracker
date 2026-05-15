@@ -12,7 +12,18 @@ type Page = "launch" | "attendance" | "summary" | "settings" | "raffle";
 
 function AppContent() {
   const [activePage, setActivePage] = useState<Page>("launch");
-  const { state } = useTeamStore();
+  const { state, isLoading } = useTeamStore();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="size-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-gray-600 font-semibold">Loading from Supabase…</p>
+        </div>
+      </div>
+    );
+  }
 
   const navItems = [
     { id: "launch" as Page, label: "Launch", icon: Calendar },
