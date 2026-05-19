@@ -211,10 +211,11 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
 
   const startSession = (session: ActiveSession) => {
     updateState({ activeSession: session });
-    supabase
-      .from("active_session")
-      .upsert({ lock_id: 1, id: session.id, date: session.date, type: session.type, duration: session.duration })
-      .catch(console.error);
+    Promise.resolve(
+      supabase
+        .from("active_session")
+        .upsert({ lock_id: 1, id: session.id, date: session.date, type: session.type, duration: session.duration })
+    ).catch(console.error);
   };
 
   const saveSession = (presentPlayers: string[]) => {
@@ -254,7 +255,9 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
       roster: newRoster,
       guestPlayers: isGuest ? [...current.guestPlayers, trimmed] : current.guestPlayers,
     });
-    supabase.from("roster").insert({ name: trimmed, is_guest: isGuest }).catch(console.error);
+    Promise.resolve(
+      supabase.from("roster").insert({ name: trimmed, is_guest: isGuest })
+    ).catch(console.error);
     return true;
   };
 
@@ -264,7 +267,9 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
       roster: current.roster.filter((p) => p !== name),
       guestPlayers: current.guestPlayers.filter((p) => p !== name),
     });
-    supabase.from("roster").delete().eq("name", name).catch(console.error);
+    Promise.resolve(
+      supabase.from("roster").delete().eq("name", name)
+    ).catch(console.error);
   };
 
   const isGuest = (playerName: string) => stateRef.current.guestPlayers.includes(playerName);
@@ -272,12 +277,14 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
   const updateSettings = (settings: { teamName?: string; teamLogo?: string; raffleEnabled?: boolean }) => {
     const current = stateRef.current;
     updateState(settings);
-    supabase.from("team_settings").upsert({
-      id: 1,
-      team_name: settings.teamName ?? current.teamName,
-      team_logo: settings.teamLogo ?? current.teamLogo,
-      raffle_enabled: settings.raffleEnabled ?? current.raffleEnabled,
-    }).catch(console.error);
+    Promise.resolve(
+      supabase.from("team_settings").upsert({
+        id: 1,
+        team_name: settings.teamName ?? current.teamName,
+        team_logo: settings.teamLogo ?? current.teamLogo,
+        raffle_enabled: settings.raffleEnabled ?? current.raffleEnabled,
+      })
+    ).catch(console.error);
   };
 
   const archiveEvents = () => {
@@ -331,7 +338,9 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
   const deleteArchive = (archiveId: string) => {
     const current = stateRef.current;
     updateState({ archivedEvents: current.archivedEvents.filter((a) => a.id !== archiveId) });
-    supabase.from("archived_event_sets").delete().eq("id", archiveId).catch(console.error);
+    Promise.resolve(
+      supabase.from("archived_event_sets").delete().eq("id", archiveId)
+    ).catch(console.error);
   };
 
   const editLastSession = (): TeamEvent | null => {
