@@ -79,3 +79,40 @@ DROP POLICY IF EXISTS "Allow authenticated write on archived_event_sets" ON arch
 CREATE POLICY "Allow authenticated read on archived_event_sets" ON archived_event_sets FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Allow authenticated write on archived_event_sets" ON archived_event_sets FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+-- Enable pgcrypto for password hashing
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Seed a pre-confirmed default admin user (email: admin@kaizentracker.com, default passcode: kaizen2026)
+-- (Users can instantly unlock the app with the passcode, bypassing email confirmation)
+INSERT INTO auth.users (
+  instance_id,
+  id,
+  provider,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  confirmed_at,
+  created_at,
+  updated_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  is_super_admin,
+  phone
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000000',
+  gen_random_uuid(),
+  'local',
+  'authenticated',
+  'admin@kaizentracker.com',
+  crypt('kaizen2026', gen_salt('bf')),
+  now(),
+  now(),
+  now(),
+  now(),
+  '{"provider":"email","providers":["email"]}',
+  '{}',
+  false,
+  null
+) ON CONFLICT (email) DO NOTHING;
