@@ -137,11 +137,15 @@ export default function LeaderboardTicker() {
       <div ref={containerRef} className="relative overflow-hidden">
         <div
           ref={contentRef}
-          className="flex gap-8 whitespace-nowrap will-change-transform py-1"
+          className="flex whitespace-nowrap will-change-transform py-1"
           style={{ transform: "translateX(0)" }}
         >
-          {renderLeaderboardItems("primary")}
-          {renderLeaderboardItems("loop")}
+          <div className="flex gap-8 pr-8 shrink-0">
+            {renderLeaderboardItems("primary")}
+          </div>
+          <div className="flex gap-8 pr-8 shrink-0">
+            {renderLeaderboardItems("loop")}
+          </div>
         </div>
       </div>
     </div>
