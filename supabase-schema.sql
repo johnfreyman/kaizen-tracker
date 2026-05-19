@@ -42,9 +42,40 @@ CREATE TABLE IF NOT EXISTS archived_event_sets (
   events      JSONB       NOT NULL DEFAULT '[]'
 );
 
--- Disable RLS so the anon key can read/write freely (personal app)
-ALTER TABLE team_settings       DISABLE ROW LEVEL SECURITY;
-ALTER TABLE roster              DISABLE ROW LEVEL SECURITY;
-ALTER TABLE events              DISABLE ROW LEVEL SECURITY;
-ALTER TABLE active_session      DISABLE ROW LEVEL SECURITY;
-ALTER TABLE archived_event_sets DISABLE ROW LEVEL SECURITY;
+-- Enable Row Level Security (RLS)
+ALTER TABLE team_settings       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE roster              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE events              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE active_session      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE archived_event_sets ENABLE ROW LEVEL SECURITY;
+
+-- Policies for team_settings
+DROP POLICY IF EXISTS "Allow authenticated read on team_settings" ON team_settings;
+DROP POLICY IF EXISTS "Allow authenticated write on team_settings" ON team_settings;
+CREATE POLICY "Allow authenticated read on team_settings" ON team_settings FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Allow authenticated write on team_settings" ON team_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- Policies for roster
+DROP POLICY IF EXISTS "Allow authenticated read on roster" ON roster;
+DROP POLICY IF EXISTS "Allow authenticated write on roster" ON roster;
+CREATE POLICY "Allow authenticated read on roster" ON roster FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Allow authenticated write on roster" ON roster FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- Policies for events
+DROP POLICY IF EXISTS "Allow authenticated read on events" ON events;
+DROP POLICY IF EXISTS "Allow authenticated write on events" ON events;
+CREATE POLICY "Allow authenticated read on events" ON events FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Allow authenticated write on events" ON events FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- Policies for active_session
+DROP POLICY IF EXISTS "Allow authenticated read on active_session" ON active_session;
+DROP POLICY IF EXISTS "Allow authenticated write on active_session" ON active_session;
+CREATE POLICY "Allow authenticated read on active_session" ON active_session FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Allow authenticated write on active_session" ON active_session FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- Policies for archived_event_sets
+DROP POLICY IF EXISTS "Allow authenticated read on archived_event_sets" ON archived_event_sets;
+DROP POLICY IF EXISTS "Allow authenticated write on archived_event_sets" ON archived_event_sets;
+CREATE POLICY "Allow authenticated read on archived_event_sets" ON archived_event_sets FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Allow authenticated write on archived_event_sets" ON archived_event_sets FOR ALL TO authenticated USING (true) WITH CHECK (true);
+

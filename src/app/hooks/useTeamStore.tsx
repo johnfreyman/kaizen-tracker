@@ -175,6 +175,11 @@ async function loadFromSupabase(): Promise<TeamState> {
 interface TeamStoreContextType {
   state: TeamState;
   isLoading: boolean;
+  isAuthenticated: boolean;
+  isAuthLoading: boolean;
+  authError: string | null;
+  login: (passcode: string) => Promise<boolean>;
+  logout: () => Promise<void>;
   startSession: (session: ActiveSession) => void;
   saveSession: (presentPlayers: string[]) => void;
   addPlayer: (name: string, isGuest?: boolean) => boolean;
@@ -191,7 +196,10 @@ const TeamStoreContext = createContext<TeamStoreContextType | null>(null);
 
 export function TeamStoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<TeamState>(defaultState);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const stateRef = useRef(state);
 
   useEffect(() => {
@@ -199,11 +207,70 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
   }, [state]);
 
   useEffect(() => {
-    loadFromSupabase()
-      .then(setState)
-      .catch(console.error)
-      .finally(() => setIsLoading(false));
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthenticated(!!session);
+      setIsAuthLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsAuthenticated(!!session);
+      if (event === "SIGNED_IN") {
+        setAuthError(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    loadFromSupabase()
+      .then((data) => {
+        setState(data);
+      })
+      .catch((err) => {
+        console.error("Failed to load data from Supabase:", err);
+      })
+      .finally(() => setIsLoading(false));
+  }, [isAuthenticated]);
+
+  const login = async (passcode: string): Promise<boolean> => {
+    setAuthError(null);
+    const email = "admin@kaizentracker.com";
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password: passcode,
+    });
+
+    if (!error) return true;
+
+    if (error.message.toLowerCase().includes("invalid login credentials")) {
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password: passcode,
+      });
+
+      if (!signUpError) return true;
+      setAuthError(signUpError.message);
+      return false;
+    }
+
+    setAuthError(error.message);
+    return false;
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
+    setState(defaultState);
+  };
 
   const updateState = (updates: Partial<TeamState>) => {
     setState((prev) => ({ ...prev, ...updates }));
@@ -376,6 +443,11 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
       value={{
         state,
         isLoading,
+        isAuthenticated,
+        isAuthLoading,
+        authError,
+        login,
+        logout,
         startSession,
         saveSession,
         addPlayer,
