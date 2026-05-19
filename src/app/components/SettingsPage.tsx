@@ -25,6 +25,7 @@ import {
 } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
+import { Alert, AlertTitle, AlertDescription } from "./ui/alert";
 
 export default function SettingsPage() {
   const { state, updateSettings, addPlayer, removePlayer, restoreArchive, deleteArchive, isGuest, uploadLogo } = useTeamStore();
@@ -42,6 +43,28 @@ export default function SettingsPage() {
   const [playerToRemove, setPlayerToRemove] = useState<string | null>(null);
   const [isAddingPlayer, setIsAddingPlayer] = useState(false);
   const [isRemovingPlayer, setIsRemovingPlayer] = useState(false);
+
+  // Redesigned Alert Visual Tester state
+  const [isAlertTesterOpen, setIsAlertTesterOpen] = useState(false);
+  const [alertResetKey, setAlertResetKey] = useState(0);
+  const [activeAlerts, setActiveAlerts] = useState({
+    info: true,
+    success: true,
+    warning: true,
+    destructive: true,
+    outline: true,
+  });
+
+  const resetAlerts = () => {
+    setActiveAlerts({
+      info: true,
+      success: true,
+      warning: true,
+      destructive: true,
+      outline: true,
+    });
+    setAlertResetKey((prev) => prev + 1);
+  };
 
   const generatePrintableSummary = () => {
     const totals = calculateTotals(state.events, state.roster);
@@ -1034,6 +1057,106 @@ export default function SettingsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Redesigned Alert Visual Tester Panel */}
+      <div className="bg-gradient-to-br from-white to-slate-50/50 backdrop-blur-md rounded-3xl p-6 md:p-8 shadow-xl border border-slate-200/80 space-y-6 transition-all duration-300">
+        <div className="flex items-center justify-between gap-4 flex-wrap pb-4 border-b border-slate-200/60">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+              <Gift className="size-5" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-slate-800">Alert Redesign Visual Tester</h3>
+              <p className="text-xs text-slate-500 font-medium">Verify alert hierarchy, theme variant colors, auto-injected icons, and dismiss animations.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={resetAlerts}
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 font-semibold text-sm rounded-xl transition-all shadow-sm active:scale-95"
+            >
+              <RotateCcw className="size-4" />
+              Reset Alerts
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsAlertTesterOpen(!isAlertTesterOpen)}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm rounded-xl transition-all active:scale-95"
+            >
+              {isAlertTesterOpen ? "Collapse Tester" : "Expand Tester"}
+            </button>
+          </div>
+        </div>
+
+        {isAlertTesterOpen && (
+          <div className="space-y-4 pt-2 animate-in fade-in-0 duration-300">
+            {activeAlerts.info && (
+              <Alert
+                key={`info-${alertResetKey}`}
+                variant="info"
+                dismissible
+                onClose={() => setActiveAlerts((prev) => ({ ...prev, info: false }))}
+                title="System Information (Info State)"
+                description="This is a redesigned info alert with HSL-tailored blue gradients, glassmorphism, responsive hover micro-shifts, and transition-delayed height collapse dismissal."
+              />
+            )}
+
+            {activeAlerts.success && (
+              <Alert
+                key={`success-${alertResetKey}`}
+                variant="success"
+                dismissible
+                onClose={() => setActiveAlerts((prev) => ({ ...prev, success: false }))}
+                title="Operation Completed (Success State)"
+                description="Your changes have been saved successfully. Notice the vibrant yet elegant background and matching text/icon themes."
+              />
+            )}
+
+            {activeAlerts.warning && (
+              <Alert
+                key={`warning-${alertResetKey}`}
+                variant="warning"
+                dismissible
+                onClose={() => setActiveAlerts((prev) => ({ ...prev, warning: false }))}
+                title="Caution Required (Warning State)"
+                description="This action cannot be fully reverted without restoration. Please double check all player roster entries before submitting."
+              />
+            )}
+
+            {activeAlerts.destructive && (
+              <Alert
+                key={`destructive-${alertResetKey}`}
+                variant="destructive"
+                dismissible
+                onClose={() => setActiveAlerts((prev) => ({ ...prev, destructive: false }))}
+                title="Crucial Failure / Destructive Action (Error State)"
+                description="A network write operation timed out while communicating with the database server. Please verify your internet connection."
+              />
+            )}
+
+            {activeAlerts.outline && (
+              <Alert
+                key={`outline-${alertResetKey}`}
+                variant="outline"
+                dismissible
+                onClose={() => setActiveAlerts((prev) => ({ ...prev, outline: false }))}
+                title="Minimalist Accent (Outline State)"
+                description="This border-only variant offers sleek aesthetics with neutral line-work, perfectly suited for high-density dashboard layouts."
+              />
+            )}
+
+            <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Technical Highlights</span>
+              <ul className="text-xs text-slate-600 space-y-1 list-disc pl-4">
+                <li><strong>Auto-Icon Injection:</strong> Icons are contextually loaded based on variant properties.</li>
+                <li><strong>Dynamic Exit Animation:</strong> Clicking <code className="bg-slate-200/60 px-1 py-0.5 rounded">X</code> invokes a dual-state height & opacity collapse over 300ms, completely avoiding layout jumps.</li>
+                <li><strong>State-Safe:</strong> Resetting re-keys the components to clean React mount cycles.</li>
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
