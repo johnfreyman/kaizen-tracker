@@ -243,7 +243,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
 
   const login = async (passcode: string): Promise<boolean> => {
     setAuthError(null);
-    const email = "admin@kaizentracker.com";
+    const email = "admin@example.com";
 
     const { error } = await supabase.auth.signInWithPassword({
       email,

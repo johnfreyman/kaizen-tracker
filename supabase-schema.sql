@@ -82,7 +82,7 @@ CREATE POLICY "Allow authenticated write on archived_event_sets" ON archived_eve
 -- Enable pgcrypto for password hashing
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- Seed a pre-confirmed default admin user (email: admin@kaizentracker.com, default passcode: YOUR_SECURE_PASSWORD)
+-- Seed a pre-confirmed default admin user (email: admin@example.com, default passcode: YOUR_SECURE_PASSWORD)
 -- (Users can instantly unlock the app with the passcode, bypassing email confirmation)
 INSERT INTO auth.users (
   id,
@@ -101,7 +101,7 @@ VALUES (
   gen_random_uuid(),
   'authenticated',
   'authenticated',
-  'admin@kaizentracker.com',
+  'admin@example.com',
   crypt('YOUR_SECURE_PASSWORD', gen_salt('bf')),
   now(),
   now(),
@@ -123,5 +123,5 @@ SELECT
   now(),
   email
 FROM auth.users 
-WHERE email = 'admin@kaizentracker.com'
+WHERE email = 'admin@example.com'
 ON CONFLICT DO NOTHING;
