@@ -252,17 +252,6 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
 
     if (!error) return true;
 
-    if (error.message.toLowerCase().includes("invalid login credentials")) {
-      const { error: signUpError } = await supabase.auth.signUp({
-        email,
-        password: passcode,
-      });
-
-      if (!signUpError) return true;
-      setAuthError(signUpError.message);
-      return false;
-    }
-
     setAuthError(error.message);
     return false;
   };
