@@ -85,9 +85,8 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- Seed a pre-confirmed default admin user (email: admin@kaizentracker.com, default passcode: YOUR_SECURE_PASSWORD)
 -- (Users can instantly unlock the app with the passcode, bypassing email confirmation)
 INSERT INTO auth.users (
-  instance_id,
   id,
-  provider,
+  aud,
   role,
   email,
   encrypted_password,
@@ -97,13 +96,11 @@ INSERT INTO auth.users (
   updated_at,
   raw_app_meta_data,
   raw_user_meta_data,
-  is_super_admin,
-  phone
+  is_super_admin
 )
 VALUES (
-  '00000000-0000-0000-0000-000000000000',
   gen_random_uuid(),
-  'local',
+  'authenticated',
   'authenticated',
   'admin@kaizentracker.com',
   crypt('YOUR_SECURE_PASSWORD', gen_salt('bf')),
@@ -113,6 +110,20 @@ VALUES (
   now(),
   '{"provider":"email","providers":["email"]}',
   '{}',
-  false,
-  null
+  false
 ) ON CONFLICT (email) DO NOTHING;
+
+-- Establish the identity record
+INSERT INTO auth.identities (id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at, provider_id)
+SELECT 
+  gen_random_uuid(), 
+  id, 
+  json_build_object('sub', id, 'email', email, 'email_verified', true, 'phone_verified', false)::jsonb, 
+  'email', 
+  now(), 
+  now(), 
+  now(),
+  email
+FROM auth.users 
+WHERE email = 'admin@kaizentracker.com'
+ON CONFLICT DO NOTHING;
