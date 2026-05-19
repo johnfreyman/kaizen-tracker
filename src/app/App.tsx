@@ -6,13 +6,14 @@ import SummaryPage from "./components/SummaryPage";
 import SettingsPage from "./components/SettingsPage";
 import RafflePage from "./components/RafflePage";
 import LeaderboardTicker from "./components/LeaderboardTicker";
+import LoginPage from "./components/LoginPage";
 import { TeamStoreProvider, useTeamStore } from "./hooks/useTeamStore";
 
 type Page = "launch" | "attendance" | "summary" | "settings" | "raffle";
 
 function AppContent() {
   const [activePage, setActivePage] = useState<Page>("launch");
-  const { state, isLoading } = useTeamStore();
+  const { state, isLoading, isAuthenticated } = useTeamStore();
 
   if (isLoading) {
     return (
@@ -23,6 +24,10 @@ function AppContent() {
         </div>
       </div>
     );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
   }
 
   const navItems = [

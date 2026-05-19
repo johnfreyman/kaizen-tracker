@@ -178,7 +178,7 @@ interface TeamStoreContextType {
   isAuthenticated: boolean;
   isAuthLoading: boolean;
   authError: string | null;
-  login: (passcode: string) => Promise<boolean>;
+  login: (email: string, password?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   startSession: (session: ActiveSession) => void;
   saveSession: (presentPlayers: string[]) => void;
@@ -197,7 +197,7 @@ const TeamStoreContext = createContext<TeamStoreContextType | null>(null);
 export function TeamStoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<TeamState>(defaultState);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const stateRef = useRef(state);
@@ -207,19 +207,83 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
   }, [state]);
 
   useEffect(() => {
-    setIsLoading(true);
-    loadFromSupabase()
-      .then((data) => {
-        setState(data);
-      })
-      .catch((err) => {
-        console.error("Failed to load data from Supabase:", err);
-      })
-      .finally(() => setIsLoading(false));
+    let subscription: any = null;
+
+    const initAuth = async () => {
+      setIsLoading(true);
+      setIsAuthLoading(true);
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const hasSession = !!session;
+        setIsAuthenticated(hasSession);
+        
+        if (hasSession) {
+          const data = await loadFromSupabase();
+          setState(data);
+        } else {
+          setState(defaultState);
+        }
+      } catch (err) {
+        console.error("Failed to initialize session data:", err);
+      } finally {
+        setIsAuthLoading(false);
+        setIsLoading(false);
+      }
+
+      const { data: { subscription: sub } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+        const hasSession = !!newSession;
+        setIsAuthenticated(hasSession);
+        setAuthError(null);
+        
+        if (hasSession) {
+          setIsLoading(true);
+          try {
+            const data = await loadFromSupabase();
+            setState(data);
+          } catch (err) {
+            console.error("Failed to load data on auth change:", err);
+          } finally {
+            setIsLoading(false);
+          }
+        } else {
+          setState(defaultState);
+          setIsLoading(false);
+        }
+      });
+      subscription = sub;
+    };
+
+    initAuth();
+
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
   }, []);
 
-  const login = async (passcode: string): Promise<boolean> => {
-    return true;
+  const login = async (email: string, password?: string): Promise<boolean> => {
+    setIsAuthLoading(true);
+    setAuthError(null);
+    try {
+      if (password) {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: window.location.origin,
+          },
+        });
+        if (error) throw error;
+      }
+      return true;
+    } catch (err: any) {
+      setAuthError(err.message || "An authentication error occurred.");
+      return false;
+    } finally {
+      setIsAuthLoading(false);
+    }
   };
 
   const logout = async () => {
