@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS events (
   type     TEXT    NOT NULL,
   duration NUMERIC NOT NULL,
   players  JSONB   NOT NULL DEFAULT '[]',
-  saved_at TEXT    NOT NULL
+  saved_at TEXT    NOT NULL,
+  CONSTRAINT check_event_type CHECK (type IN ('Practice', 'Optional Training'))
 );
 
 -- Active session (0 or 1 rows, lock_id must = 1)
@@ -32,7 +33,8 @@ CREATE TABLE IF NOT EXISTS active_session (
   date     TEXT NOT NULL,
   type     TEXT NOT NULL,
   duration NUMERIC NOT NULL,
-  CONSTRAINT enforce_single_row CHECK (lock_id = 1)
+  CONSTRAINT enforce_single_row CHECK (lock_id = 1),
+  CONSTRAINT check_session_type CHECK (type IN ('Practice', 'Optional Training'))
 );
 
 -- Archived event sets (events stored as JSONB)
@@ -137,5 +139,35 @@ BEGIN
     END IF;
   END IF;
 END $$;
+
+-- Enable Supabase Storage team-assets bucket & RLS policies
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('team-assets', 'team-assets', true)
+ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "Allow public read access on team-assets" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated insert on team-assets" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated update on team-assets" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated delete on team-assets" ON storage.objects;
+
+CREATE POLICY "Allow public read access on team-assets"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'team-assets');
+
+CREATE POLICY "Allow authenticated insert on team-assets"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'team-assets');
+
+CREATE POLICY "Allow authenticated update on team-assets"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (bucket_id = 'team-assets');
+
+CREATE POLICY "Allow authenticated delete on team-assets"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (bucket_id = 'team-assets');
+
 
 

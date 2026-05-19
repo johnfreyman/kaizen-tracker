@@ -1,69 +1,64 @@
 import { useState } from "react";
 import { Save, UserPlus, X, Upload, Gift, FileText, Archive, RotateCcw, Trash2, Trophy } from "lucide-react";
-import { useTeamStore } from "../hooks/useTeamStore";
+import { useTeamStore, EVENT_TYPES, ConflictResolutionStrategy } from "../hooks/useTeamStore";
 import PlayerTypeDialog from "./PlayerTypeDialog";
+import { formatDate } from "@/lib/dates";
+import { toast } from "sonner";
+import { calculateTotals, percent } from "@/lib/stats";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Button } from "./ui/button";
 
 export default function SettingsPage() {
-  const { state, updateSettings, addPlayer, removePlayer, restoreArchive, deleteArchive, isGuest } = useTeamStore();
+  const { state, updateSettings, addPlayer, removePlayer, restoreArchive, deleteArchive, isGuest, uploadLogo } = useTeamStore();
   const [teamName, setTeamName] = useState(state.teamName);
   const [raffleEnabled, setRaffleEnabled] = useState(state.raffleEnabled);
   const [pendingPlayerName, setPendingPlayerName] = useState("");
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [restoreReviewArchiveId, setRestoreReviewArchiveId] = useState<string | null>(null);
+  const [conflictStrategy, setConflictStrategy] = useState<ConflictResolutionStrategy>("overwrite");
+
+  // State variables for dialogs and confirmations
+  const [showAddPlayerDialog, setShowAddPlayerDialog] = useState(false);
+  const [newPlayerName, setNewPlayerName] = useState("");
+  const [archiveIdToDelete, setArchiveIdToDelete] = useState<string | null>(null);
+  const [playerToRemove, setPlayerToRemove] = useState<string | null>(null);
+  const [isAddingPlayer, setIsAddingPlayer] = useState(false);
+  const [isRemovingPlayer, setIsRemovingPlayer] = useState(false);
 
   const generatePrintableSummary = () => {
-    // Calculate totals
-    const calculateTotals = () => {
-      const totals: Record<string, { practice: number; training: number }> = {};
-      const allPlayers = new Set([
-        ...state.roster,
-        ...state.events.flatMap((e) => e.players),
-      ]);
-
-      allPlayers.forEach((player) => {
-        totals[player] = { practice: 0, training: 0 };
-      });
-
-      state.events.forEach((event) => {
-        event.players.forEach((player) => {
-          if (!totals[player]) totals[player] = { practice: 0, training: 0 };
-          if (event.type === "Practice") {
-            totals[player].practice += event.duration;
-          } else {
-            totals[player].training += event.duration;
-          }
-        });
-      });
-
-      return totals;
-    };
-
-    const totals = calculateTotals();
+    const totals = calculateTotals(state.events, state.roster);
     const totalPracticePossible = state.events
-      .filter((e) => e.type === "Practice")
+      .filter((e) => e.type === EVENT_TYPES.PRACTICE)
       .reduce((sum, e) => sum + e.duration, 0);
     const totalTrainingPossible = state.events
-      .filter((e) => e.type === "Optional Training")
+      .filter((e) => e.type === EVENT_TYPES.OPTIONAL_TRAINING)
       .reduce((sum, e) => sum + e.duration, 0);
     const totalPossible = totalPracticePossible + totalTrainingPossible;
-
-    const formatDate = (dateString: string) => {
-      return new Date(`${dateString}T12:00:00`).toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-    };
-
-    const percent = (value: number, total: number) => {
-      if (!total) return "0%";
-      return `${Math.round((value / total) * 100)}%`;
-    };
 
     const players = Object.keys(totals).sort((a, b) => a.localeCompare(b));
 
     // Generate HTML for print
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
-      alert("Please allow popups to generate the PDF");
+      toast.error("Please allow popups to generate the PDF.");
       return;
     }
 
@@ -295,7 +290,7 @@ export default function SettingsPage() {
               (archive) => `
             <div style="margin-bottom: 30px;">
               <h3 style="color: #153e75; font-size: 16px; margin-bottom: 10px;">
-                Archived on ${new Date(archive.archivedAt).toLocaleDateString(undefined, {
+                Archived on ${formatDate(archive.archivedAt, {
                   month: "short",
                   day: "numeric",
                   year: "numeric",
@@ -344,26 +339,15 @@ export default function SettingsPage() {
   };
 
   const handleRestoreArchive = (archiveId: string) => {
-    if (confirm("Restore this archived event set? Events will be added back to your current events.")) {
-      restoreArchive(archiveId);
-    }
+    setRestoreReviewArchiveId(archiveId);
+    setConflictStrategy("overwrite"); // Reset strategy to default
   };
 
   const handleDeleteArchive = (archiveId: string) => {
-    if (confirm("Permanently delete this archived event set? This cannot be undone.")) {
-      deleteArchive(archiveId);
-    }
+    setArchiveIdToDelete(archiveId);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  };
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -371,45 +355,49 @@ export default function SettingsPage() {
       teamName: teamName.trim() || "Kaizen Tracker",
       raffleEnabled
     });
-    alert("Settings saved.");
+    toast.success("Settings saved successfully.");
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      updateSettings({ teamLogo: reader.result as string });
-      alert("Team logo updated.");
-    };
-    reader.readAsDataURL(file);
+    setIsUploadingLogo(true);
+    try {
+      await uploadLogo(file);
+      toast.success("Team logo updated successfully.");
+    } catch (err) {
+      // Error handles in the hook via toast
+    } finally {
+      setIsUploadingLogo(false);
+    }
   };
 
   const handleAddPlayer = () => {
-    const name = prompt("Enter player name:");
-    if (!name) return;
-
-    setPendingPlayerName(name.trim());
+    setNewPlayerName("");
+    setShowAddPlayerDialog(true);
   };
 
-  const handlePlayerTypeSelect = (isGuestPlayer: boolean) => {
+  const handlePlayerTypeSelect = async (isGuestPlayer: boolean) => {
     if (!pendingPlayerName) return;
-    const success = addPlayer(pendingPlayerName, isGuestPlayer);
-    setPendingPlayerName("");
-    if (!success) {
-      alert("That player is already on the roster.");
+
+    const nameLower = pendingPlayerName.trim().toLowerCase();
+    if (state.roster.some((p) => p.toLowerCase() === nameLower)) {
+      toast.error("That player is already on the roster.");
+      return;
+    }
+
+    setIsAddingPlayer(true);
+    try {
+      await addPlayer(pendingPlayerName, isGuestPlayer);
+      setPendingPlayerName("");
+    } finally {
+      setIsAddingPlayer(false);
     }
   };
 
   const handleRemovePlayer = (player: string) => {
-    if (
-      confirm(
-        `Remove ${player} from the roster? Existing event history will stay saved.`
-      )
-    ) {
-      removePlayer(player);
-    }
+    setPlayerToRemove(player);
   };
 
   return (
@@ -466,9 +454,15 @@ export default function SettingsPage() {
               <input
                 type="file"
                 accept="image/*"
+                disabled={isUploadingLogo}
                 onChange={handleLogoUpload}
-                className="w-full px-4 py-3 rounded-2xl border border-gray-300 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-blue-50 file:text-blue-700 file:font-semibold hover:file:bg-blue-100 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                className="w-full px-4 py-3 rounded-2xl border border-gray-300 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-blue-50 file:text-blue-700 file:font-semibold hover:file:bg-blue-100 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               />
+              {isUploadingLogo && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-blue-600 animate-pulse">
+                  Uploading...
+                </div>
+              )}
             </div>
             {state.teamLogo && (
               <div className="mt-4 p-4 bg-gray-50 rounded-2xl">
@@ -605,7 +599,13 @@ export default function SettingsPage() {
                       {archive.events.length} events archived
                     </div>
                     <div className="text-sm text-gray-500">
-                      {formatDate(archive.archivedAt)}
+                      {formatDate(archive.archivedAt, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -633,7 +633,7 @@ export default function SettingsPage() {
                     {archive.events.map((event) => (
                       <div key={event.id} className="text-gray-600">
                         <div className="font-semibold text-gray-900">
-                          {event.type} - {new Date(`${event.date}T12:00:00`).toLocaleDateString()}
+                          {event.type} - {formatDate(event.date)}
                         </div>
                         <div className="text-sm text-gray-600 mt-1">
                           {event.duration} {event.duration === 1 ? "hour" : "hours"} • {event.players.length} {event.players.length === 1 ? "player" : "players"}
@@ -655,8 +655,385 @@ export default function SettingsPage() {
           playerName={pendingPlayerName}
           onSelect={handlePlayerTypeSelect}
           onCancel={() => setPendingPlayerName("")}
+          isLoading={isAddingPlayer}
         />
       )}
+
+      {restoreReviewArchiveId && (() => {
+        const reviewArchive = state.archivedEvents.find((a) => a.id === restoreReviewArchiveId);
+        if (!reviewArchive) return null;
+
+        const currentEventsMap = new Map(state.events.map((e) => [e.id, e]));
+        const archiveEvents = reviewArchive.events;
+        const conflicts = archiveEvents.filter((e) => currentEventsMap.has(e.id)).map((e) => ({
+          archived: e,
+          current: currentEventsMap.get(e.id)!,
+        }));
+        const newEvents = archiveEvents.filter((e) => !currentEventsMap.has(e.id));
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto animate-fade-in">
+            <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-100 flex flex-col my-8 max-h-[85vh] overflow-hidden">
+              {/* Header */}
+              <div className="p-6 md:p-8 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-blue-50/50">
+                <div className="flex items-center gap-3">
+                  <Archive className="size-7 text-indigo-600 animate-pulse" />
+                  <div>
+                    <h3 className="text-xl md:text-2xl font-black text-slate-800">Review Restoration</h3>
+                    <p className="text-xs md:text-sm text-slate-500 font-medium mt-0.5">
+                      Archived on {formatDate(reviewArchive.archivedAt, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRestoreReviewArchiveId(null)}
+                  className="p-2 hover:bg-slate-200/50 text-slate-400 hover:text-slate-600 rounded-xl transition-all"
+                >
+                  <X className="size-6" />
+                </button>
+              </div>
+
+              {/* Scrollable Content */}
+              <div className="p-6 md:p-8 overflow-y-auto space-y-6 flex-1 min-h-0">
+                {/* Summary Badges */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-indigo-50/50 border border-indigo-100/50 p-4 rounded-2xl flex flex-col justify-center">
+                    <span className="text-sm font-semibold text-indigo-600/80">Total Archived</span>
+                    <span className="text-2xl md:text-3xl font-black text-indigo-900 mt-1">
+                      {archiveEvents.length} <span className="text-sm font-normal text-indigo-500">events</span>
+                    </span>
+                  </div>
+                  <div className="bg-emerald-50/50 border border-emerald-100/50 p-4 rounded-2xl flex flex-col justify-center">
+                    <span className="text-sm font-semibold text-emerald-600/80">New Events to Add</span>
+                    <span className="text-2xl md:text-3xl font-black text-emerald-950 mt-1">
+                      {newEvents.length} <span className="text-sm font-normal text-emerald-500">events</span>
+                    </span>
+                  </div>
+                  <div className={`p-4 rounded-2xl flex flex-col justify-center border ${conflicts.length > 0 ? "bg-amber-50/50 border-amber-200/50" : "bg-slate-50/50 border-slate-100"}`}>
+                    <span className={`text-sm font-semibold ${conflicts.length > 0 ? "text-amber-600" : "text-slate-500"}`}>Conflicting IDs</span>
+                    <span className={`text-2xl md:text-3xl font-black mt-1 ${conflicts.length > 0 ? "text-amber-950" : "text-slate-600"}`}>
+                      {conflicts.length} <span className="text-sm font-normal text-slate-400">conflicts</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* New Events List */}
+                {newEvents.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">New Events ({newEvents.length})</h4>
+                    <div className="bg-slate-50/80 rounded-2xl border border-slate-100 p-4 space-y-3 max-h-[200px] overflow-y-auto">
+                      {newEvents.map((e) => (
+                        <div key={e.id} className="flex justify-between items-center text-sm p-2 bg-white rounded-xl border border-slate-100 shadow-sm">
+                          <div>
+                            <span className="font-semibold text-slate-800">{e.type}</span>
+                            <span className="text-slate-400 mx-2">•</span>
+                            <span className="text-slate-500">{formatDate(e.date)}</span>
+                          </div>
+                          <div className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2.5 py-1 rounded-full border border-emerald-100">
+                            {e.duration} hr{e.duration !== 1 && "s"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Conflicts Section */}
+                {conflicts.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="bg-amber-50 border border-amber-200/60 rounded-2xl p-4 flex gap-3">
+                      <span className="text-xl">⚠️</span>
+                      <div>
+                        <h4 className="font-bold text-amber-900 text-sm md:text-base">Conflict Strategy Settings Needed</h4>
+                        <p className="text-xs md:text-sm text-amber-800/90 mt-1">
+                          There are <strong>{conflicts.length} conflicting events</strong> already present in your active tracking. Please choose your conflict resolution policy below.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Strategy Selector (Cards) */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {/* Overwrite */}
+                      <button
+                        type="button"
+                        onClick={() => setConflictStrategy("overwrite")}
+                        className={`p-4 text-left rounded-2xl border transition-all flex flex-col justify-between h-full relative ${
+                          conflictStrategy === "overwrite"
+                            ? "border-indigo-600 bg-indigo-50/40 ring-2 ring-indigo-600/20"
+                            : "border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
+                        }`}
+                      >
+                        <div>
+                          <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                            conflictStrategy === "overwrite" ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-600"
+                          }`}>
+                            Overwrite
+                          </span>
+                          <h5 className="font-bold text-slate-800 mt-2 text-sm">Last-Write-Wins</h5>
+                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                            Replace current active events with their archived versions. Existing versions will be overwritten.
+                          </p>
+                        </div>
+                      </button>
+
+                      {/* Skip */}
+                      <button
+                        type="button"
+                        onClick={() => setConflictStrategy("skip")}
+                        className={`p-4 text-left rounded-2xl border transition-all flex flex-col justify-between h-full relative ${
+                          conflictStrategy === "skip"
+                            ? "border-indigo-600 bg-indigo-50/40 ring-2 ring-indigo-600/20"
+                            : "border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
+                        }`}
+                      >
+                        <div>
+                          <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                            conflictStrategy === "skip" ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-600"
+                          }`}>
+                            Skip Duplicates
+                          </span>
+                          <h5 className="font-bold text-slate-800 mt-2 text-sm">Keep Current</h5>
+                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                            Keep active events exactly as they are. Only restore new, non-conflicting archived events.
+                          </p>
+                        </div>
+                      </button>
+
+                      {/* Error */}
+                      <button
+                        type="button"
+                        onClick={() => setConflictStrategy("error")}
+                        className={`p-4 text-left rounded-2xl border transition-all flex flex-col justify-between h-full relative ${
+                          conflictStrategy === "error"
+                            ? "border-red-600 bg-red-50/30 ring-2 ring-red-600/20"
+                            : "border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
+                        }`}
+                      >
+                        <div>
+                          <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                            conflictStrategy === "error" ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-600"
+                          }`}>
+                            Fail / Abort
+                          </span>
+                          <h5 className="font-bold text-slate-800 mt-2 text-sm">Raise Error</h5>
+                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                            Strict validation policy. Throw a clear error notification and halt the restoration process.
+                          </p>
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Conflict Diffs (Comparison View) */}
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mt-6">Conflict Comparison ({conflicts.length})</h4>
+                      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                        {conflicts.map((conflict, index) => (
+                          <div key={conflict.archived.id} className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                            <div className="bg-slate-100 p-2.5 border-b border-slate-200 flex justify-between items-center">
+                              <span className="text-xs font-bold text-slate-600">Conflict #{index + 1}</span>
+                              <span className="text-[10px] font-mono bg-slate-200 text-slate-700 px-2 py-0.5 rounded">ID: {conflict.archived.id.slice(0, 8)}...</span>
+                            </div>
+
+                            {/* Side-by-side or stacked diff grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200 bg-white">
+                              {/* Current Event */}
+                              <div className={`p-4 ${conflictStrategy === "skip" ? "bg-slate-50/40" : "bg-red-50/10"}`}>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs font-bold text-slate-400 uppercase">Current Event</span>
+                                  {conflictStrategy === "skip" && (
+                                    <span className="text-[10px] font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">
+                                      Preserved
+                                    </span>
+                                  )}
+                                  {conflictStrategy === "overwrite" && (
+                                    <span className="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                                      Overwritten
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="font-bold text-slate-800 text-sm">{conflict.current.type}</div>
+                                  <div className="text-xs text-slate-500">Date: {formatDate(conflict.current.date)}</div>
+                                  <div className="text-xs text-slate-500">Duration: {conflict.current.duration} hr{conflict.current.duration !== 1 && "s"}</div>
+                                  <div className="text-xs text-slate-600 mt-2 line-clamp-2">
+                                    <span className="font-semibold text-slate-500">Attended:</span> {conflict.current.players.length > 0 ? conflict.current.players.join(", ") : "None"}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Archived Event */}
+                              <div className={`p-4 ${conflictStrategy === "overwrite" ? "bg-emerald-50/20" : "bg-slate-50/40"}`}>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs font-bold text-indigo-500 uppercase">Archived Event</span>
+                                  {conflictStrategy === "overwrite" && (
+                                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                                      Restored
+                                    </span>
+                                  )}
+                                  {conflictStrategy === "skip" && (
+                                    <span className="text-[10px] font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">
+                                      Skipped
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="font-bold text-slate-800 text-sm">{conflict.archived.type}</div>
+                                  <div className="text-xs text-slate-500">Date: {formatDate(conflict.archived.date)}</div>
+                                  <div className="text-xs text-slate-500">Duration: {conflict.archived.duration} hr{conflict.archived.duration !== 1 && "s"}</div>
+                                  <div className="text-xs text-slate-600 mt-2 line-clamp-2">
+                                    <span className="font-semibold text-slate-500">Attended:</span> {conflict.archived.players.length > 0 ? conflict.archived.players.join(", ") : "None"}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-6 md:p-8 bg-slate-50 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 rounded-b-3xl">
+                <button
+                  type="button"
+                  onClick={() => setRestoreReviewArchiveId(null)}
+                  className="w-full sm:w-auto px-6 py-3 font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all text-center"
+                >
+                  Cancel
+                </button>
+
+                {conflictStrategy === "error" && conflicts.length > 0 ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="w-full sm:w-auto px-6 py-3 font-semibold text-red-400 bg-red-50 border border-red-200 rounded-xl cursor-not-allowed text-center"
+                  >
+                    Cannot Restore (Abort Strategy Selected)
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await restoreArchive(reviewArchive.id, conflictStrategy);
+                      setRestoreReviewArchiveId(null);
+                    }}
+                    className="w-full sm:w-auto px-6 py-3 font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-xl shadow-lg shadow-indigo-600/20 hover:shadow-indigo-700/30 active:shadow-indigo-800/40 hover:-translate-y-0.5 active:translate-y-0 transition-all text-center"
+                  >
+                    Confirm & Restore
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Add Player Dialog */}
+      <Dialog open={showAddPlayerDialog} onOpenChange={setShowAddPlayerDialog}>
+        <DialogContent className="sm:max-w-[425px] bg-white rounded-3xl p-6 md:p-8 shadow-xl border border-gray-200">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-gray-900">Add Player to Roster</DialogTitle>
+            <DialogDescription className="text-gray-600">
+              Enter the name of the player you would like to add.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Input
+              id="name"
+              value={newPlayerName}
+              onChange={(e) => setNewPlayerName(e.target.value)}
+              placeholder="Player Name"
+              autoFocus
+              className="w-full px-4 py-3 rounded-2xl border border-gray-300 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newPlayerName.trim()) {
+                  setPendingPlayerName(newPlayerName.trim());
+                  setShowAddPlayerDialog(false);
+                }
+              }}
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setShowAddPlayerDialog(false)} className="rounded-xl border-gray-300 text-gray-700 hover:bg-gray-50">
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!newPlayerName.trim()}
+              onClick={() => {
+                setPendingPlayerName(newPlayerName.trim());
+                setShowAddPlayerDialog(false);
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-all shadow-md"
+            >
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Archive Confirmation Alert */}
+      <AlertDialog open={archiveIdToDelete !== null} onOpenChange={(open) => !open && setArchiveIdToDelete(null)}>
+        <AlertDialogContent className="bg-white rounded-3xl p-6 md:p-8 shadow-xl border border-gray-200">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold text-gray-900">Delete Archived Events?</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600">
+              Permanently delete this archived event set? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-all shadow-md"
+              onClick={() => {
+                if (archiveIdToDelete) {
+                  deleteArchive(archiveIdToDelete);
+                  toast.success("Archived event set deleted successfully.");
+                  setArchiveIdToDelete(null);
+                }
+              }}
+            >
+              Delete Archive
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Remove Player Confirmation Alert */}
+      <AlertDialog open={playerToRemove !== null} onOpenChange={(open) => !open && setPlayerToRemove(null)}>
+        <AlertDialogContent className="bg-white rounded-3xl p-6 md:p-8 shadow-xl border border-gray-200">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold text-gray-900">Remove Player from Roster?</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600">
+              Are you sure you want to remove <span className="font-semibold text-gray-900">{playerToRemove}</span> from the roster? Existing event history will stay saved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl border-gray-300 text-gray-700 hover:bg-gray-50" disabled={isRemovingPlayer}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-all shadow-md"
+              disabled={isRemovingPlayer}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (playerToRemove) {
+                  setIsRemovingPlayer(true);
+                  try {
+                    await removePlayer(playerToRemove);
+                    setPlayerToRemove(null);
+                  } finally {
+                    setIsRemovingPlayer(false);
+                  }
+                }
+              }}
+            >
+              {isRemovingPlayer ? "Removing..." : "Remove Player"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

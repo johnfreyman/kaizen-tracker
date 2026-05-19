@@ -2,8 +2,7 @@ import { useState } from "react";
 import { Play, Calendar as CalendarIcon } from "lucide-react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
-import { useTeamStore } from "../hooks/useTeamStore";
-import { ActiveSession } from "../hooks/useTeamStore";
+import { useTeamStore, ActiveSession, EventType, EVENT_TYPES } from "../hooks/useTeamStore";
 
 type Page = "launch" | "attendance" | "summary" | "settings";
 
@@ -15,10 +14,21 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
   const { startSession } = useTeamStore();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
-  const [eventType, setEventType] = useState<"Practice" | "Optional Training">(
-    "Practice"
+  const [eventType, setEventType] = useState<EventType>(
+    EVENT_TYPES.PRACTICE
   );
-  const [duration, setDuration] = useState(1);
+  const [durationInput, setDurationInput] = useState("1");
+
+  const parsedDuration = parseFloat(durationInput);
+  const isDurationValid =
+    !isNaN(parsedDuration) &&
+    parsedDuration >= 0.5 &&
+    parsedDuration <= 4 &&
+    Number.isInteger(parsedDuration * 2);
+
+  const selectPreset = (val: number) => {
+    setDurationInput(val.toString());
+  };
 
   const formatDisplayDate = (date: Date) => {
     return date.toLocaleDateString(undefined, {
@@ -38,12 +48,13 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isDurationValid) return;
 
     const session: ActiveSession = {
       id: crypto.randomUUID(),
       date: selectedDate.toISOString().split("T")[0],
       type: eventType,
-      duration,
+      duration: parsedDuration,
     };
 
     startSession(session);
@@ -111,7 +122,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
             Event Type
           </legend>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {["Practice", "Optional Training"].map((type) => (
+            {Object.values(EVENT_TYPES).map((type) => (
               <label
                 key={type}
                 className="relative block cursor-pointer"
@@ -122,7 +133,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                   value={type}
                   checked={eventType === type}
                   onChange={(e) =>
-                    setEventType(e.target.value as "Practice" | "Optional Training")
+                    setEventType(e.target.value as EventType)
                   }
                   className="sr-only"
                 />
@@ -140,43 +151,98 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
           </div>
         </fieldset>
 
-        {/* Duration */}
-        <fieldset>
-          <legend className="block mb-3 font-semibold text-gray-900">
-            Duration
-          </legend>
-          <div className="grid grid-cols-3 gap-3">
-            {[1, 1.5, 2].map((hrs) => (
-              <label
-                key={hrs}
-                className="relative block cursor-pointer"
-              >
+        {/* Duration Selection */}
+        <fieldset className="space-y-4">
+          <div className="flex items-center justify-between">
+            <legend className="font-semibold text-gray-900">
+              Duration
+            </legend>
+            <span className={`text-xs font-bold px-3 py-1 rounded-full border transition-colors ${
+              isDurationValid 
+                ? "bg-blue-50 text-blue-700 border-blue-200" 
+                : "bg-red-50 text-red-700 border-red-200 animate-pulse"
+            }`}>
+              {isDurationValid ? `${parsedDuration} ${parsedDuration === 1 ? "hour" : "hours"}` : "Invalid Duration"}
+            </span>
+          </div>
+
+          <div className="bg-gray-50/60 rounded-3xl p-5 border border-gray-200 space-y-5">
+            {/* Range Slider and Number Input Row */}
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="w-full flex-1 flex items-center gap-3">
+                <span className="text-xs font-semibold text-gray-400">0.5h</span>
                 <input
-                  type="radio"
-                  name="duration"
-                  value={hrs}
-                  checked={duration === hrs}
-                  onChange={(e) => setDuration(Number(e.target.value))}
-                  className="sr-only"
+                  type="range"
+                  min="0.5"
+                  max="4"
+                  step="0.5"
+                  value={isDurationValid ? parsedDuration : 1}
+                  onChange={(e) => setDurationInput(e.target.value)}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600 focus:outline-none"
                 />
-                <div
-                  className={`flex items-center justify-center min-h-16 px-4 py-3 rounded-2xl border-2 font-bold transition-all ${
-                    duration === hrs
-                      ? "border-blue-600 bg-blue-50 text-blue-700"
-                      : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+                <span className="text-xs font-semibold text-gray-400">4.0h</span>
+              </div>
+
+              <div className="w-full sm:w-auto flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0.5"
+                  max="4"
+                  step="0.5"
+                  value={durationInput}
+                  onChange={(e) => setDurationInput(e.target.value)}
+                  className={`w-full sm:w-28 px-3 py-2 rounded-2xl border text-center font-bold text-gray-900 transition-all focus:outline-none focus:ring-2 ${
+                    isDurationValid
+                      ? "border-gray-300 bg-white focus:border-blue-500 focus:ring-blue-100"
+                      : "border-red-500 bg-red-50/30 focus:border-red-500 focus:ring-red-100"
                   }`}
-                >
-                  {hrs} {hrs === 1 ? "hour" : "hours"}
+                  placeholder="Hrs"
+                />
+                <span className="text-sm font-bold text-gray-500">hours</span>
+              </div>
+            </div>
+
+            {/* Quick Select Chips and Error Indicator */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Presets:</span>
+                <div className="flex gap-1.5">
+                  {[1.0, 1.5, 2.0].map((preset) => {
+                    const isActive = isDurationValid && parsedDuration === preset;
+                    return (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => selectPreset(preset)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
+                          isActive
+                            ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-600/10 -translate-y-0.5"
+                            : "bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        {preset.toFixed(1)}h
+                      </button>
+                    );
+                  })}
                 </div>
-              </label>
-            ))}
+              </div>
+
+              {/* Error Message */}
+              {!isDurationValid && (
+                <div className="text-xs font-bold text-red-600 flex items-center gap-1 animate-pulse">
+                  <span>⚠️</span>
+                  <span>Enter a multiple of 0.5 between 0.5 and 4.0.</span>
+                </div>
+              )}
+            </div>
           </div>
         </fieldset>
 
         {/* Submit Button */}
         <button
           type="submit"
-          className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all shadow-lg hover:shadow-xl"
+          disabled={!isDurationValid}
+          className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Play className="size-5" />
           Start Session

@@ -1,62 +1,37 @@
+import { useState } from "react";
 import { BarChart3, Calendar, Clock, Archive } from "lucide-react";
-import { useTeamStore } from "../hooks/useTeamStore";
+import { useTeamStore, EVENT_TYPES } from "../hooks/useTeamStore";
+import { formatDate } from "@/lib/dates";
+import { calculateTotals, percent } from "@/lib/stats";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
 
 export default function SummaryPage() {
   const { state, archiveEvents } = useTeamStore();
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
 
-  const calculateTotals = () => {
-    const totals: Record<string, { practice: number; training: number }> = {};
-
-    const allPlayers = new Set([
-      ...state.roster,
-      ...state.events.flatMap((e) => e.players),
-    ]);
-
-    allPlayers.forEach((player) => {
-      totals[player] = { practice: 0, training: 0 };
-    });
-
-    state.events.forEach((event) => {
-      event.players.forEach((player) => {
-        if (!totals[player]) totals[player] = { practice: 0, training: 0 };
-        if (event.type === "Practice") {
-          totals[player].practice += event.duration;
-        } else {
-          totals[player].training += event.duration;
-        }
-      });
-    });
-
-    return totals;
-  };
-
-  const totals = calculateTotals();
+  const totals = calculateTotals(state.events, state.roster);
   const totalPracticePossible = state.events
-    .filter((e) => e.type === "Practice")
+    .filter((e) => e.type === EVENT_TYPES.PRACTICE)
     .reduce((sum, e) => sum + e.duration, 0);
   const totalTrainingPossible = state.events
-    .filter((e) => e.type === "Optional Training")
+    .filter((e) => e.type === EVENT_TYPES.OPTIONAL_TRAINING)
     .reduce((sum, e) => sum + e.duration, 0);
   const totalPossible = totalPracticePossible + totalTrainingPossible;
 
-  const formatDate = (dateString: string) => {
-    return new Date(`${dateString}T12:00:00`).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
-
-  const percent = (value: number, total: number) => {
-    if (!total) return "0%";
-    return `${Math.round((value / total) * 100)}%`;
-  };
 
   const handleArchiveEvents = () => {
     if (state.events.length === 0) return;
-    if (confirm("Archive all logged events? You can restore them later from Settings.")) {
-      archiveEvents();
-    }
+    setShowArchiveConfirm(true);
   };
 
   const players = Object.keys(totals).sort((a, b) => a.localeCompare(b));
@@ -244,6 +219,36 @@ export default function SummaryPage() {
           </div>
         )}
       </div>
+      {/* Archive Confirmation Dialog */}
+      <AlertDialog open={showArchiveConfirm} onOpenChange={setShowArchiveConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive logged events?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Archive all logged events? You can restore them later from Settings.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isArchiving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-indigo-600 hover:bg-indigo-700"
+              disabled={isArchiving}
+              onClick={async (e) => {
+                e.preventDefault();
+                setIsArchiving(true);
+                try {
+                  await archiveEvents();
+                  setShowArchiveConfirm(false);
+                } finally {
+                  setIsArchiving(false);
+                }
+              }}
+            >
+              {isArchiving ? "Archiving..." : "Archive"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

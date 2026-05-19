@@ -35,7 +35,8 @@ export default function LeaderboardTicker() {
   };
 
   const leaderboard = getPlayerTotals();
-  const hasData = leaderboard.length > 0 && leaderboard[0].hours > 0;
+  const hasEventsWithAttendance = state.events.some((event) => event.players && event.players.length > 0);
+  const hasData = hasEventsWithAttendance && leaderboard.length > 0 && leaderboard[0].hours > 0;
 
   const SPEED = 200;
 
@@ -122,6 +123,15 @@ export default function LeaderboardTicker() {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     };
   }, [hasData, leaderboard.map((p) => `${p.name}:${p.hours}`).join(","), animate]);
+
+  if (!hasEventsWithAttendance) {
+    return (
+      <div className="bg-gradient-to-br from-white to-blue-50/30 backdrop-blur-sm rounded-2xl p-4 border border-blue-100/50 flex items-center gap-3 text-sm text-blue-700 font-medium shadow-sm mb-4">
+        <Trophy className="size-5 text-blue-600 flex-shrink-0 animate-pulse" />
+        <span>No events logged yet — start a session to see the leaderboard.</span>
+      </div>
+    );
+  }
 
   if (!hasData) return null;
 

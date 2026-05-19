@@ -1,12 +1,24 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 const LOCAL_STORAGE_KEY = "kaizenTrackerState";
+
+export const EVENT_TYPES = {
+  PRACTICE: "Practice",
+  OPTIONAL_TRAINING: "Optional Training",
+} as const;
+
+export type EventType = typeof EVENT_TYPES[keyof typeof EVENT_TYPES];
+
+export function isEventType(value: unknown): value is EventType {
+  return value === EVENT_TYPES.PRACTICE || value === EVENT_TYPES.OPTIONAL_TRAINING;
+}
 
 export interface TeamEvent {
   id: string;
   date: string;
-  type: "Practice" | "Optional Training";
+  type: EventType;
   duration: number;
   players: string[];
   savedAt: string;
@@ -15,7 +27,7 @@ export interface TeamEvent {
 export interface ActiveSession {
   id: string;
   date: string;
-  type: "Practice" | "Optional Training";
+  type: EventType;
   duration: number;
 }
 
@@ -24,6 +36,9 @@ export interface ArchivedEventSet {
   archivedAt: string;
   events: TeamEvent[];
 }
+
+export type ConflictResolutionStrategy = "overwrite" | "skip" | "error";
+
 
 export interface TeamState {
   teamName: string;
@@ -39,16 +54,7 @@ export interface TeamState {
 const defaultState: TeamState = {
   teamName: "Kaizen Tracker",
   teamLogo: "",
-  roster: [
-    "Ben Freyman",
-    "Bradley Hsi",
-    "Crew Stephens",
-    "Kailil Green",
-    "Kaiyin Ramirez",
-    "Mason Bailey",
-    "Matteo Bailey",
-    "Moses Boyd"
-  ],
+  roster: [],
   events: [],
   activeSession: null,
   raffleEnabled: false,
@@ -151,7 +157,7 @@ async function loadFromSupabase(): Promise<TeamState> {
     events: events.map((e) => ({
       id: e.id,
       date: e.date,
-      type: e.type as "Practice" | "Optional Training",
+      type: isEventType(e.type) ? e.type : EVENT_TYPES.PRACTICE,
       duration: e.duration,
       players: e.players,
       savedAt: e.saved_at,
@@ -160,7 +166,7 @@ async function loadFromSupabase(): Promise<TeamState> {
       ? {
           id: session.id,
           date: session.date,
-          type: session.type as "Practice" | "Optional Training",
+          type: isEventType(session.type) ? session.type : EVENT_TYPES.PRACTICE,
           duration: session.duration,
         }
       : null,
@@ -180,14 +186,15 @@ interface TeamStoreContextType {
   authError: string | null;
   login: (email: string, password?: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  startSession: (session: ActiveSession) => void;
-  saveSession: (presentPlayers: string[]) => void;
-  addPlayer: (name: string, isGuest?: boolean) => boolean;
-  removePlayer: (name: string) => void;
-  updateSettings: (settings: { teamName?: string; teamLogo?: string; raffleEnabled?: boolean }) => void;
-  archiveEvents: () => void;
-  restoreArchive: (archiveId: string) => void;
-  deleteArchive: (archiveId: string) => void;
+  startSession: (session: ActiveSession) => Promise<void>;
+  saveSession: (presentPlayers: string[]) => Promise<void>;
+  addPlayer: (name: string, isGuest?: boolean) => Promise<boolean>;
+  removePlayer: (name: string) => Promise<void>;
+  updateSettings: (settings: { teamName?: string; teamLogo?: string; raffleEnabled?: boolean }) => Promise<void>;
+  uploadLogo: (file: File) => Promise<void>;
+  archiveEvents: () => Promise<void>;
+  restoreArchive: (archiveId: string, strategy?: ConflictResolutionStrategy) => Promise<void>;
+  deleteArchive: (archiveId: string) => Promise<void>;
   editLastSession: () => TeamEvent | null;
   isGuest: (playerName: string) => boolean;
 }
@@ -295,18 +302,28 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({ ...prev, ...updates }));
   };
 
-  const startSession = (session: ActiveSession) => {
+  const startSession = async (session: ActiveSession) => {
+    const previousSession = stateRef.current.activeSession;
     updateState({ activeSession: session });
-    Promise.resolve(
-      supabase
+    try {
+      const { error } = await supabase
         .from("active_session")
-        .upsert({ lock_id: 1, id: session.id, date: session.date, type: session.type, duration: session.duration })
-    ).catch(console.error);
+        .upsert({ lock_id: 1, id: session.id, date: session.date, type: session.type, duration: session.duration });
+      if (error) throw error;
+      toast.success("Session started successfully.");
+    } catch (err: any) {
+      console.error("Failed to start session:", err);
+      updateState({ activeSession: previousSession });
+      toast.error(`Failed to start session: ${err.message || "Unknown error"}`);
+    }
   };
 
-  const saveSession = (presentPlayers: string[]) => {
+  const saveSession = async (presentPlayers: string[]) => {
     const current = stateRef.current;
     if (!current.activeSession) return;
+
+    const previousEvents = current.events;
+    const previousActiveSession = current.activeSession;
 
     const event: TeamEvent = {
       ...current.activeSession,
@@ -316,66 +333,114 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
 
     updateState({ events: [event, ...current.events], activeSession: null });
 
-    Promise.all([
-      supabase.from("events").insert({
-        id: event.id,
-        date: event.date,
-        type: event.type,
-        duration: event.duration,
-        players: event.players,
-        saved_at: event.savedAt,
-      }),
-      supabase.from("active_session").delete().eq("lock_id", 1),
-    ]).catch(console.error);
+    try {
+      const [insertRes, deleteRes] = await Promise.all([
+        supabase.from("events").insert({
+          id: event.id,
+          date: event.date,
+          type: event.type,
+          duration: event.duration,
+          players: event.players,
+          saved_at: event.savedAt,
+        }),
+        supabase.from("active_session").delete().eq("lock_id", 1),
+      ]);
+
+      if (insertRes.error) throw insertRes.error;
+      if (deleteRes.error) throw deleteRes.error;
+
+      toast.success("Session saved successfully.");
+    } catch (err: any) {
+      console.error("Failed to save session:", err);
+      updateState({ events: previousEvents, activeSession: previousActiveSession });
+      toast.error(`Failed to save session: ${err.message || "Unknown error"}`);
+    }
   };
 
-  const addPlayer = (name: string, isGuest = false): boolean => {
+  const addPlayer = async (name: string, isGuest = false): Promise<boolean> => {
     const trimmed = name.trim();
     if (!trimmed) return false;
 
     const current = stateRef.current;
     if (current.roster.some((p) => p.toLowerCase() === trimmed.toLowerCase())) return false;
 
+    const previousRoster = current.roster;
+    const previousGuestPlayers = current.guestPlayers;
+
     const newRoster = [...current.roster, trimmed].sort((a, b) => a.localeCompare(b));
     updateState({
       roster: newRoster,
       guestPlayers: isGuest ? [...current.guestPlayers, trimmed] : current.guestPlayers,
     });
-    Promise.resolve(
-      supabase.from("roster").insert({ name: trimmed, is_guest: isGuest })
-    ).catch(console.error);
-    return true;
+
+    try {
+      const { error } = await supabase.from("roster").insert({ name: trimmed, is_guest: isGuest });
+      if (error) throw error;
+      toast.success(`${trimmed} added to roster.`);
+      return true;
+    } catch (err: any) {
+      console.error("Failed to add player to database:", err);
+      updateState({ roster: previousRoster, guestPlayers: previousGuestPlayers });
+      toast.error(`Failed to add player: ${err.message || "Unknown error"}`);
+      return false;
+    }
   };
 
-  const removePlayer = (name: string) => {
+  const removePlayer = async (name: string) => {
     const current = stateRef.current;
+    const previousRoster = current.roster;
+    const previousGuestPlayers = current.guestPlayers;
+
     updateState({
       roster: current.roster.filter((p) => p !== name),
       guestPlayers: current.guestPlayers.filter((p) => p !== name),
     });
-    Promise.resolve(
-      supabase.from("roster").delete().eq("name", name)
-    ).catch(console.error);
+
+    try {
+      const { error } = await supabase.from("roster").delete().eq("name", name);
+      if (error) throw error;
+      toast.success(`${name} removed from roster.`);
+    } catch (err: any) {
+      console.error("Failed to remove player:", err);
+      updateState({ roster: previousRoster, guestPlayers: previousGuestPlayers });
+      toast.error(`Failed to remove player: ${err.message || "Unknown error"}`);
+    }
   };
 
   const isGuest = (playerName: string) => stateRef.current.guestPlayers.includes(playerName);
 
-  const updateSettings = (settings: { teamName?: string; teamLogo?: string; raffleEnabled?: boolean }) => {
+  const updateSettings = async (settings: { teamName?: string; teamLogo?: string; raffleEnabled?: boolean }) => {
     const current = stateRef.current;
+    const previousSettings = {
+      teamName: current.teamName,
+      teamLogo: current.teamLogo,
+      raffleEnabled: current.raffleEnabled,
+    };
+
     updateState(settings);
-    Promise.resolve(
-      supabase.from("team_settings").upsert({
+
+    try {
+      const { error } = await supabase.from("team_settings").upsert({
         id: 1,
         team_name: settings.teamName ?? current.teamName,
         team_logo: settings.teamLogo ?? current.teamLogo,
         raffle_enabled: settings.raffleEnabled ?? current.raffleEnabled,
-      })
-    ).catch(console.error);
+      });
+      if (error) throw error;
+      toast.success("Settings updated.");
+    } catch (err: any) {
+      console.error("Failed to update settings:", err);
+      updateState(previousSettings);
+      toast.error(`Failed to update settings: ${err.message || "Unknown error"}`);
+    }
   };
 
-  const archiveEvents = () => {
+  const archiveEvents = async () => {
     const current = stateRef.current;
     if (current.events.length === 0) return;
+
+    const previousEvents = current.events;
+    const previousArchivedEvents = current.archivedEvents;
 
     const archive: ArchivedEventSet = {
       id: crypto.randomUUID(),
@@ -386,47 +451,115 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     updateState({ events: [], archivedEvents: [archive, ...current.archivedEvents] });
 
     const eventIds = current.events.map((e) => e.id);
-    Promise.all([
-      supabase.from("archived_event_sets").insert({
-        id: archive.id,
-        archived_at: archive.archivedAt,
-        events: archive.events,
-      }),
-      supabase.from("events").delete().in("id", eventIds),
-    ]).catch(console.error);
+    try {
+      const [insertRes, deleteRes] = await Promise.all([
+        supabase.from("archived_event_sets").insert({
+          id: archive.id,
+          archived_at: archive.archivedAt,
+          events: archive.events,
+        }),
+        supabase.from("events").delete().in("id", eventIds),
+      ]);
+
+      if (insertRes.error) throw insertRes.error;
+      if (deleteRes.error) throw deleteRes.error;
+
+      toast.success("Events archived successfully.");
+    } catch (err: any) {
+      console.error("Failed to archive events:", err);
+      updateState({ events: previousEvents, archivedEvents: previousArchivedEvents });
+      toast.error(`Failed to archive events: ${err.message || "Unknown error"}`);
+    }
   };
 
-  const restoreArchive = (archiveId: string) => {
+  const restoreArchive = async (archiveId: string, strategy: ConflictResolutionStrategy = "overwrite") => {
     const current = stateRef.current;
     const archive = current.archivedEvents.find((a) => a.id === archiveId);
     if (!archive) return;
 
+    const previousEvents = current.events;
+    const previousArchivedEvents = current.archivedEvents;
+
+    // Check for ID conflicts
+    const currentEventIds = new Set(current.events.map((e) => e.id));
+    const conflictingEvents = archive.events.filter((e) => currentEventIds.has(e.id));
+
+    if (conflictingEvents.length > 0 && strategy === "error") {
+      toast.error(`Restore aborted: Found ${conflictingEvents.length} duplicate event ID(s).`);
+      return;
+    }
+
+    let eventsToRestore = [...archive.events];
+    let mergedEventsList: TeamEvent[] = [];
+
+    if (strategy === "skip") {
+      eventsToRestore = archive.events.filter((e) => !currentEventIds.has(e.id));
+      mergedEventsList = [...eventsToRestore, ...current.events];
+    } else {
+      // overwrite (last-write-wins)
+      const currentEventsMap = new Map(current.events.map((e) => [e.id, e]));
+      eventsToRestore.forEach((e) => {
+        currentEventsMap.set(e.id, e); // overwrites the existing active event
+      });
+      mergedEventsList = Array.from(currentEventsMap.values());
+    }
+
+    // Sort by savedAt descending to maintain perfect display order
+    mergedEventsList.sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+
     updateState({
-      events: [...archive.events, ...current.events],
+      events: mergedEventsList,
       archivedEvents: current.archivedEvents.filter((a) => a.id !== archiveId),
     });
 
-    Promise.all([
-      supabase.from("events").upsert(
-        archive.events.map((e) => ({
-          id: e.id,
-          date: e.date,
-          type: e.type,
-          duration: e.duration,
-          players: e.players,
-          saved_at: e.savedAt,
-        }))
-      ),
-      supabase.from("archived_event_sets").delete().eq("id", archiveId),
-    ]).catch(console.error);
+    try {
+      if (eventsToRestore.length > 0) {
+        const [upsertRes, deleteRes] = await Promise.all([
+          supabase.from("events").upsert(
+            eventsToRestore.map((e) => ({
+              id: e.id,
+              date: e.date,
+              type: e.type,
+              duration: e.duration,
+              players: e.players,
+              saved_at: e.savedAt,
+            })),
+            { onConflict: "id" }
+          ),
+          supabase.from("archived_event_sets").delete().eq("id", archiveId),
+        ]);
+
+        if (upsertRes.error) throw upsertRes.error;
+        if (deleteRes.error) throw deleteRes.error;
+      } else {
+        // Nothing to upsert (e.g. all skipped), just delete the archive set
+        const { error } = await supabase.from("archived_event_sets").delete().eq("id", archiveId);
+        if (error) throw error;
+      }
+
+      toast.success("Archive restored successfully.");
+    } catch (err: any) {
+      console.error("Failed to restore archive:", err);
+      updateState({ events: previousEvents, archivedEvents: previousArchivedEvents });
+      toast.error(`Failed to restore archive: ${err.message || "Unknown error"}`);
+    }
   };
 
-  const deleteArchive = (archiveId: string) => {
+  const deleteArchive = async (archiveId: string) => {
     const current = stateRef.current;
+    const previousArchivedEvents = current.archivedEvents;
+
     updateState({ archivedEvents: current.archivedEvents.filter((a) => a.id !== archiveId) });
-    Promise.resolve(
-      supabase.from("archived_event_sets").delete().eq("id", archiveId)
-    ).catch(console.error);
+
+    try {
+      const { error } = await supabase.from("archived_event_sets").delete().eq("id", archiveId);
+      if (error) throw error;
+      toast.success("Archive deleted successfully.");
+    } catch (err: any) {
+      console.error("Failed to delete archive:", err);
+      updateState({ archivedEvents: previousArchivedEvents });
+      toast.error(`Failed to delete archive: ${err.message || "Unknown error"}`);
+    }
   };
 
   const editLastSession = (): TeamEvent | null => {
@@ -434,6 +567,9 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     if (current.events.length === 0) return null;
 
     const lastEvent = current.events[0];
+    const previousEvents = current.events;
+    const previousActiveSession = current.activeSession;
+
     const session: ActiveSession = {
       id: lastEvent.id,
       date: lastEvent.date,
@@ -443,18 +579,76 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
 
     updateState({ events: current.events.slice(1), activeSession: session });
 
-    Promise.all([
-      supabase.from("events").delete().eq("id", lastEvent.id),
-      supabase.from("active_session").upsert({
-        lock_id: 1,
-        id: session.id,
-        date: session.date,
-        type: session.type,
-        duration: session.duration,
-      }),
-    ]).catch(console.error);
+    (async () => {
+      try {
+        const [deleteRes, upsertRes] = await Promise.all([
+          supabase.from("events").delete().eq("id", lastEvent.id),
+          supabase.from("active_session").upsert({
+            lock_id: 1,
+            id: session.id,
+            date: session.date,
+            type: session.type,
+            duration: session.duration,
+          }),
+        ]);
+
+        if (deleteRes.error) throw deleteRes.error;
+        if (upsertRes.error) throw upsertRes.error;
+
+        toast.success("Loaded last session for editing.");
+      } catch (err: any) {
+        console.error("Failed to load last session for editing:", err);
+        updateState({ events: previousEvents, activeSession: previousActiveSession });
+        toast.error(`Failed to edit last session: ${err.message || "Unknown error"}`);
+      }
+    })();
 
     return lastEvent;
+  };
+
+  const uploadLogo = async (file: File) => {
+    try {
+      const current = stateRef.current;
+      const fileExt = file.name.split(".").pop();
+      const fileName = `logos/${crypto.randomUUID()}.${fileExt}`;
+
+      // Upload file to the "team-assets" storage bucket
+      const { error: uploadError } = await supabase.storage
+        .from("team-assets")
+        .upload(fileName, file, {
+          cacheControl: "3600",
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from("team-assets")
+        .getPublicUrl(fileName);
+
+      // Save previous logo URL to clean up later if necessary
+      const oldLogoUrl = current.teamLogo;
+
+      // Update database settings with the new public URL
+      await updateSettings({ teamLogo: publicUrl });
+
+      // Clean up the old file in the storage bucket if it was also a Supabase Storage asset
+      if (oldLogoUrl && oldLogoUrl.includes("/storage/v1/object/public/team-assets/")) {
+        try {
+          const oldPath = oldLogoUrl.split("/storage/v1/object/public/team-assets/").pop();
+          if (oldPath) {
+            await supabase.storage.from("team-assets").remove([oldPath]);
+          }
+        } catch (cleanupErr) {
+          console.warn("Failed to delete old logo from storage:", cleanupErr);
+        }
+      }
+    } catch (err: any) {
+      console.error("Failed to upload team logo:", err);
+      toast.error(`Failed to upload logo: ${err.message || "Unknown error"}`);
+      throw err;
+    }
   };
 
   return (
@@ -472,6 +666,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
         addPlayer,
         removePlayer,
         updateSettings,
+        uploadLogo,
         archiveEvents,
         restoreArchive,
         deleteArchive,

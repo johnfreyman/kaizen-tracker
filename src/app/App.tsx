@@ -8,6 +8,7 @@ import RafflePage from "./components/RafflePage";
 import LeaderboardTicker from "./components/LeaderboardTicker";
 import LoginPage from "./components/LoginPage";
 import { TeamStoreProvider, useTeamStore } from "./hooks/useTeamStore";
+import { Toaster } from "./components/ui/sonner";
 
 type Page = "launch" | "attendance" | "summary" | "settings" | "raffle";
 
@@ -102,6 +103,7 @@ export default function App() {
   return (
     <TeamStoreProvider>
       <AppContent />
+      <Toaster />
     </TeamStoreProvider>
   );
 }

@@ -2,11 +2,39 @@ import { useState, useEffect } from "react";
 import { Save, UserPlus, Edit, Trophy } from "lucide-react";
 import { useTeamStore } from "../hooks/useTeamStore";
 import PlayerTypeDialog from "./PlayerTypeDialog";
+import { formatDate } from "@/lib/dates";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Button } from "./ui/button";
 
 export default function AttendancePage() {
   const { state, saveSession, addPlayer, editLastSession, isGuest } = useTeamStore();
   const [presentPlayers, setPresentPlayers] = useState<Set<string>>(new Set());
   const [pendingPlayerName, setPendingPlayerName] = useState("");
+  const [showAddPlayerDialog, setShowAddPlayerDialog] = useState(false);
+  const [newPlayerName, setNewPlayerName] = useState("");
+  const [showNoPlayersConfirm, setShowNoPlayersConfirm] = useState(false);
+  const [showEditSessionConfirm, setShowEditSessionConfirm] = useState(false);
+  const [isSavingSession, setIsSavingSession] = useState(false);
+  const [isAddingPlayer, setIsAddingPlayer] = useState(false);
 
   useEffect(() => {
     if (!state.activeSession) {
@@ -31,42 +59,50 @@ export default function AttendancePage() {
     setPresentPlayers(newSet);
   };
 
-  const handleSaveSession = () => {
+  const handleSaveSession = async () => {
     if (!state.activeSession) return;
 
     if (presentPlayers.size === 0) {
-      if (
-        !confirm("No players are marked present. Save this session anyway?")
-      ) {
-        return;
-      }
+      setShowNoPlayersConfirm(true);
+      return;
     }
 
-    saveSession(Array.from(presentPlayers));
-    setPresentPlayers(new Set());
+    setIsSavingSession(true);
+    try {
+      await saveSession(Array.from(presentPlayers));
+      setPresentPlayers(new Set());
+    } finally {
+      setIsSavingSession(false);
+    }
   };
 
   const handleAddPlayer = () => {
-    const name = prompt("Enter player name:");
-    if (!name) return;
-
-    setPendingPlayerName(name.trim());
+    setNewPlayerName("");
+    setShowAddPlayerDialog(true);
   };
 
-  const handlePlayerTypeSelect = (isGuestPlayer: boolean) => {
+  const handlePlayerTypeSelect = async (isGuestPlayer: boolean) => {
     if (!pendingPlayerName) return;
-    const success = addPlayer(pendingPlayerName, isGuestPlayer);
-    setPendingPlayerName("");
-    if (!success) {
-      alert("That player is already on the roster.");
+
+    const nameLower = pendingPlayerName.trim().toLowerCase();
+    if (state.roster.some((p) => p.toLowerCase() === nameLower)) {
+      toast.error("That player is already on the roster.");
+      return;
+    }
+
+    setIsAddingPlayer(true);
+    try {
+      await addPlayer(pendingPlayerName, isGuestPlayer);
+      setPendingPlayerName("");
+    } finally {
+      setIsAddingPlayer(false);
     }
   };
 
   const handleEditLastSession = () => {
     if (state.activeSession) {
-      if (!confirm("You have an active session. Loading the last session will replace it. Continue?")) {
-        return;
-      }
+      setShowEditSessionConfirm(true);
+      return;
     }
 
     const lastEvent = editLastSession();
@@ -75,13 +111,6 @@ export default function AttendancePage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(`${dateString}T12:00:00`).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
 
   const getInitials = (name: string) => {
     return name
@@ -115,11 +144,20 @@ export default function AttendancePage() {
         </div>
         <button
           onClick={handleSaveSession}
-          disabled={!state.activeSession}
-          className="mt-4 md:mt-0 w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed focus:ring-4 focus:ring-blue-200 transition-all shadow-lg"
+          disabled={!state.activeSession || isSavingSession}
+          className="mt-4 md:mt-0 w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed focus:ring-4 focus:ring-blue-200 transition-all shadow-lg min-w-[160px]"
         >
-          <Save className="size-5" />
-          Save Session
+          {isSavingSession ? (
+            <>
+              <span className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="size-5" />
+              Save Session
+            </>
+          )}
         </button>
       </div>
 
@@ -161,7 +199,7 @@ export default function AttendancePage() {
                 key={player}
                 onClick={() => {
                   if (!state.activeSession) {
-                    alert("Start a session first.");
+                    toast.warning("Start a session first.");
                     return;
                   }
                   togglePresent(player);
@@ -224,8 +262,110 @@ export default function AttendancePage() {
           playerName={pendingPlayerName}
           onSelect={handlePlayerTypeSelect}
           onCancel={() => setPendingPlayerName("")}
+          isLoading={isAddingPlayer}
         />
       )}
+
+      {/* Add Player Dialog */}
+      <Dialog open={showAddPlayerDialog} onOpenChange={setShowAddPlayerDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add Player to Roster</DialogTitle>
+            <DialogDescription>
+              Enter the name of the player you would like to add.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Input
+              id="name"
+              value={newPlayerName}
+              onChange={(e) => setNewPlayerName(e.target.value)}
+              placeholder="Player Name"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newPlayerName.trim()) {
+                  setPendingPlayerName(newPlayerName.trim());
+                  setShowAddPlayerDialog(false);
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowAddPlayerDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!newPlayerName.trim()}
+              onClick={() => {
+                setPendingPlayerName(newPlayerName.trim());
+                setShowAddPlayerDialog(false);
+              }}
+            >
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save Session with No Players Alert */}
+      <AlertDialog open={showNoPlayersConfirm} onOpenChange={setShowNoPlayersConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>No Players Marked Present</AlertDialogTitle>
+            <AlertDialogDescription>
+              No players are marked present. Save this session anyway?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSavingSession}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-indigo-600 hover:bg-indigo-700"
+              disabled={isSavingSession}
+              onClick={async (e) => {
+                e.preventDefault();
+                setIsSavingSession(true);
+                try {
+                  await saveSession(Array.from(presentPlayers));
+                  setPresentPlayers(new Set());
+                  setShowNoPlayersConfirm(false);
+                } finally {
+                  setIsSavingSession(false);
+                }
+              }}
+            >
+              {isSavingSession ? "Saving..." : "Save Session"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Active Session in Progress Alert */}
+      <AlertDialog open={showEditSessionConfirm} onOpenChange={setShowEditSessionConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Active Session in Progress</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have an active session. Loading the last session will replace it. Continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-indigo-600 hover:bg-indigo-700"
+              onClick={() => {
+                const lastEvent = editLastSession();
+                if (lastEvent) {
+                  setPresentPlayers(new Set(lastEvent.players));
+                }
+                setShowEditSessionConfirm(false);
+              }}
+            >
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
