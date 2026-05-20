@@ -23,9 +23,11 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
     { label: "5:00 PM", value: "17:00" },
     { label: "5:30 PM", value: "17:30" },
     { label: "6:00 PM", value: "18:00" },
+    { label: "6:30 PM", value: "18:30" },
     { label: "7:00 PM", value: "19:00" },
     { label: "7:30 PM", value: "19:30" },
     { label: "8:00 PM", value: "20:00" },
+    { label: "8:30 PM", value: "20:30" },
   ];
 
   const getNearest15Time = () => {
@@ -236,7 +238,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                 <button
                   type="button"
                   onClick={enableCustomTime}
-                  className={`col-span-3 py-3.5 px-2 rounded-2xl text-sm font-bold border transition-all active:scale-[0.98] ${
+                  className={`py-3.5 px-2 rounded-2xl text-sm font-bold border transition-all active:scale-[0.98] ${
                     timeMode === "custom"
                       ? "bg-gradient-to-r from-blue-600 to-indigo-600 border-transparent text-white shadow-lg shadow-blue-500/15 scale-[1.02] transform"
                       : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700"
