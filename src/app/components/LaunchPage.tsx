@@ -46,10 +46,11 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
   };
 
   const initialTime = getNearest15Time();
-  const [startTime, setStartTime] = useState(initialTime);
-  const [timeMode, setTimeMode] = useState<"presets" | "custom">(() => {
-    return commonTimes.some((t) => t.value === initialTime) ? "presets" : "custom";
+  const [startTime, setStartTime] = useState(() => {
+    const matchesPreset = commonTimes.some((t) => t.value === initialTime);
+    return matchesPreset ? initialTime : "18:00";
   });
+  const [timeMode, setTimeMode] = useState<"presets" | "custom">("presets");
 
   const selectTimePreset = (val: string) => {
     setTimeMode("presets");
@@ -58,6 +59,11 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
   const enableCustomTime = () => {
     setTimeMode("custom");
+    const currentSnapped = getNearest15Time();
+    // If we're transitioning to custom and still on the default fallback preset, snap to the actual current system time!
+    if (startTime === "18:00") {
+      setStartTime(currentSnapped);
+    }
   };
 
   const commonDurations = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0];
