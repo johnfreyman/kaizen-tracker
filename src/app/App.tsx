@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trophy, Calendar, Users, Settings as SettingsIcon, Gift } from "lucide-react";
+import { Trophy, Calendar, Users, Settings as SettingsIcon, Gift, LogOut } from "lucide-react";
 import LaunchPage from "./components/LaunchPage";
 import AttendancePage from "./components/AttendancePage";
 import SummaryPage from "./components/SummaryPage";
@@ -14,7 +14,7 @@ type Page = "launch" | "attendance" | "summary" | "settings" | "raffle";
 
 function AppContent() {
   const [activePage, setActivePage] = useState<Page>("launch");
-  const { state, isLoading, isAuthenticated } = useTeamStore();
+  const { state, isLoading, isAuthenticated, logout } = useTeamStore();
   const isNewAccount = state.teamName === "Team Name" && !state.teamLogo;
 
   if (isLoading) {
@@ -65,28 +65,39 @@ function AppContent() {
             </div>
           </div>
 
-          {/* Navigation */}
-          <nav className="grid grid-cols-2 md:flex gap-2 bg-white/80 backdrop-blur-sm p-2 rounded-2xl shadow-lg">
-            {navItems.map(({ id, label, icon: Icon }) => {
-              const shouldPulse = id === "settings" && isNewAccount;
-              return (
-                <button
-                  key={id}
-                  onClick={() => setActivePage(id)}
-                  className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${
-                    activePage === id
-                      ? "bg-blue-600 text-white shadow-md"
-                      : shouldPulse
-                      ? "text-blue-600 bg-blue-50 border border-blue-200 shadow-md shadow-blue-500/10 animate-pulse hover:bg-blue-100"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  <Icon className={`size-4 ${shouldPulse ? "text-blue-500" : ""}`} />
-                  <span className="hidden sm:inline">{label}</span>
-                </button>
-              );
-            })}
-          </nav>
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            {/* Navigation */}
+            <nav className="grid grid-cols-2 md:flex gap-2 bg-white/80 backdrop-blur-sm p-2 rounded-2xl shadow-lg flex-1 md:flex-none">
+              {navItems.map(({ id, label, icon: Icon }) => {
+                const shouldPulse = id === "settings" && isNewAccount;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setActivePage(id)}
+                    className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${
+                      activePage === id
+                        ? "bg-blue-600 text-white shadow-md"
+                        : shouldPulse
+                        ? "text-blue-600 bg-blue-50 border border-blue-200 shadow-md shadow-blue-500/10 animate-pulse hover:bg-blue-100"
+                        : "text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    <Icon className={`size-4 ${shouldPulse ? "text-blue-500" : ""}`} />
+                    <span className="hidden sm:inline">{label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+
+            {/* Logout Button */}
+            <button
+              onClick={logout}
+              title="Log out"
+              className="flex items-center justify-center p-3 size-12 rounded-2xl bg-white/80 backdrop-blur-sm shadow-lg text-gray-500 hover:text-red-600 hover:bg-red-50 active:scale-95 transition-all border border-transparent hover:border-red-100"
+            >
+              <LogOut className="size-5" />
+            </button>
+          </div>
         </header>
 
         {/* Leaderboard Ticker */}
