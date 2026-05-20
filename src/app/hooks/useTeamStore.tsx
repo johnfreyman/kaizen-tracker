@@ -208,6 +208,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const stateRef = useRef(state);
+  const currentUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     stateRef.current = state;
@@ -223,6 +224,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const hasSession = !!session;
+        currentUserIdRef.current = session?.user?.id ?? null;
         setIsAuthenticated(hasSession);
         
         if (hasSession) {
@@ -240,22 +242,31 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
 
       const { data: { subscription: sub } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
         const hasSession = !!newSession;
-        setIsAuthenticated(hasSession);
-        setAuthError(null);
+        const newUserId = newSession?.user?.id ?? null;
         
-        if (hasSession) {
-          setIsLoading(true);
-          try {
-            const data = await loadFromSupabase();
-            setState(data);
-          } catch (err) {
-            console.error("Failed to load data on auth change:", err);
-          } finally {
+        // Only trigger the load / loading screen if the authenticated user has actually changed.
+        // This avoids redundant loading transitions on token refresh, background sync, or window focus events.
+        const isUserChanged = newUserId !== currentUserIdRef.current;
+        
+        if (isUserChanged) {
+          currentUserIdRef.current = newUserId;
+          setIsAuthenticated(hasSession);
+          setAuthError(null);
+          
+          if (hasSession) {
+            setIsLoading(true);
+            try {
+              const data = await loadFromSupabase();
+              setState(data);
+            } catch (err) {
+              console.error("Failed to load data on auth change:", err);
+            } finally {
+              setIsLoading(false);
+            }
+          } else {
+            setState(defaultState);
             setIsLoading(false);
           }
-        } else {
-          setState(defaultState);
-          setIsLoading(false);
         }
       });
       subscription = sub;
