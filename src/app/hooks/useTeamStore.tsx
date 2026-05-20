@@ -72,23 +72,25 @@ function readLocalState(): TeamState {
   }
 }
 
-async function seedSupabase(s: TeamState) {
+async function seedSupabase(s: TeamState, coachId: string) {
   await supabase.from("team_settings").upsert({
-    id: 1,
+    coach_id: coachId,
     team_name: s.teamName,
     team_logo: s.teamLogo,
     raffle_enabled: s.raffleEnabled,
-  });
+  }, { onConflict: 'coach_id' });
 
   if (s.roster.length > 0) {
     await supabase.from("roster").upsert(
-      s.roster.map((name) => ({ name, is_guest: s.guestPlayers.includes(name) }))
+      s.roster.map((name) => ({ coach_id: coachId, name, is_guest: s.guestPlayers.includes(name) })),
+      { onConflict: 'coach_id,name' }
     );
   }
 
   if (s.events.length > 0) {
     await supabase.from("events").upsert(
       s.events.map((e) => ({
+        coach_id: coachId,
         id: e.id,
         date: e.date,
         type: e.type,
@@ -101,17 +103,18 @@ async function seedSupabase(s: TeamState) {
 
   if (s.activeSession) {
     await supabase.from("active_session").upsert({
-      lock_id: 1,
+      coach_id: coachId,
       id: s.activeSession.id,
       date: s.activeSession.date,
       type: s.activeSession.type,
       duration: s.activeSession.duration,
-    });
+    }, { onConflict: 'coach_id' });
   }
 
   if (s.archivedEvents.length > 0) {
     await supabase.from("archived_event_sets").upsert(
       s.archivedEvents.map((a) => ({
+        coach_id: coachId,
         id: a.id,
         archived_at: a.archivedAt,
         events: a.events,
@@ -121,18 +124,22 @@ async function seedSupabase(s: TeamState) {
 }
 
 async function loadFromSupabase(): Promise<TeamState> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No authenticated user.");
+  const coachId = user.id;
+
   const [settingsRes, rosterRes, eventsRes, sessionRes, archivesRes] = await Promise.all([
-    supabase.from("team_settings").select("*").eq("id", 1).maybeSingle(),
+    supabase.from("team_settings").select("*").maybeSingle(),
     supabase.from("roster").select("*"),
     supabase.from("events").select("*").order("saved_at", { ascending: false }),
-    supabase.from("active_session").select("*").eq("lock_id", 1).maybeSingle(),
+    supabase.from("active_session").select("*").maybeSingle(),
     supabase.from("archived_event_sets").select("*").order("archived_at", { ascending: false }),
   ]);
 
   // First run — no settings row yet: migrate localStorage data into Supabase
   if (!settingsRes.data) {
     const local = readLocalState();
-    await seedSupabase(local);
+    await seedSupabase(local, coachId);
     return local;
   }
 
@@ -185,6 +192,7 @@ interface TeamStoreContextType {
   isAuthLoading: boolean;
   authError: string | null;
   login: (email: string, password?: string) => Promise<boolean>;
+  signUp: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   startSession: (session: ActiveSession) => Promise<void>;
   saveSession: (presentPlayers: string[]) => Promise<void>;
@@ -304,6 +312,21 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const signUp = async (email: string, password: string): Promise<boolean> => {
+    setIsAuthLoading(true);
+    setAuthError(null);
+    try {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      return true;
+    } catch (err: any) {
+      setAuthError(err.message || "A registration error occurred.");
+      return false;
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
   const logout = async () => {
     await supabase.auth.signOut();
     setState(defaultState);
@@ -319,7 +342,10 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     try {
       const { error } = await supabase
         .from("active_session")
-        .upsert({ lock_id: 1, id: session.id, date: session.date, type: session.type, duration: session.duration });
+        .upsert(
+          { id: session.id, date: session.date, type: session.type, duration: session.duration },
+          { onConflict: 'coach_id' }
+        );
       if (error) throw error;
       toast.success("Session started successfully.");
     } catch (err: any) {
@@ -354,7 +380,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
           players: event.players,
           saved_at: event.savedAt,
         }),
-        supabase.from("active_session").delete().eq("lock_id", 1),
+        supabase.from("active_session").delete().eq("coach_id", currentUserIdRef.current),
       ]);
 
       if (insertRes.error) throw insertRes.error;
@@ -431,12 +457,14 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     updateState(settings);
 
     try {
-      const { error } = await supabase.from("team_settings").upsert({
-        id: 1,
-        team_name: settings.teamName ?? current.teamName,
-        team_logo: settings.teamLogo ?? current.teamLogo,
-        raffle_enabled: settings.raffleEnabled ?? current.raffleEnabled,
-      });
+      const { error } = await supabase.from("team_settings").upsert(
+        {
+          team_name: settings.teamName ?? current.teamName,
+          team_logo: settings.teamLogo ?? current.teamLogo,
+          raffle_enabled: settings.raffleEnabled ?? current.raffleEnabled,
+        },
+        { onConflict: 'coach_id' }
+      );
       if (error) throw error;
       toast.success("Settings updated.");
     } catch (err: any) {
@@ -602,13 +630,15 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
       try {
         const [deleteRes, upsertRes] = await Promise.all([
           supabase.from("events").delete().eq("id", lastEvent.id),
-          supabase.from("active_session").upsert({
-            lock_id: 1,
-            id: session.id,
-            date: session.date,
-            type: session.type,
-            duration: session.duration,
-          }),
+          supabase.from("active_session").upsert(
+            {
+              id: session.id,
+              date: session.date,
+              type: session.type,
+              duration: session.duration,
+            },
+            { onConflict: 'coach_id' }
+          ),
         ]);
 
         if (deleteRes.error) throw deleteRes.error;
@@ -679,6 +709,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
         isAuthLoading,
         authError,
         login,
+        signUp,
         logout,
         startSession,
         saveSession,

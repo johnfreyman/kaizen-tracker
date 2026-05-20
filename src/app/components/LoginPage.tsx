@@ -3,11 +3,13 @@ import { Trophy, Mail, Lock, ArrowRight, Eye, EyeOff, Sparkles, AlertCircle, Che
 import { useTeamStore } from "../hooks/useTeamStore";
 
 export default function LoginPage() {
-  const { login, isAuthLoading, authError } = useTeamStore();
+  const { login, signUp, isAuthLoading, authError } = useTeamStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [authMode, setAuthMode] = useState<"password" | "magic-link">("password");
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [signUpSuccess, setSignUpSuccess] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -21,23 +23,69 @@ export default function LoginPage() {
       return;
     }
 
-    if (authMode === "password" && !password) {
-      setValidationError("Please enter your password.");
-      return;
-    }
-
-    if (authMode === "password") {
-      const success = await login(trimmedEmail, password);
+    if (isSignUp) {
+      if (!password) {
+        setValidationError("Please enter a password.");
+        return;
+      }
+      if (password.length < 6) {
+        setValidationError("Password must be at least 6 characters.");
+        return;
+      }
+      const success = await signUp(trimmedEmail, password);
       if (success) {
-        // App state automatically handles auth state updates and re-renders AppContent
+        setSignUpSuccess(true);
       }
     } else {
-      const success = await login(trimmedEmail);
-      if (success) {
-        setMagicLinkSent(true);
+      if (authMode === "password" && !password) {
+        setValidationError("Please enter your password.");
+        return;
+      }
+
+      if (authMode === "password") {
+        const success = await login(trimmedEmail, password);
+        if (success) {
+          // App state automatically handles auth state updates and re-renders AppContent
+        }
+      } else {
+        const success = await login(trimmedEmail);
+        if (success) {
+          setMagicLinkSent(true);
+        }
       }
     }
   };
+
+  if (signUpSuccess) {
+    return (
+      <div className="min-h-screen bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-indigo-950 to-slate-950 flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/15 rounded-3xl p-8 shadow-2xl text-center space-y-6 animate-fade-in">
+          <div className="size-16 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+            <CheckCircle2 className="size-8" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold text-white tracking-tight">Registration Successful</h2>
+            <p className="text-gray-300 text-sm leading-relaxed">
+              Your coach account has been successfully created for <span className="font-semibold text-blue-400">{email}</span>.
+            </p>
+            <p className="text-gray-400 text-xs leading-relaxed pt-2">
+              If email confirmation is enabled, please check your inbox to verify your address before signing in.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setSignUpSuccess(false);
+              setIsSignUp(false);
+              setPassword("");
+            }}
+            className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-2xl border border-blue-400/20 transition-all text-sm active:scale-[0.98]"
+          >
+            Go to Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (magicLinkSent) {
     return (
@@ -77,46 +125,55 @@ export default function LoginPage() {
               Kaizen Tracker
             </h1>
             <p className="mt-2 text-sm text-gray-400">
-              Sign in to manage team attendance & training hours
+              {isSignUp
+                ? "Register a coach account to manage your team"
+                : "Sign in to manage team attendance & training hours"}
             </p>
           </div>
         </div>
 
         {/* Login Card */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl space-y-6">
-          {/* Tabs / Toggle */}
-          <div className="flex p-1 bg-black/40 rounded-2xl border border-white/5 w-full shadow-inner relative">
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode("password");
-                setValidationError(null);
-              }}
-              disabled={isAuthLoading}
-              className={`w-1/2 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 ${
-                authMode === "password"
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-500/25 border border-blue-400/20 scale-[1.02] transform"
-                  : "text-gray-400 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              Password
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode("magic-link");
-                setValidationError(null);
-              }}
-              disabled={isAuthLoading}
-              className={`w-1/2 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 ${
-                authMode === "magic-link"
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-500/25 border border-blue-400/20 scale-[1.02] transform"
-                  : "text-gray-400 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              Magic Link
-            </button>
-          </div>
+          {isSignUp ? (
+            <div className="text-center space-y-1">
+              <h2 className="text-xl font-bold text-white tracking-tight">Create Coach Account</h2>
+              <p className="text-xs text-gray-400">Set up your siloed coach database</p>
+            </div>
+          ) : (
+            /* Tabs / Toggle */
+            <div className="flex p-1 bg-black/40 rounded-2xl border border-white/5 w-full shadow-inner relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("password");
+                  setValidationError(null);
+                }}
+                disabled={isAuthLoading}
+                className={`w-1/2 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 ${
+                  authMode === "password"
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-500/25 border border-blue-400/20 scale-[1.02] transform"
+                    : "text-gray-400 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Password
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("magic-link");
+                  setValidationError(null);
+                }}
+                disabled={isAuthLoading}
+                className={`w-1/2 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 ${
+                  authMode === "magic-link"
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-500/25 border border-blue-400/20 scale-[1.02] transform"
+                    : "text-gray-400 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Magic Link
+              </button>
+            </div>
+          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -152,19 +209,21 @@ export default function LoginPage() {
             </div>
 
             {/* Password Field */}
-            {authMode === "password" && (
+            {(authMode === "password" || isSignUp) && (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label htmlFor="login-password" className="block text-xs font-bold uppercase tracking-wider text-gray-300">
                     Password
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => alert("Please contact your administrator to reset your password.")}
-                    className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors duration-200 hover:underline focus:outline-none"
-                  >
-                    Forgot password?
-                  </button>
+                  {!isSignUp && (
+                    <button
+                      type="button"
+                      onClick={() => alert("Please contact your administrator to reset your password.")}
+                      className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors duration-200 hover:underline focus:outline-none"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
                 </div>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors">
@@ -173,12 +232,12 @@ export default function LoginPage() {
                   <input
                     id="login-password"
                     type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
+                    autoComplete={isSignUp ? "new-password" : "current-password"}
                     required
                     disabled={isAuthLoading}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder={isSignUp ? "At least 6 characters" : "••••••••"}
                     className="block w-full pl-11 pr-12 py-3.5 bg-white hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/15 text-slate-900 text-sm placeholder-slate-400 font-semibold transition-all duration-200 shadow-sm"
                   />
                   <button
@@ -204,7 +263,7 @@ export default function LoginPage() {
                 <div className="size-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  {authMode === "password" ? "Sign In" : "Send Magic Link"}
+                  {isSignUp ? "Create Account" : authMode === "password" ? "Sign In" : "Send Magic Link"}
                   <ArrowRight className="size-4" />
                 </>
               )}
@@ -212,17 +271,39 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {/* Sign Up Link */}
+        {/* Sign Up Toggle Link */}
         <div className="text-center text-sm text-gray-400 pt-2">
-          Don't have an account?{" "}
-          <button
-            type="button"
-            onClick={() => alert("Registration is invitation-only. Please request an invite from your team manager.")}
-            className="font-bold text-blue-400 hover:text-blue-300 transition-colors duration-200 hover:underline inline-flex items-center gap-1 group focus:outline-none"
-          >
-            Sign up
-            <ArrowRight className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
-          </button>
+          {isSignUp ? (
+            <>
+              Already have an account?{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSignUp(false);
+                  setValidationError(null);
+                }}
+                className="font-bold text-blue-400 hover:text-blue-300 transition-colors duration-200 hover:underline inline-flex items-center gap-1 group focus:outline-none"
+              >
+                Sign in
+                <ArrowRight className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </>
+          ) : (
+            <>
+              Don't have an account?{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSignUp(true);
+                  setValidationError(null);
+                }}
+                className="font-bold text-blue-400 hover:text-blue-300 transition-colors duration-200 hover:underline inline-flex items-center gap-1 group focus:outline-none"
+              >
+                Sign up
+                <ArrowRight className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
