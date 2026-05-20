@@ -21,9 +21,19 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
   const [durationMode, setDurationMode] = useState<"presets" | "custom">("presets");
   const [startTime, setStartTime] = useState(() => {
     const now = new Date();
+    const minutes = now.getMinutes();
+    const roundedMinutes = Math.round(minutes / 15) * 15;
+    
+    if (roundedMinutes === 60) {
+      now.setHours(now.getHours() + 1);
+      now.setMinutes(0);
+    } else {
+      now.setMinutes(roundedMinutes);
+    }
+
     const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    return `${hours}:${minutes}`;
+    const minutesStr = String(now.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutesStr}`;
   });
 
   const commonDurations = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0];
@@ -176,6 +186,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                 <input
                   type="time"
                   required
+                  step="900"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
                   className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-white hover:border-blue-500 focus:border-blue-500 focus:outline-none text-slate-800 font-semibold text-sm transition-all focus:ring-4 focus:ring-blue-500/10 shadow-sm"
