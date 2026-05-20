@@ -2,8 +2,9 @@ import { Trophy } from "lucide-react";
 import { useTeamStore } from "../hooks/useTeamStore";
 import { useEffect, useRef, useCallback } from "react";
 
-export default function LeaderboardTicker() {
+export default function LeaderboardTicker({ onNavigate }: { onNavigate?: (page: any) => void } = {}) {
   const { state } = useTeamStore();
+  const isNewAccount = state.teamName === "Team Name" && !state.teamLogo;
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
@@ -128,7 +129,22 @@ export default function LeaderboardTicker() {
     return (
       <div className="bg-gradient-to-br from-white to-blue-50/30 backdrop-blur-sm rounded-2xl p-4 border border-blue-100/50 flex items-center gap-3 text-sm text-blue-700 font-medium shadow-sm mb-4">
         <Trophy className="size-5 text-blue-600 flex-shrink-0 animate-pulse" />
-        <span>No events logged yet — start a session to see the leaderboard.</span>
+        <span>
+          {isNewAccount ? (
+            <>
+              Welcome! Head to{" "}
+              <button
+                onClick={() => onNavigate?.("settings")}
+                className="font-bold underline text-blue-600 hover:text-blue-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-1"
+              >
+                Settings
+              </button>{" "}
+              to customize your team name and upload a logo.
+            </>
+          ) : (
+            "No events logged yet — start a session to see the leaderboard."
+          )}
+        </span>
       </div>
     );
   }

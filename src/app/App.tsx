@@ -90,7 +90,7 @@ function AppContent() {
         </header>
 
         {/* Leaderboard Ticker */}
-        <LeaderboardTicker />
+        <LeaderboardTicker onNavigate={setActivePage} />
 
         {/* Page Content */}
         <main className="animate-fade-in">
