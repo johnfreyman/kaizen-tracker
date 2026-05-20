@@ -78,9 +78,11 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 DO $$
 DECLARE
   new_user_id UUID;
+  admin_email CONSTANT TEXT := 'admin@example.com';
+  admin_password CONSTANT TEXT := 'YOUR_SECURE_PASSWORD'; -- Replace this with a secure password before running
 BEGIN
   -- Only insert if this email doesn't already exist
-  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'admin@example.com') THEN
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = admin_email) THEN
     new_user_id := gen_random_uuid();
 
     INSERT INTO auth.users (
@@ -103,8 +105,8 @@ BEGIN
       new_user_id,
       'authenticated',
       'authenticated',
-      'admin@example.com',
-      crypt('YOUR_SECURE_PASSWORD', gen_salt('bf')),
+      admin_email,
+      crypt(admin_password, gen_salt('bf')),
       now(),
       now(),
       now(),
@@ -115,7 +117,7 @@ BEGIN
     );
 
     -- Link the email identity (required by newer Supabase auth versions)
-    IF NOT EXISTS (SELECT 1 FROM auth.identities WHERE provider_id = 'admin@example.com' AND provider = 'email') THEN
+    IF NOT EXISTS (SELECT 1 FROM auth.identities WHERE provider_id = admin_email AND provider = 'email') THEN
       INSERT INTO auth.identities (
         id,
         user_id,
@@ -129,9 +131,9 @@ BEGIN
       VALUES (
         gen_random_uuid(),
         new_user_id,
-        json_build_object('sub', new_user_id::text, 'email', 'admin@example.com'),
+        json_build_object('sub', new_user_id::text, 'email', admin_email),
         'email',
-        'admin@example.com',
+        admin_email,
         now(),
         now(),
         now()
