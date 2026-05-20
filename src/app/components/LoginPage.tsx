@@ -84,32 +84,34 @@ export default function LoginPage() {
 
         {/* Login Card */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl space-y-6">
-          {/* Tabs */}
-          <div className="grid grid-cols-2 p-1 bg-black/35 rounded-2xl border border-white/5">
+          {/* Tabs / Toggle */}
+          <div className="flex p-1 bg-black/40 rounded-2xl border border-white/5 w-full shadow-inner relative">
             <button
+              type="button"
               onClick={() => {
                 setAuthMode("password");
                 setValidationError(null);
               }}
               disabled={isAuthLoading}
-              className={`py-2 text-sm font-semibold rounded-xl transition-all ${
+              className={`w-1/2 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 ${
                 authMode === "password"
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-500/25"
-                  : "text-gray-400 hover:text-white"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-500/25 border border-blue-400/20 scale-[1.02] transform"
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
               }`}
             >
               Password
             </button>
             <button
+              type="button"
               onClick={() => {
                 setAuthMode("magic-link");
                 setValidationError(null);
               }}
               disabled={isAuthLoading}
-              className={`py-2 text-sm font-semibold rounded-xl transition-all ${
+              className={`w-1/2 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 ${
                 authMode === "magic-link"
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-500/25"
-                  : "text-gray-400 hover:text-white"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-500/25 border border-blue-400/20 scale-[1.02] transform"
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
               }`}
             >
               Magic Link
@@ -128,11 +130,11 @@ export default function LoginPage() {
 
             {/* Email Field */}
             <div className="space-y-1.5">
-              <label htmlFor="login-email" className="block text-xs font-semibold uppercase tracking-wider text-gray-400">
+              <label htmlFor="login-email" className="block text-xs font-bold uppercase tracking-wider text-gray-300">
                 Email Address
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors">
                   <Mail className="size-5" />
                 </div>
                 <input
@@ -144,7 +146,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
-                  className="block w-full pl-11 pr-4 py-3.5 bg-black/20 hover:bg-black/35 focus:bg-black/30 border border-white/10 focus:border-blue-500 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 text-white text-sm placeholder-gray-500 font-medium transition-all"
+                  className="block w-full pl-11 pr-4 py-3.5 bg-white hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/15 text-slate-900 text-sm placeholder-slate-400 font-semibold transition-all duration-200 shadow-sm"
                 />
               </div>
             </div>
@@ -152,11 +154,20 @@ export default function LoginPage() {
             {/* Password Field */}
             {authMode === "password" && (
               <div className="space-y-1.5">
-                <label htmlFor="login-password" className="block text-xs font-semibold uppercase tracking-wider text-gray-400">
-                  Password
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="login-password" className="block text-xs font-bold uppercase tracking-wider text-gray-300">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => alert("Please contact your administrator to reset your password.")}
+                    className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors duration-200 hover:underline focus:outline-none"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors">
                     <Lock className="size-5" />
                   </div>
                   <input
@@ -168,13 +179,13 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="block w-full pl-11 pr-12 py-3.5 bg-black/20 hover:bg-black/35 focus:bg-black/30 border border-white/10 focus:border-blue-500 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 text-white text-sm placeholder-gray-500 font-medium transition-all"
+                    className="block w-full pl-11 pr-12 py-3.5 bg-white hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/15 text-slate-900 text-sm placeholder-slate-400 font-semibold transition-all duration-200 shadow-sm"
                   />
                   <button
                     type="button"
                     disabled={isAuthLoading}
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-white transition-colors"
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
                   >
                     {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
                   </button>
@@ -187,7 +198,7 @@ export default function LoginPage() {
               type="submit"
               id="login-submit-button"
               disabled={isAuthLoading}
-              className="w-full flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:from-blue-700/50 disabled:to-indigo-700/50 text-white font-bold rounded-2xl transition-all shadow-lg hover:shadow-xl hover:shadow-blue-500/10 active:scale-[0.98] disabled:cursor-not-allowed text-sm uppercase tracking-wider"
+              className="w-full flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:from-blue-700/50 disabled:to-indigo-700/50 text-white font-bold rounded-2xl transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-blue-500/15 active:scale-[0.98] disabled:cursor-not-allowed text-sm uppercase tracking-wider"
             >
               {isAuthLoading ? (
                 <div className="size-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -199,6 +210,19 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+        </div>
+
+        {/* Sign Up Link */}
+        <div className="text-center text-sm text-gray-400 pt-2">
+          Don't have an account?{" "}
+          <button
+            type="button"
+            onClick={() => alert("Registration is invitation-only. Please request an invite from your team manager.")}
+            className="font-bold text-blue-400 hover:text-blue-300 transition-colors duration-200 hover:underline inline-flex items-center gap-1 group focus:outline-none"
+          >
+            Sign up
+            <ArrowRight className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </button>
         </div>
       </div>
     </div>
