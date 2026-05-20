@@ -15,6 +15,7 @@ type Page = "launch" | "attendance" | "summary" | "settings" | "raffle";
 function AppContent() {
   const [activePage, setActivePage] = useState<Page>("launch");
   const { state, isLoading, isAuthenticated } = useTeamStore();
+  const isNewAccount = state.teamName === "Team Name" && !state.teamLogo;
 
   if (isLoading) {
     return (
@@ -58,7 +59,7 @@ function AppContent() {
             </div>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-                {state.teamName || "Kaizen Tracker"}
+                {state.teamName || "Team Name"}
               </h1>
               <p className="text-sm text-gray-600">Attendance & training hours</p>
             </div>
@@ -66,20 +67,25 @@ function AppContent() {
 
           {/* Navigation */}
           <nav className="grid grid-cols-2 md:flex gap-2 bg-white/80 backdrop-blur-sm p-2 rounded-2xl shadow-lg">
-            {navItems.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setActivePage(id)}
-                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${
-                  activePage === id
-                    ? "bg-blue-600 text-white shadow-md"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                <Icon className="size-4" />
-                <span className="hidden sm:inline">{label}</span>
-              </button>
-            ))}
+            {navItems.map(({ id, label, icon: Icon }) => {
+              const shouldPulse = id === "settings" && isNewAccount;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setActivePage(id)}
+                  className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${
+                    activePage === id
+                      ? "bg-blue-600 text-white shadow-md"
+                      : shouldPulse
+                      ? "text-blue-600 bg-blue-50 border border-blue-200 shadow-md shadow-blue-500/10 animate-pulse hover:bg-blue-100"
+                      : "text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  <Icon className={`size-4 ${shouldPulse ? "text-blue-500" : ""}`} />
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              );
+            })}
           </nav>
         </header>
 

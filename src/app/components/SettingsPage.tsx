@@ -375,7 +375,7 @@ export default function SettingsPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     updateSettings({
-      teamName: teamName.trim() || "Kaizen Tracker",
+      teamName: teamName.trim() || "Team Name",
       raffleEnabled
     });
     toast.success("Settings saved successfully.");

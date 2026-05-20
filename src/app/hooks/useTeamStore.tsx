@@ -52,7 +52,7 @@ export interface TeamState {
 }
 
 const defaultState: TeamState = {
-  teamName: "Kaizen Tracker",
+  teamName: "Team Name",
   teamLogo: "",
   roster: [],
   events: [],
@@ -316,7 +316,13 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     setIsAuthLoading(true);
     setAuthError(null);
     try {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
+      });
       if (error) throw error;
       return true;
     } catch (err: any) {
