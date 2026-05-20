@@ -19,7 +19,17 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
   );
   const [durationInput, setDurationInput] = useState("1.5");
   const [durationMode, setDurationMode] = useState<"presets" | "custom">("presets");
-  const [startTime, setStartTime] = useState(() => {
+  const commonTimes = [
+    { label: "5:00 PM", value: "17:00" },
+    { label: "5:30 PM", value: "17:30" },
+    { label: "6:00 PM", value: "18:00" },
+    { label: "6:30 PM", value: "18:30" },
+    { label: "7:00 PM", value: "19:00" },
+    { label: "7:30 PM", value: "19:30" },
+    { label: "8:00 PM", value: "20:00" },
+  ];
+
+  const getNearest15Time = () => {
     const now = new Date();
     const minutes = now.getMinutes();
     const roundedMinutes = Math.round(minutes / 15) * 15;
@@ -34,7 +44,22 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
     const hours = String(now.getHours()).padStart(2, '0');
     const minutesStr = String(now.getMinutes()).padStart(2, '0');
     return `${hours}:${minutesStr}`;
+  };
+
+  const initialTime = getNearest15Time();
+  const [startTime, setStartTime] = useState(initialTime);
+  const [timeMode, setTimeMode] = useState<"presets" | "custom">(() => {
+    return commonTimes.some((t) => t.value === initialTime) ? "presets" : "custom";
   });
+
+  const selectTimePreset = (val: string) => {
+    setTimeMode("presets");
+    setStartTime(val);
+  };
+
+  const enableCustomTime = () => {
+    setTimeMode("custom");
+  };
 
   const commonDurations = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0];
   const parsedDuration = parseFloat(durationInput);
@@ -138,11 +163,12 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
         className="bg-white rounded-3xl p-6 md:p-8 shadow-xl border border-slate-100 space-y-10 transition-all duration-300"
       >
         {/* Date and Time Group */}
-        <div className="space-y-4">
+        <div className="space-y-6">
           <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2 flex items-center gap-2">
             <CalendarIcon className="size-4" /> Date & Time Configuration
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <div className="grid grid-cols-1 gap-6">
             {/* Event Date */}
             <div className="relative">
               <label className="block mb-2 font-bold text-slate-800 text-sm uppercase tracking-wide flex items-center gap-1.5">
@@ -178,20 +204,58 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
             </div>
 
             {/* Start Time */}
-            <div>
+            <div className="space-y-3">
               <label className="block mb-2 font-bold text-slate-800 text-sm uppercase tracking-wide flex items-center gap-1.5">
                 <Clock className="size-4 text-blue-600" /> Start Time
               </label>
-              <div className="relative group">
-                <input
-                  type="time"
-                  required
-                  step="900"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-white hover:border-blue-500 focus:border-blue-500 focus:outline-none text-slate-800 font-semibold text-sm transition-all focus:ring-4 focus:ring-blue-500/10 shadow-sm"
-                />
+              
+              {/* Preset Time Buttons Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {commonTimes.map(({ label, value }) => {
+                  const isSelected = timeMode === "presets" && startTime === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => selectTimePreset(value)}
+                      className={`py-3.5 px-2 rounded-2xl text-sm font-bold border transition-all active:scale-[0.98] ${
+                        isSelected
+                          ? "bg-gradient-to-r from-blue-600 to-indigo-600 border-transparent text-white shadow-lg shadow-blue-500/15 scale-[1.02] transform"
+                          : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={enableCustomTime}
+                  className={`py-3.5 px-2 rounded-2xl text-sm font-bold border transition-all active:scale-[0.98] ${
+                    timeMode === "custom"
+                      ? "bg-gradient-to-r from-blue-600 to-indigo-600 border-transparent text-white shadow-lg shadow-blue-500/15 scale-[1.02] transform"
+                      : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700"
+                  }`}
+                >
+                  Custom time
+                </button>
               </div>
+
+              {/* Custom Time Input Reveal */}
+              {timeMode === "custom" && (
+                <div className="p-5 bg-slate-50 border border-slate-200/80 rounded-2xl animate-fade-in max-w-sm mt-3">
+                  <div className="relative group">
+                    <input
+                      type="time"
+                      required
+                      step="900"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white hover:border-blue-500 focus:border-blue-500 focus:outline-none text-slate-800 font-semibold text-sm transition-all focus:ring-4 focus:ring-blue-500/10 shadow-sm"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
