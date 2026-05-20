@@ -30,6 +30,7 @@ export default function RafflePage() {
   const [wheelEntries, setWheelEntries] = useState<WheelEntry[]>([]);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [pendingWinnerPlayerName, setPendingWinnerPlayerName] = useState<string | null>(null);
+  const [isArchiving, setIsArchiving] = useState(false);
 
   // Dev visual testing states
   const [testWinnerIndex, setTestWinnerIndex] = useState<number | null>(null);
@@ -233,11 +234,18 @@ export default function RafflePage() {
   const refreshWheel = () => {
     const entries = getWheelEntries();
     setWheelEntries(entries);
-    setWinner(
-      entries.length === 0
-        ? "Log optional training sessions to build the wheel."
-        : ""
-    );
+    setWinner((prev) => {
+      if (entries.length === 0) {
+        if (
+          prev ===
+          "Events archived! Start logging new training sessions for the next raffle."
+        ) {
+          return prev;
+        }
+        return "Log optional training sessions to build the wheel.";
+      }
+      return "";
+    });
   };
 
   useEffect(() => {
@@ -367,6 +375,7 @@ export default function RafflePage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel
+              disabled={isArchiving}
               onClick={() => {
                 setShowArchiveConfirm(false);
                 setPendingWinnerPlayerName(null);
@@ -376,14 +385,25 @@ export default function RafflePage() {
             </AlertDialogCancel>
             <AlertDialogAction
               className="bg-indigo-600 hover:bg-indigo-700"
-              onClick={async () => {
-                await archiveEvents();
-                setWinner("Events archived! Start logging new training sessions for the next raffle.");
-                setShowArchiveConfirm(false);
-                setPendingWinnerPlayerName(null);
+              disabled={isArchiving}
+              onClick={async (e) => {
+                e.preventDefault();
+                setIsArchiving(true);
+                try {
+                  const success = await archiveEvents({ type: EVENT_TYPES.OPTIONAL_TRAINING });
+                  if (success) {
+                    setWinner("Events archived! Start logging new training sessions for the next raffle.");
+                    setWheelEntries([]);
+                    setWheelRotation(0);
+                    setShowArchiveConfirm(false);
+                    setPendingWinnerPlayerName(null);
+                  }
+                } finally {
+                  setIsArchiving(false);
+                }
               }}
             >
-              Archive Data
+              {isArchiving ? "Archiving..." : "Archive Data"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

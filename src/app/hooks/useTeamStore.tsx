@@ -192,7 +192,7 @@ interface TeamStoreContextType {
   removePlayer: (name: string) => Promise<void>;
   updateSettings: (settings: { teamName?: string; teamLogo?: string; raffleEnabled?: boolean }) => Promise<void>;
   uploadLogo: (file: File) => Promise<void>;
-  archiveEvents: () => Promise<void>;
+  archiveEvents: (options?: { type?: EventType }) => Promise<boolean>;
   restoreArchive: (archiveId: string, strategy?: ConflictResolutionStrategy) => Promise<void>;
   deleteArchive: (archiveId: string) => Promise<void>;
   editLastSession: () => TeamEvent | null;
@@ -435,40 +435,48 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const archiveEvents = async () => {
+  const archiveEvents = async (options?: { type?: EventType }): Promise<boolean> => {
     const current = stateRef.current;
-    if (current.events.length === 0) return;
+    const eventsToArchive = options?.type
+      ? current.events.filter((e) => e.type === options.type)
+      : current.events;
+
+    if (eventsToArchive.length === 0) return false;
 
     const previousEvents = current.events;
     const previousArchivedEvents = current.archivedEvents;
 
+    const remainingEvents = options?.type
+      ? current.events.filter((e) => e.type !== options.type)
+      : [];
+
     const archive: ArchivedEventSet = {
       id: crypto.randomUUID(),
       archivedAt: new Date().toISOString(),
-      events: [...current.events],
+      events: [...eventsToArchive],
     };
 
-    updateState({ events: [], archivedEvents: [archive, ...current.archivedEvents] });
+    updateState({ events: remainingEvents, archivedEvents: [archive, ...current.archivedEvents] });
 
-    const eventIds = current.events.map((e) => e.id);
+    const eventIds = eventsToArchive.map((e) => e.id);
     try {
-      const [insertRes, deleteRes] = await Promise.all([
-        supabase.from("archived_event_sets").insert({
-          id: archive.id,
-          archived_at: archive.archivedAt,
-          events: archive.events,
-        }),
-        supabase.from("events").delete().in("id", eventIds),
-      ]);
-
+      const insertRes = await supabase.from("archived_event_sets").insert({
+        id: archive.id,
+        archived_at: archive.archivedAt,
+        events: archive.events,
+      });
       if (insertRes.error) throw insertRes.error;
+
+      const deleteRes = await supabase.from("events").delete().in("id", eventIds);
       if (deleteRes.error) throw deleteRes.error;
 
       toast.success("Events archived successfully.");
+      return true;
     } catch (err: any) {
       console.error("Failed to archive events:", err);
       updateState({ events: previousEvents, archivedEvents: previousArchivedEvents });
       toast.error(`Failed to archive events: ${err.message || "Unknown error"}`);
+      return false;
     }
   };
 
