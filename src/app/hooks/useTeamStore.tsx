@@ -1,6 +1,11 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import {
+  savePendingEvent as savePendingEventToStorage,
+  loadPendingEvent,
+  clearPendingEvent as clearPendingEventFromStorage,
+} from "@/lib/attendance-draft";
 
 export const EVENT_TYPES = {
   PRACTICE: "Practice",
@@ -136,12 +141,15 @@ interface TeamStoreContextType {
   isNewCoach: boolean;
   isPasswordRecovery: boolean;
   isSuperAdmin: boolean;
+  pendingEvent: TeamEvent | null;
+  isOnline: boolean;
   login: (email: string, password?: string) => Promise<boolean>;
   updatePassword: (newPassword: string) => Promise<boolean>;
   signUp: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   startSession: (session: ActiveSession) => Promise<void>;
   saveSession: (presentPlayers: string[]) => Promise<void>;
+  retrySave: () => Promise<void>;
   addPlayer: (name: string, isGuest?: boolean) => Promise<boolean>;
   removePlayer: (name: string) => Promise<void>;
   updateSettings: (settings: { teamName?: string; teamLogo?: string; raffleEnabled?: boolean }) => Promise<void>;
@@ -167,10 +175,18 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const stateRef = useRef(state);
   const currentUserIdRef = useRef<string | null>(null);
+  const [pendingEvent, setPendingEvent] = useState<TeamEvent | null>(null);
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const pendingEventRef = useRef<TeamEvent | null>(null);
+  const retrySaveFnRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useEffect(() => {
+    pendingEventRef.current = pendingEvent;
+  }, [pendingEvent]);
 
   useEffect(() => {
     let subscription: any = null;
@@ -196,8 +212,19 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
           const superAdmin = await checkSuperAdmin(currentUserIdRef.current);
           setIsSuperAdmin(superAdmin);
           if (!superAdmin) {
-            const { state: data, isNewCoach: newCoach } = await loadFromSupabase(currentUserIdRef.current);
-            setState(data);
+            const { state: loadedData, isNewCoach: newCoach } = await loadFromSupabase(currentUserIdRef.current);
+            const pending = loadPendingEvent();
+            let stateToSet = loadedData;
+            if (pending && pending.coachId === currentUserIdRef.current) {
+              const alreadySaved = loadedData.events.some((e) => e.id === pending.event.id);
+              if (!alreadySaved) {
+                stateToSet = { ...loadedData, events: [pending.event as TeamEvent, ...loadedData.events], activeSession: null };
+                setPendingEvent(pending.event as TeamEvent);
+              } else {
+                clearPendingEventFromStorage();
+              }
+            }
+            setState(stateToSet);
             setIsNewCoach(newCoach);
           }
         } else {
@@ -239,8 +266,19 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
               const superAdmin = await checkSuperAdmin(newUserId);
               setIsSuperAdmin(superAdmin);
               if (!superAdmin) {
-                const { state: data, isNewCoach: newCoach } = await loadFromSupabase(newUserId);
-                setState(data);
+                const { state: loadedData, isNewCoach: newCoach } = await loadFromSupabase(newUserId);
+                const pending = loadPendingEvent();
+                let stateToSet = loadedData;
+                if (pending && pending.coachId === newUserId) {
+                  const alreadySaved = loadedData.events.some((e) => e.id === pending.event.id);
+                  if (!alreadySaved) {
+                    stateToSet = { ...loadedData, events: [pending.event as TeamEvent, ...loadedData.events], activeSession: null };
+                    setPendingEvent(pending.event as TeamEvent);
+                  } else {
+                    clearPendingEventFromStorage();
+                  }
+                }
+                setState(stateToSet);
                 setIsNewCoach(newCoach);
               }
             } catch (err) {
@@ -313,6 +351,8 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await supabase.auth.signOut();
+    clearPendingEventFromStorage();
+    setPendingEvent(null);
     setState(defaultState);
   };
 
@@ -392,11 +432,76 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
 
       toast.success("Session saved successfully.");
     } catch (err: any) {
-      console.error("Failed to save session:", err);
-      updateState({ events: previousEvents, activeSession: previousActiveSession });
-      toast.error(`Failed to save session: ${err.message || "Unknown error"}`);
+      const msg = (err?.message || "").toLowerCase();
+      const isNetworkError =
+        !navigator.onLine ||
+        msg.includes("failed to fetch") ||
+        msg.includes("networkerror") ||
+        msg.includes("network request failed");
+
+      if (isNetworkError && currentUserIdRef.current) {
+        savePendingEventToStorage(currentUserIdRef.current, event);
+        setPendingEvent(event);
+        toast.warning("No connection — saved locally. Will sync automatically.", { duration: 6000 });
+      } else {
+        console.error("Failed to save session:", err);
+        updateState({ events: previousEvents, activeSession: previousActiveSession });
+        toast.error(`Failed to save session: ${err.message || "Unknown error"}`);
+      }
     }
   };
+
+  const retrySave = async () => {
+    const pending = pendingEventRef.current;
+    if (!pending || !currentUserIdRef.current) return;
+
+    try {
+      const [insertRes, deleteRes] = await Promise.all([
+        supabase.from("events").insert({
+          coach_id: currentUserIdRef.current,
+          id: pending.id,
+          date: pending.date,
+          type: pending.type,
+          duration: pending.duration,
+          players: pending.players,
+          saved_at: pending.savedAt,
+        }),
+        supabase.from("active_session").delete().eq("coach_id", currentUserIdRef.current),
+      ]);
+
+      if (insertRes.error) throw insertRes.error;
+      if (deleteRes.error) throw deleteRes.error;
+
+      clearPendingEventFromStorage();
+      setPendingEvent(null);
+      toast.success("Session synced to cloud.");
+    } catch (err: any) {
+      toast.error("Sync failed — check your connection.");
+    }
+  };
+
+  // Keep retrySaveFnRef current so the online listener always calls the latest version
+  useEffect(() => {
+    retrySaveFnRef.current = retrySave;
+  });
+
+  // Online / offline tracking + auto-retry
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (pendingEventRef.current) {
+        retrySaveFnRef.current().catch(() => {});
+      }
+    };
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   const addPlayer = async (name: string, isGuest = false): Promise<boolean> => {
     const trimmed = name.trim();
@@ -721,12 +826,15 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
         isNewCoach,
         isPasswordRecovery,
         isSuperAdmin,
+        pendingEvent,
+        isOnline,
         login,
         updatePassword,
         signUp,
         logout,
         startSession,
         saveSession,
+        retrySave,
         addPlayer,
         removePlayer,
         updateSettings,
