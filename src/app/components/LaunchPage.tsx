@@ -312,7 +312,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                     </span>
                     <span className={`text-xs font-medium leading-relaxed max-w-xs ${isSelected ? "text-blue-900/80" : "text-slate-400"}`}>
                       {isPractice
-                        ? "Official team practice session (standard mandatory block)"
+                        ? "Official team practice for rostered players."
                         : "Voluntary extra work (e.g., Conditioning, Skill Work)"}
                     </span>
                   </div>
