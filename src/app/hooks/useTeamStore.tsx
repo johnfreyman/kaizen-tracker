@@ -438,7 +438,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     });
 
     try {
-      const { error } = await supabase.from("roster").delete().eq("name", name);
+      const { error } = await supabase.from("roster").delete().eq("coach_id", currentUserIdRef.current).eq("name", name);
       if (error) throw error;
       toast.success(`${name} removed from roster.`);
     } catch (err: any) {
@@ -512,7 +512,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
       });
       if (insertRes.error) throw insertRes.error;
 
-      const deleteRes = await supabase.from("events").delete().in("id", eventIds);
+      const deleteRes = await supabase.from("events").delete().eq("coach_id", currentUserIdRef.current).in("id", eventIds);
       if (deleteRes.error) throw deleteRes.error;
 
       toast.success("Events archived successfully.");
@@ -580,14 +580,14 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
             })),
             { onConflict: "id" }
           ),
-          supabase.from("archived_event_sets").delete().eq("id", archiveId),
+          supabase.from("archived_event_sets").delete().eq("coach_id", currentUserIdRef.current).eq("id", archiveId),
         ]);
 
         if (upsertRes.error) throw upsertRes.error;
         if (deleteRes.error) throw deleteRes.error;
       } else {
         // Nothing to upsert (e.g. all skipped), just delete the archive set
-        const { error } = await supabase.from("archived_event_sets").delete().eq("id", archiveId);
+        const { error } = await supabase.from("archived_event_sets").delete().eq("coach_id", currentUserIdRef.current).eq("id", archiveId);
         if (error) throw error;
       }
 
@@ -606,7 +606,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     updateState({ archivedEvents: current.archivedEvents.filter((a) => a.id !== archiveId) });
 
     try {
-      const { error } = await supabase.from("archived_event_sets").delete().eq("id", archiveId);
+      const { error } = await supabase.from("archived_event_sets").delete().eq("coach_id", currentUserIdRef.current).eq("id", archiveId);
       if (error) throw error;
       toast.success("Archive deleted successfully.");
     } catch (err: any) {
@@ -636,7 +636,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const [deleteRes, upsertRes] = await Promise.all([
-          supabase.from("events").delete().eq("id", lastEvent.id),
+          supabase.from("events").delete().eq("coach_id", currentUserIdRef.current).eq("id", lastEvent.id),
           supabase.from("active_session").upsert(
             {
               coach_id: currentUserIdRef.current,
