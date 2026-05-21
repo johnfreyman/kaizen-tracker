@@ -639,6 +639,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
           supabase.from("events").delete().eq("id", lastEvent.id),
           supabase.from("active_session").upsert(
             {
+              coach_id: currentUserIdRef.current,
               id: session.id,
               date: session.date,
               type: session.type,
