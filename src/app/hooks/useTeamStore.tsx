@@ -392,21 +392,16 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     updateState({ events: [event, ...current.events], activeSession: null });
 
     try {
-      const [insertRes, deleteRes] = await Promise.all([
-        supabase.from("events").insert({
-          coach_id: currentUserIdRef.current,
-          id: event.id,
-          date: event.date,
-          type: event.type,
-          duration: event.duration,
-          players: event.players,
-          saved_at: event.savedAt,
-        }),
-        supabase.from("active_session").delete().eq("coach_id", currentUserIdRef.current),
-      ]);
-
-      if (insertRes.error) throw insertRes.error;
-      if (deleteRes.error) throw deleteRes.error;
+      const { error } = await supabase.rpc("save_session", {
+        p_coach_id:  currentUserIdRef.current,
+        p_event_id:  event.id,
+        p_date:      event.date,
+        p_type:      event.type,
+        p_duration:  event.duration,
+        p_players:   event.players,
+        p_saved_at:  event.savedAt,
+      });
+      if (error) throw error;
 
       toast.success("Session saved successfully.");
     } catch (err: any) {
@@ -434,21 +429,16 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     if (!pending || !currentUserIdRef.current) return;
 
     try {
-      const [insertRes, deleteRes] = await Promise.all([
-        supabase.from("events").insert({
-          coach_id: currentUserIdRef.current,
-          id: pending.id,
-          date: pending.date,
-          type: pending.type,
-          duration: pending.duration,
-          players: pending.players,
-          saved_at: pending.savedAt,
-        }),
-        supabase.from("active_session").delete().eq("coach_id", currentUserIdRef.current),
-      ]);
-
-      if (insertRes.error) throw insertRes.error;
-      if (deleteRes.error) throw deleteRes.error;
+      const { error } = await supabase.rpc("save_session", {
+        p_coach_id:  currentUserIdRef.current,
+        p_event_id:  pending.id,
+        p_date:      pending.date,
+        p_type:      pending.type,
+        p_duration:  pending.duration,
+        p_players:   pending.players,
+        p_saved_at:  pending.savedAt,
+      });
+      if (error) throw error;
 
       clearPendingEventFromStorage();
       setPendingEvent(null);
@@ -587,16 +577,14 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
 
     const eventIds = eventsToArchive.map((e) => e.id);
     try {
-      const insertRes = await supabase.from("archived_event_sets").insert({
-        coach_id: currentUserIdRef.current,
-        id: archive.id,
-        archived_at: archive.archivedAt,
-        events: archive.events,
+      const { error } = await supabase.rpc("archive_events", {
+        p_coach_id:    currentUserIdRef.current,
+        p_archive_id:  archive.id,
+        p_archived_at: archive.archivedAt,
+        p_events:      archive.events,
+        p_event_ids:   eventIds,
       });
-      if (insertRes.error) throw insertRes.error;
-
-      const deleteRes = await supabase.from("events").delete().eq("coach_id", currentUserIdRef.current).in("id", eventIds);
-      if (deleteRes.error) throw deleteRes.error;
+      if (error) throw error;
 
       toast.success("Events archived successfully.");
       return true;
@@ -649,30 +637,24 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     });
 
     try {
-      if (eventsToRestore.length > 0) {
-        const [upsertRes, deleteRes] = await Promise.all([
-          supabase.from("events").upsert(
-            eventsToRestore.map((e) => ({
-              coach_id: currentUserIdRef.current,
-              id: e.id,
-              date: e.date,
-              type: e.type,
-              duration: e.duration,
-              players: e.players,
-              saved_at: e.savedAt,
-            })),
-            { onConflict: "id" }
-          ),
-          supabase.from("archived_event_sets").delete().eq("coach_id", currentUserIdRef.current).eq("id", archiveId),
-        ]);
+      // Build the payload Postgres expects: snake_case keys matching the events table columns.
+      // When all events were skipped (eventsToRestore is empty) we still call the RPC so the
+      // archive row is atomically removed inside the same transaction.
+      const eventsPayload = eventsToRestore.map((e) => ({
+        id:       e.id,
+        date:     e.date,
+        type:     e.type,
+        duration: e.duration,
+        players:  e.players,
+        saved_at: e.savedAt,
+      }));
 
-        if (upsertRes.error) throw upsertRes.error;
-        if (deleteRes.error) throw deleteRes.error;
-      } else {
-        // Nothing to upsert (e.g. all skipped), just delete the archive set
-        const { error } = await supabase.from("archived_event_sets").delete().eq("coach_id", currentUserIdRef.current).eq("id", archiveId);
-        if (error) throw error;
-      }
+      const { error } = await supabase.rpc("restore_archive", {
+        p_coach_id:           currentUserIdRef.current,
+        p_archive_id:         archiveId,
+        p_events_to_restore:  eventsPayload,
+      });
+      if (error) throw error;
 
       toast.success("Archive restored successfully.");
     } catch (err: any) {

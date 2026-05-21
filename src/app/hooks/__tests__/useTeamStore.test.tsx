@@ -13,13 +13,19 @@ import { describe, test, expect, beforeEach, vi } from "vitest";
 // Mock supabase client
 vi.mock("@/lib/supabase", () => ({
   supabase: {
-    // auth is not used in these tests
-    auth: { getSession: vi.fn() },
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+      onAuthStateChange: vi.fn().mockReturnValue({
+        data: { subscription: { unsubscribe: vi.fn() } },
+      }),
+      signOut: vi.fn().mockResolvedValue({}),
+    },
     from: vi.fn(() => ({
       upsert: vi.fn(),
       insert: vi.fn(),
       delete: vi.fn(),
     })),
+    rpc: vi.fn(),
     storage: {
       from: vi.fn(() => ({
         upload: vi.fn(),
@@ -70,13 +76,12 @@ describe("useTeamStore error handling", () => {
   });
 
   test("saveSession rolls back on Supabase failure", async () => {
-    const mockInsert = vi.fn().mockResolvedValue({ error: new Error("insert error") });
-    const mockDelete = vi.fn().mockResolvedValue({ error: null });
-    (supabase.from as any).mockImplementation((table: any) => {
-        if (table === "events") return { insert: mockInsert };
-        if (table === "active_session") return { delete: mockDelete };
-        return { upsert: vi.fn() };
-      });
+    // Arrange: mock the save_session RPC to fail.
+    (supabase.rpc as any).mockResolvedValue({ error: new Error("rpc error") });
+    // startSession still uses supabase.from, so mock it as a no-op success.
+    (supabase.from as any).mockReturnValue({
+      upsert: vi.fn().mockResolvedValue({ error: null }),
+    });
 
     const { result } = renderHook(() => useTeamStore(), { wrapper });
     // Set an active session first
@@ -96,22 +101,19 @@ describe("useTeamStore error handling", () => {
     expect(toast.error).toHaveBeenCalledWith(
       expect.stringContaining("Failed to save session")
     );
+    // Verify rpc was called with the correct function name and coach_id key
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "save_session",
+      expect.objectContaining({ p_event_id: "s1" })
+    );
   });
 
   test("archiveEvents rolls back on Supabase failure", async () => {
-    const mockInsert = vi.fn().mockResolvedValue({ error: new Error("archival insert error") });
-    const mockDelete = vi.fn().mockResolvedValue({ error: null });
-    (supabase.from as any).mockImplementation((table: any) => {
-        if (table === "archived_event_sets") return { insert: mockInsert };
-        if (table === "events") return { delete: mockDelete };
-        return { upsert: vi.fn() };
-      });
+    // Arrange: mock the archive_events RPC to fail.
+    (supabase.rpc as any).mockResolvedValue({ error: new Error("archival rpc error") });
+    (supabase.from as any).mockReturnValue({ upsert: vi.fn() });
 
     const { result } = renderHook(() => useTeamStore(), { wrapper });
-    // Populate events directly
-    act(() => {
-      result.current.updateSettings({}); // no‑op to trigger state update
-    });
     // Simulate an existing event
     act(() => {
       result.current.state.events.push({
@@ -131,16 +133,17 @@ describe("useTeamStore error handling", () => {
     );
     // Events array should remain unchanged
     expect(result.current.state.events).toHaveLength(1);
+    // Verify rpc was called with the correct function name
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "archive_events",
+      expect.objectContaining({ p_event_ids: ["e1"] })
+    );
   });
 
   test("restoreArchive rolls back on Supabase failure", async () => {
-    const mockUpsert = vi.fn().mockResolvedValue({ error: new Error("upsert error") });
-    const mockDelete = vi.fn().mockResolvedValue({ error: null });
-    (supabase.from as any).mockImplementation((table: any) => {
-        if (table === "events") return { upsert: mockUpsert };
-        if (table === "archived_event_sets") return { delete: mockDelete };
-        return { insert: vi.fn(), delete: vi.fn() };
-      });
+    // Arrange: mock the restore_archive RPC to fail.
+    (supabase.rpc as any).mockResolvedValue({ error: new Error("restore rpc error") });
+    (supabase.from as any).mockReturnValue({ upsert: vi.fn() });
 
     const { result } = renderHook(() => useTeamStore(), { wrapper });
     // Create an archive entry manually
@@ -159,8 +162,13 @@ describe("useTeamStore error handling", () => {
     expect(toast.error).toHaveBeenCalledWith(
       expect.stringContaining("Failed to restore archive")
     );
-    // Archive should still be present
+    // Archive should still be present after rollback
     expect(result.current.state.archivedEvents).toHaveLength(1);
+    // Verify rpc was called with the correct function name
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "restore_archive",
+      expect.objectContaining({ p_archive_id: "arch1" })
+    );
   });
 
   test("removePlayer rolls back on Supabase failure", async () => {
