@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.team_settings (
   id             UUID     PRIMARY KEY DEFAULT gen_random_uuid(),
   coach_id       UUID     NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE DEFAULT auth.uid(),
   team_name      TEXT     NOT NULL DEFAULT 'Kaizen Tracker' CHECK (char_length(team_name) <= 100),
-  team_logo      TEXT     NOT NULL DEFAULT '' CHECK (char_length(team_logo) <= 200),
+  team_logo      TEXT     NOT NULL DEFAULT '' CHECK (char_length(team_logo) <= 2048),
 
   raffle_enabled BOOLEAN  NOT NULL DEFAULT false
 );
