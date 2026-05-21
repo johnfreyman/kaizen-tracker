@@ -87,7 +87,12 @@ LEFT JOIN (
   FROM public.archived_event_sets
   GROUP BY coach_id
 ) AS a_agg
-  ON a_agg.coach_id = p.id;
+  ON a_agg.coach_id = p.id
+
+-- Exclude super admin accounts — they are operators, not coaches
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.super_admins sa WHERE sa.user_id = p.id
+);
 
 
 -- =============================================================================

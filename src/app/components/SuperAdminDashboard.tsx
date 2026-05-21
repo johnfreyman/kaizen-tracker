@@ -1,15 +1,12 @@
-import { useEffect, useState, Fragment, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
+import CoachDetailDrawer, { CoachSummaryRow } from "./admin/CoachDetailDrawer";
 import {
   LogOut,
   ChevronDown,
   ChevronUp,
   ChevronRight,
   Users,
-  Calendar,
-  Archive,
-  ShieldCheck,
   ShieldOff,
-  UserCheck,
   UserX,
   AlertTriangle,
   Activity,
@@ -20,24 +17,6 @@ import { useTeamStore } from "../hooks/useTeamStore";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-interface CoachSummaryRow {
-  coach_id: string;
-  email: string;
-  account_created_at: string | null;
-  last_sign_in_at: string | null;
-  email_confirmed_at: string | null;
-  auth_provider: string | null;
-  team_name: string | null;
-  team_logo: string | null;
-  raffle_enabled: boolean | null;
-  player_count: number;
-  session_count: number;
-  last_session_at: string | null;
-  total_archives: number;
-  last_active_at: string | null;
-  email_verified: boolean;
-}
 
 type SortKey = keyof Pick<
   CoachSummaryRow,
@@ -198,30 +177,6 @@ function StatusBadge({ status }: StatusBadgeProps) {
   );
 }
 
-interface DetailFieldProps {
-  label: string;
-  value: React.ReactNode;
-  icon?: React.ElementType;
-}
-
-function DetailField({ label, value, icon: Icon }: DetailFieldProps) {
-  return (
-    <div className="flex items-start gap-2.5">
-      {Icon && (
-        <span className="mt-0.5 p-1 bg-gray-100 rounded-md shrink-0">
-          <Icon className="w-3.5 h-3.5 text-gray-500" />
-        </span>
-      )}
-      <div className="min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">
-          {label}
-        </p>
-        <p className="text-sm text-gray-800 font-medium break-all">{value}</p>
-      </div>
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
@@ -232,7 +187,7 @@ export default function SuperAdminDashboard() {
   const [rows, setRows] = useState<CoachSummaryRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedCoach, setSelectedCoach] = useState<CoachSummaryRow | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("last_active_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
@@ -433,217 +388,98 @@ export default function SuperAdminDashboard() {
                 {!isLoading &&
                   sorted.map((row, i) => {
                     const status = getStatus(row);
-                    const isExpanded = expandedId === row.coach_id;
+                    const isSelected = selectedCoach?.coach_id === row.coach_id;
                     const isLast = i === sorted.length - 1;
 
                     return (
-                      <Fragment key={row.coach_id}>
-                        <tr
-                          onClick={() =>
-                            setExpandedId((prev) =>
-                              prev === row.coach_id ? null : row.coach_id
-                            )
-                          }
-                          className={`cursor-pointer transition-colors ${
-                            !isLast ? "border-b border-gray-100" : ""
-                          } ${
-                            isExpanded
-                              ? "bg-blue-50/50"
-                              : "hover:bg-gray-50/80"
-                          }`}
-                        >
-                          {/* Email */}
-                          <td className="px-5 py-4">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-medium text-gray-900 leading-tight">
-                                {row.email}
-                              </span>
-                              <span className="text-[11px] text-gray-400">
-                                Joined {shortDate(row.account_created_at)}
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* Team */}
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-2.5">
-                              {row.team_logo ? (
-                                <img
-                                  src={row.team_logo}
-                                  alt={row.team_name ?? ""}
-                                  className="size-7 rounded-lg object-cover shrink-0 shadow-sm"
-                                />
-                              ) : (
-                                <div className="size-7 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center">
-                                  <Users className="w-3.5 h-3.5 text-gray-400" />
-                                </div>
-                              )}
-                              <span className="text-gray-800">
-                                {row.team_name ?? (
-                                  <span className="text-gray-400 italic">
-                                    Not set
-                                  </span>
-                                )}
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* Status badge */}
-                          <td className="px-5 py-4">
-                            <StatusBadge status={status} />
-                          </td>
-
-                          {/* Players */}
-                          <td className="px-5 py-4 text-center">
-                            <span className="inline-flex items-center justify-center w-8 h-6 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold">
-                              {row.player_count}
+                      <tr
+                        key={row.coach_id}
+                        onClick={() => setSelectedCoach(row)}
+                        className={`cursor-pointer transition-colors ${
+                          !isLast ? "border-b border-gray-100" : ""
+                        } ${isSelected ? "bg-blue-50/50" : "hover:bg-gray-50/80"}`}
+                      >
+                        {/* Email */}
+                        <td className="px-5 py-4">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium text-gray-900 leading-tight">
+                              {row.email}
                             </span>
-                          </td>
+                            <span className="text-[11px] text-gray-400">
+                              Joined {shortDate(row.account_created_at)}
+                            </span>
+                          </div>
+                        </td>
 
-                          {/* Sessions */}
-                          <td className="px-5 py-4 text-center">
-                            <div className="flex flex-col items-center gap-0.5">
-                              <span className="inline-flex items-center justify-center w-8 h-6 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold">
-                                {row.session_count}
-                              </span>
-                              {row.last_session_at && (
-                                <span className="text-[10px] text-gray-400">
-                                  {relativeTime(row.last_session_at)}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Last Active */}
-                          <td className="px-5 py-4">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-gray-800 font-medium">
-                                {relativeTime(row.last_active_at)}
-                              </span>
-                              {row.last_sign_in_at && (
-                                <span className="text-[11px] text-gray-400">
-                                  Login: {shortDate(row.last_sign_in_at)}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Expand chevron */}
-                          <td className="px-5 py-4">
-                            {isExpanded ? (
-                              <ChevronDown className="size-4 text-gray-400 ml-auto" />
+                        {/* Team */}
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-2.5">
+                            {row.team_logo ? (
+                              <img
+                                src={row.team_logo}
+                                alt={row.team_name ?? ""}
+                                className="size-7 rounded-lg object-cover shrink-0 shadow-sm"
+                              />
                             ) : (
-                              <ChevronRight className="size-4 text-gray-400 ml-auto" />
-                            )}
-                          </td>
-                        </tr>
-
-                        {/* Expanded detail panel */}
-                        {isExpanded && (
-                          <tr className="bg-blue-50/30 border-b border-gray-100">
-                            <td colSpan={7} className="px-5 pb-5 pt-3">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-
-                                {/* Account info */}
-                                <div className="space-y-3">
-                                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-200 pb-1.5">
-                                    Account
-                                  </p>
-                                  <DetailField
-                                    label="Email Verification"
-                                    icon={row.email_verified ? ShieldCheck : ShieldOff}
-                                    value={
-                                      row.email_verified ? (
-                                        <span className="text-emerald-600">Verified</span>
-                                      ) : (
-                                        <span className="text-red-500">Not verified</span>
-                                      )
-                                    }
-                                  />
-                                  <DetailField
-                                    label="Auth Provider"
-                                    icon={UserCheck}
-                                    value={
-                                      row.auth_provider
-                                        ? row.auth_provider.charAt(0).toUpperCase() +
-                                          row.auth_provider.slice(1)
-                                        : "—"
-                                    }
-                                  />
-                                  <DetailField
-                                    label="Account Created"
-                                    icon={Calendar}
-                                    value={shortDate(row.account_created_at)}
-                                  />
-                                  <DetailField
-                                    label="Last Login"
-                                    icon={Activity}
-                                    value={
-                                      row.last_sign_in_at
-                                        ? `${relativeTime(row.last_sign_in_at)} · ${shortDate(row.last_sign_in_at)}`
-                                        : "Never"
-                                    }
-                                  />
-                                </div>
-
-                                {/* Activity info */}
-                                <div className="space-y-3">
-                                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-200 pb-1.5">
-                                    Activity
-                                  </p>
-                                  <DetailField
-                                    label="Total Sessions"
-                                    icon={Calendar}
-                                    value={row.session_count}
-                                  />
-                                  <DetailField
-                                    label="Last Session"
-                                    icon={Activity}
-                                    value={
-                                      row.last_session_at
-                                        ? `${relativeTime(row.last_session_at)} · ${shortDate(row.last_session_at)}`
-                                        : "No sessions yet"
-                                    }
-                                  />
-                                  <DetailField
-                                    label="Total Archives"
-                                    icon={Archive}
-                                    value={row.total_archives}
-                                  />
-                                  <DetailField
-                                    label="Raffle Enabled"
-                                    icon={Activity}
-                                    value={
-                                      row.raffle_enabled ? (
-                                        <span className="text-emerald-600">Yes</span>
-                                      ) : (
-                                        <span className="text-gray-400">No</span>
-                                      )
-                                    }
-                                  />
-                                </div>
-
-                                {/* Team roster */}
-                                <div className="space-y-3 sm:col-span-2 lg:col-span-1">
-                                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-200 pb-1.5">
-                                    Roster ({row.player_count} players)
-                                  </p>
-                                  {row.player_count === 0 ? (
-                                    <p className="text-sm text-gray-400 italic">
-                                      No players on roster
-                                    </p>
-                                  ) : (
-                                    <p className="text-sm text-gray-600">
-                                      {row.player_count} player
-                                      {row.player_count !== 1 ? "s" : ""}
-                                    </p>
-                                  )}
-                                </div>
+                              <div className="size-7 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center">
+                                <Users className="w-3.5 h-3.5 text-gray-400" />
                               </div>
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
+                            )}
+                            <span className="text-gray-800">
+                              {row.team_name ?? (
+                                <span className="text-gray-400 italic">
+                                  Not set
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Status badge */}
+                        <td className="px-5 py-4">
+                          <StatusBadge status={status} />
+                        </td>
+
+                        {/* Players */}
+                        <td className="px-5 py-4 text-center">
+                          <span className="inline-flex items-center justify-center w-8 h-6 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold">
+                            {row.player_count}
+                          </span>
+                        </td>
+
+                        {/* Sessions */}
+                        <td className="px-5 py-4 text-center">
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="inline-flex items-center justify-center w-8 h-6 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold">
+                              {row.session_count}
+                            </span>
+                            {row.last_session_at && (
+                              <span className="text-[10px] text-gray-400">
+                                {relativeTime(row.last_session_at)}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Last Active */}
+                        <td className="px-5 py-4">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-gray-800 font-medium">
+                              {relativeTime(row.last_active_at)}
+                            </span>
+                            {row.last_sign_in_at && (
+                              <span className="text-[11px] text-gray-400">
+                                Login: {shortDate(row.last_sign_in_at)}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Open drawer */}
+                        <td className="px-5 py-4">
+                          <ChevronRight className="size-4 text-gray-400 ml-auto" />
+                        </td>
+                      </tr>
                     );
                   })}
 
@@ -687,6 +523,12 @@ export default function SuperAdminDashboard() {
           )}
         </div>
       </div>
+
+      {/* Coach detail drawer — lazy-loads data on open */}
+      <CoachDetailDrawer
+        coach={selectedCoach}
+        onClose={() => setSelectedCoach(null)}
+      />
     </div>
   );
 }
