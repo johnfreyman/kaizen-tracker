@@ -151,6 +151,7 @@ interface TeamStoreContextType {
   deleteArchive: (archiveId: string) => Promise<void>;
   editLastSession: () => TeamEvent | null;
   isGuest: (playerName: string) => boolean;
+  completeOnboarding: () => void;
 }
 
 const TeamStoreContext = createContext<TeamStoreContextType | null>(null);
@@ -658,7 +659,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     try {
       const current = stateRef.current;
       const fileExt = file.name.split(".").pop();
-      const fileName = `logos/${crypto.randomUUID()}.${fileExt}`;
+      const fileName = `logos/${currentUserIdRef.current}/${crypto.randomUUID()}.${fileExt}`;
 
       // Upload file to the "team-assets" storage bucket
       const { error: uploadError } = await supabase.storage
@@ -699,6 +700,8 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const completeOnboarding = () => setIsNewCoach(false);
+
   return (
     <TeamStoreContext.Provider
       value={{
@@ -725,6 +728,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
         deleteArchive,
         editLastSession,
         isGuest,
+        completeOnboarding,
       }}
     >
       {children}
