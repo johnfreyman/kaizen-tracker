@@ -10,13 +10,14 @@ import LoginPage from "./components/LoginPage";
 import ResetPasswordPage from "./components/ResetPasswordPage";
 import { TeamStoreProvider, useTeamStore } from "./hooks/useTeamStore";
 import SuperAdminDashboard from "./components/SuperAdminDashboard";
+import OnboardingPage from "./components/OnboardingPage";
 import { Toaster } from "./components/ui/sonner";
 
 type Page = "launch" | "attendance" | "summary" | "settings" | "raffle";
 
 function AppContent() {
   const [activePage, setActivePage] = useState<Page>("launch");
-  const { state, isLoading, isAuthenticated, isPasswordRecovery, isSuperAdmin, logout } = useTeamStore();
+  const { state, isLoading, isAuthenticated, isPasswordRecovery, isSuperAdmin, isNewCoach, logout } = useTeamStore();
   const isNewAccount = state.teamName === "Team Name" && !state.teamLogo;
 
   if (isLoading) {
@@ -40,6 +41,10 @@ function AppContent() {
 
   if (isSuperAdmin) {
     return <SuperAdminDashboard />;
+  }
+
+  if (isNewCoach) {
+    return <OnboardingPage />;
   }
 
   const navItems = [
