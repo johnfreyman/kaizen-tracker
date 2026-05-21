@@ -60,6 +60,15 @@ const defaultState: TeamState = {
   guestPlayers: [],
 };
 
+async function checkSuperAdmin(userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("super_admins")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return !!data;
+}
+
 async function loadFromSupabase(userId: string): Promise<{ state: TeamState; isNewCoach: boolean }> {
   const [settingsRes, rosterRes, eventsRes, sessionRes, archivesRes] = await Promise.all([
     supabase.from("team_settings").select("*").eq("coach_id", userId).maybeSingle(),
@@ -126,6 +135,7 @@ interface TeamStoreContextType {
   authError: string | null;
   isNewCoach: boolean;
   isPasswordRecovery: boolean;
+  isSuperAdmin: boolean;
   login: (email: string, password?: string) => Promise<boolean>;
   updatePassword: (newPassword: string) => Promise<boolean>;
   signUp: (email: string, password: string) => Promise<boolean>;
@@ -153,6 +163,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isNewCoach, setIsNewCoach] = useState(false);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const stateRef = useRef(state);
   const currentUserIdRef = useRef<string | null>(null);
 
@@ -174,11 +185,16 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
         setIsAuthenticated(hasSession);
         
         if (hasSession && currentUserIdRef.current) {
-          const { state: data, isNewCoach: newCoach } = await loadFromSupabase(currentUserIdRef.current);
-          setState(data);
-          setIsNewCoach(newCoach);
+          const superAdmin = await checkSuperAdmin(currentUserIdRef.current);
+          setIsSuperAdmin(superAdmin);
+          if (!superAdmin) {
+            const { state: data, isNewCoach: newCoach } = await loadFromSupabase(currentUserIdRef.current);
+            setState(data);
+            setIsNewCoach(newCoach);
+          }
         } else {
           setState(defaultState);
+          setIsSuperAdmin(false);
         }
       } catch (err) {
         console.error("Failed to initialize session data:", err);
