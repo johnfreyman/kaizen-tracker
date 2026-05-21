@@ -1,5 +1,6 @@
-import { useEffect, useState, useMemo } from "react";
-import CoachDetailDrawer, { CoachSummaryRow } from "./admin/CoachDetailDrawer";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import CoachDetailPanel from "./admin/CoachDetailPanel";
+import { CoachSummaryRow } from "./admin/CoachDetailDrawer";
 import {
   LogOut,
   ChevronDown,
@@ -10,6 +11,15 @@ import {
   UserX,
   AlertTriangle,
   Activity,
+  Search,
+  X,
+  Filter,
+  Check,
+  CheckCircle2,
+  Zap,
+  Calendar,
+  AlignJustify,
+  List,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useTeamStore } from "../hooks/useTeamStore";
@@ -48,29 +58,82 @@ function getStatus(row: CoachSummaryRow): StatusType {
 
 const STATUS_CONFIG: Record<
   StatusType,
-  { label: string; className: string; icon: React.ElementType }
+  { label: string; className: string; dotClass: string; icon: React.ElementType }
 > = {
   active: {
     label: "Active",
     className: "bg-emerald-100 text-emerald-700 border border-emerald-200",
+    dotClass: "bg-emerald-500",
     icon: Activity,
   },
   inactive: {
     label: "Inactive",
     className: "bg-amber-100 text-amber-700 border border-amber-200",
+    dotClass: "bg-amber-400",
     icon: UserX,
   },
   unverified: {
     label: "Unverified",
     className: "bg-red-100 text-red-600 border border-red-200",
+    dotClass: "bg-red-500",
     icon: ShieldOff,
   },
   "no-team-setup": {
     label: "No Setup",
     className: "bg-gray-100 text-gray-500 border border-gray-200",
+    dotClass: "bg-gray-400",
     icon: AlertTriangle,
   },
 };
+
+// ---------------------------------------------------------------------------
+// Filtering logic
+// ---------------------------------------------------------------------------
+
+export type FilterType = 
+  | "recently-active" 
+  | "active" 
+  | "inactive" 
+  | "needs-attention" 
+  | "raffle-enabled" 
+  | "unverified" 
+  | "no-team-setup" 
+  | "has-sessions";
+
+const FILTER_OPTIONS: { id: FilterType; label: string; icon: React.ElementType }[] = [
+  { id: "recently-active", label: "Recently Active", icon: Activity },
+  { id: "active", label: "Active", icon: CheckCircle2 },
+  { id: "inactive", label: "Inactive", icon: UserX },
+  { id: "needs-attention", label: "Needs Attention", icon: AlertTriangle },
+  { id: "raffle-enabled", label: "Raffle Enabled", icon: Zap },
+  { id: "has-sessions", label: "Has Sessions", icon: Calendar },
+  { id: "unverified", label: "Unverified", icon: ShieldOff },
+  { id: "no-team-setup", label: "No Setup", icon: AlertTriangle },
+];
+
+function matchesFilter(row: CoachSummaryRow, filter: FilterType): boolean {
+  switch (filter) {
+    case "recently-active":
+      if (!row.last_active_at) return false;
+      return (Date.now() - new Date(row.last_active_at).getTime()) <= 7 * 24 * 60 * 60 * 1000;
+    case "active":
+      return getStatus(row) === "active";
+    case "inactive":
+      return getStatus(row) === "inactive";
+    case "needs-attention":
+      return !row.email_verified || !row.team_name;
+    case "raffle-enabled":
+      return row.raffle_enabled === true;
+    case "unverified":
+      return !row.email_verified;
+    case "no-team-setup":
+      return !row.team_name;
+    case "has-sessions":
+      return row.session_count > 0;
+    default:
+      return true;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Date helpers
@@ -108,16 +171,16 @@ function shortDate(iso: string | null): string {
 function SkeletonRow() {
   return (
     <tr className="border-b border-gray-100 animate-pulse">
-      {[180, 140, 80, 70, 90, 90].map((w, i) => (
-        <td key={i} className="px-5 py-4">
+      {[160, 120, 60, 55, 55, 80].map((w, i) => (
+        <td key={i} className="px-4 py-3">
           <div
-            className="h-4 rounded-full bg-gray-200"
+            className="h-3.5 rounded-full bg-gray-200"
             style={{ width: w }}
           />
         </td>
       ))}
-      <td className="px-5 py-4">
-        <div className="h-4 w-4 rounded-full bg-gray-200 ml-auto" />
+      <td className="px-4 py-3">
+        <div className="h-3.5 w-3 rounded-full bg-gray-200 ml-auto" />
       </td>
     </tr>
   );
@@ -143,12 +206,14 @@ function SortableTh({
   const isActive = currentKey === sortKey;
   return (
     <th
-      className={`px-5 py-3.5 font-semibold text-gray-500 uppercase tracking-wider text-xs cursor-pointer select-none hover:text-gray-800 transition-colors group ${className}`}
+      className={`px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-[11px] cursor-pointer select-none hover:text-gray-800 transition-colors group ${className}`}
       onClick={() => onSort(sortKey)}
     >
       <span className="flex items-center gap-1">
         {label}
-        <span className={`transition-opacity ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-40"}`}>
+        <span
+          className={`transition-opacity ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-40"}`}
+        >
           {isActive && currentDir === "desc" ? (
             <ChevronDown className="w-3 h-3" />
           ) : (
@@ -160,20 +225,13 @@ function SortableTh({
   );
 }
 
-interface StatusBadgeProps {
-  status: StatusType;
-}
-
-function StatusBadge({ status }: StatusBadgeProps) {
+function StatusDot({ status }: { status: StatusType }) {
   const cfg = STATUS_CONFIG[status];
-  const Icon = cfg.icon;
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${cfg.className}`}
-    >
-      <Icon className="w-3 h-3" />
-      {cfg.label}
-    </span>
+      className={`inline-block w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`}
+      title={cfg.label}
+    />
   );
 }
 
@@ -190,12 +248,41 @@ export default function SuperAdminDashboard() {
   const [selectedCoach, setSelectedCoach] = useState<CoachSummaryRow | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("last_active_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [search, setSearch] = useState("");
+  const [activeFilters, setActiveFilters] = useState<Set<FilterType>>(new Set());
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [density, setDensity] = useState<"standard" | "compact">("standard");
+
+  // Ref for keyboard navigation — track focused row index within filtered list
+  const listRef = useRef<HTMLTableSectionElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const filterDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close filter dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const toggleFilter = useCallback((f: FilterType) => {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(f)) next.delete(f);
+      else next.add(f);
+      return next;
+    });
+  }, []);
 
   // -------------------------------------------------------------------------
   // Data fetch — single view query, no N+1
   // -------------------------------------------------------------------------
   useEffect(() => {
-    async function fetch() {
+    async function fetchCoaches() {
       try {
         const { data, error } = await supabase
           .from("admin_coach_summary_view")
@@ -209,19 +296,49 @@ export default function SuperAdminDashboard() {
         setIsLoading(false);
       }
     }
-    fetch();
+    fetchCoaches();
   }, []);
 
   // -------------------------------------------------------------------------
-  // Sorting — client-side, O(n log n), no extra API calls
+  // Sorting
   // -------------------------------------------------------------------------
-  const handleSort = (key: SortKey) => {
-    setSortDir((prev) => (sortKey === key && prev === "asc" ? "desc" : "asc"));
-    setSortKey(key);
-  };
+  const handleSort = useCallback(
+    (key: SortKey) => {
+      setSortDir((prev) => (sortKey === key && prev === "asc" ? "desc" : "asc"));
+      setSortKey(key);
+    },
+    [sortKey]
+  );
+
+  // -------------------------------------------------------------------------
+  // Search filter (client-side, debounced via useMemo)
+  // -------------------------------------------------------------------------
+  const filtered = useMemo(() => {
+    let result = rows;
+
+    const q = search.trim().toLowerCase();
+    if (q) {
+      result = result.filter(
+        (r) =>
+          r.email.toLowerCase().includes(q) ||
+          (r.team_name ?? "").toLowerCase().includes(q)
+      );
+    }
+
+    if (activeFilters.size > 0) {
+      result = result.filter((r) => {
+        for (const f of activeFilters) {
+          if (!matchesFilter(r, f)) return false;
+        }
+        return true;
+      });
+    }
+
+    return result;
+  }, [rows, search, activeFilters]);
 
   const sorted = useMemo(() => {
-    return [...rows].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       const av = a[sortKey] ?? "";
       const bv = b[sortKey] ?? "";
       const cmp = String(av).localeCompare(String(bv), undefined, {
@@ -230,7 +347,7 @@ export default function SuperAdminDashboard() {
       });
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [rows, sortKey, sortDir]);
+  }, [filtered, sortKey, sortDir]);
 
   // -------------------------------------------------------------------------
   // Stats summary
@@ -243,93 +360,253 @@ export default function SuperAdminDashboard() {
   }, [rows]);
 
   // -------------------------------------------------------------------------
+  // Keyboard navigation
+  // -------------------------------------------------------------------------
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTableSectionElement>) => {
+      if (!sorted.length) return;
+
+      const currentIdx = selectedCoach
+        ? sorted.findIndex((r) => r.coach_id === selectedCoach.coach_id)
+        : -1;
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const next = currentIdx < sorted.length - 1 ? currentIdx + 1 : 0;
+        setSelectedCoach(sorted[next]);
+        // Scroll the row into view
+        const row = listRef.current?.children[next] as HTMLElement | undefined;
+        row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const prev = currentIdx > 0 ? currentIdx - 1 : sorted.length - 1;
+        setSelectedCoach(sorted[prev]);
+        const row = listRef.current?.children[prev] as HTMLElement | undefined;
+        row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      } else if (e.key === "Escape") {
+        setSelectedCoach(null);
+      } else if (e.key === "Enter" && currentIdx >= 0) {
+        // Re-confirm selection (useful for screen readers)
+        setSelectedCoach(sorted[currentIdx]);
+      }
+    },
+    [sorted, selectedCoach]
+  );
+
+  // Global Escape key clears selection
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedCoach(null);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <div className="mx-auto max-w-[1400px] p-4 md:p-6 space-y-6">
+    <div className="h-screen flex flex-col bg-gradient-to-br from-slate-50 via-indigo-50/40 to-blue-50/30 overflow-hidden">
 
-        {/* Header */}
-        <header className="flex items-center justify-between">
+      {/* ── Top header bar ──────────────────────────────────────── */}
+      <header className="shrink-0 flex items-center justify-between gap-4 px-6 py-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 shadow-sm">
+            <Users className="w-4 h-4 text-white" />
+          </div>
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-              Super Admin Dashboard
+            <h1 className="text-lg font-bold text-gray-900 leading-none">
+              Super Admin
             </h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Coach health &amp; activity across the platform
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              Coach health &amp; activity
             </p>
           </div>
-          <button
-            onClick={logout}
-            title="Log out"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/80 backdrop-blur-sm shadow-lg text-gray-600 hover:text-red-600 hover:bg-red-50 active:scale-95 transition-all border border-transparent hover:border-red-100 font-semibold text-sm"
-          >
-            <LogOut className="size-4" />
-            Log out
-          </button>
-        </header>
+        </div>
 
-        {/* Summary stat cards */}
+        {/* Summary chips */}
         {!isLoading && !error && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="hidden md:flex items-center gap-2">
             {[
               {
-                label: "Total Coaches",
+                label: "Total",
                 value: stats.total,
-                icon: Users,
-                color: "text-blue-600 bg-blue-50 border-blue-100",
+                color: "bg-blue-50 text-blue-700 border-blue-100",
               },
               {
-                label: "Active (30d)",
+                label: "Active",
                 value: stats.active,
-                icon: Activity,
-                color: "text-emerald-600 bg-emerald-50 border-emerald-100",
+                color: "bg-emerald-50 text-emerald-700 border-emerald-100",
               },
               {
                 label: "Unverified",
                 value: stats.unverified,
-                icon: ShieldOff,
-                color: "text-red-500 bg-red-50 border-red-100",
+                color: "bg-red-50 text-red-600 border-red-100",
               },
               {
-                label: "No Team Setup",
+                label: "No Setup",
                 value: stats.noSetup,
-                icon: AlertTriangle,
-                color: "text-amber-600 bg-amber-50 border-amber-100",
+                color: "bg-amber-50 text-amber-700 border-amber-100",
               },
-            ].map(({ label, value, icon: Icon, color }) => (
-              <div
+            ].map(({ label, value, color }) => (
+              <span
                 key={label}
-                className={`flex items-center gap-3 rounded-2xl border bg-white/70 backdrop-blur-sm px-4 py-3 shadow-sm ${color}`}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold ${color}`}
               >
-                <span className={`p-2 rounded-xl ${color.split(" ").slice(1).join(" ")}`}>
-                  <Icon className={`w-4 h-4 ${color.split(" ")[0]}`} />
-                </span>
-                <div>
-                  <p className="text-2xl font-bold text-gray-900 leading-none">
-                    {value}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5">{label}</p>
-                </div>
-              </div>
+                <span className="text-base font-bold leading-none">{value}</span>
+                {label}
+              </span>
             ))}
           </div>
         )}
 
-        {/* Error */}
-        {error && (
-          <div className="rounded-2xl bg-red-50 border border-red-200 p-4 text-red-700 text-sm flex items-start gap-3">
-            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
+        <button
+          onClick={logout}
+          title="Log out"
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white shadow border border-gray-200 text-gray-600 hover:text-red-600 hover:bg-red-50 hover:border-red-100 active:scale-95 transition-all font-semibold text-sm"
+        >
+          <LogOut className="size-4" />
+          <span className="hidden sm:inline">Log out</span>
+        </button>
+      </header>
 
-        {/* Table */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[860px]">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/60">
+      {/* ── Two-column master-detail body ───────────────────────── */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+
+        {/* ── LEFT: Coach List ──────────────────────────────────── */}
+        <div className="flex flex-col w-full md:w-[400px] lg:w-[440px] shrink-0 border-r border-gray-100 bg-white/70 min-h-0">
+
+          {/* Search, Filters, and Density controls */}
+          <div className="shrink-0 px-3 py-2.5 border-b border-gray-100 bg-white/90 space-y-2.5">
+            <div className="flex items-center gap-2">
+              {/* Search */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                <input
+                  ref={searchRef}
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by email or team…"
+                  aria-label="Search coaches"
+                  className="w-full pl-8 pr-8 py-2 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 outline-none transition-all placeholder:text-gray-400"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch("")}
+                    aria-label="Clear search"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Dropdown */}
+              <div className="relative" ref={filterDropdownRef}>
+                <button
+                  onClick={() => setIsFilterOpen(!isFilterOpen)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${
+                    activeFilters.size > 0 || isFilterOpen
+                      ? "bg-indigo-50 border-indigo-200 text-indigo-700"
+                      : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                  }`}
+                  aria-haspopup="listbox"
+                  aria-expanded={isFilterOpen}
+                >
+                  <Filter className="w-4 h-4" />
+                  <span className="hidden sm:inline">Filter</span>
+                  {activeFilters.size > 0 && (
+                    <span className="flex items-center justify-center w-5 h-5 rounded-md bg-indigo-600 text-white text-[10px] font-bold ml-0.5">
+                      {activeFilters.size}
+                    </span>
+                  )}
+                </button>
+                
+                {isFilterOpen && (
+                  <div className="absolute right-0 sm:left-0 sm:right-auto top-full mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1.5 animate-in fade-in slide-in-from-top-2 duration-100">
+                    <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                      Filter by
+                    </div>
+                    {FILTER_OPTIONS.map((opt) => {
+                      const isActive = activeFilters.has(opt.id);
+                      return (
+                        <button
+                          key={opt.id}
+                          onClick={() => toggleFilter(opt.id)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          role="option"
+                          aria-selected={isActive}
+                        >
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isActive ? 'bg-indigo-500 border-indigo-500' : 'border-gray-300'}`}>
+                            {isActive && <Check className="w-3 h-3 text-white" />}
+                          </div>
+                          <opt.icon className="w-4 h-4 text-gray-400 shrink-0" />
+                          <span className="truncate">{opt.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Density Toggle */}
+              <button
+                onClick={() => setDensity(d => d === "standard" ? "compact" : "standard")}
+                title={`Switch to ${density === "standard" ? "compact" : "standard"} view`}
+                className="flex items-center justify-center w-[38px] h-[38px] rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors shrink-0"
+              >
+                {density === "standard" ? <AlignJustify className="w-4 h-4" /> : <List className="w-4 h-4" />}
+              </button>
+            </div>
+
+            {/* Active filter chips */}
+            {activeFilters.size > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {Array.from(activeFilters).map(fId => {
+                  const opt = FILTER_OPTIONS.find(o => o.id === fId);
+                  if (!opt) return null;
+                  return (
+                    <span key={fId} className="inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-xs font-medium text-indigo-700 animate-in fade-in zoom-in duration-150">
+                      <opt.icon className="w-3 h-3" />
+                      {opt.label}
+                      <button 
+                        onClick={() => toggleFilter(fId)} 
+                        className="p-0.5 rounded-md hover:bg-indigo-200 transition-colors text-indigo-500 hover:text-indigo-800"
+                        aria-label={`Remove ${opt.label} filter`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+                <button
+                  onClick={() => setActiveFilters(new Set())}
+                  className="text-xs text-gray-400 hover:text-gray-600 px-1.5 py-1 font-medium transition-colors"
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="mx-3 mt-3 rounded-xl bg-red-50 border border-red-200 p-3 text-red-700 text-xs flex items-start gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Scrollable table container */}
+          <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
+            <table
+              className="w-full text-sm"
+              aria-label="Coach list"
+            >
+              {/* Sticky thead */}
+              <thead className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm border-b border-gray-100">
+                <tr>
                   <SortableTh
                     label="Coach"
                     sortKey="email"
@@ -338,25 +615,9 @@ export default function SuperAdminDashboard() {
                     onSort={handleSort}
                     className="text-left"
                   />
-                  <SortableTh
-                    label="Team"
-                    sortKey="team_name"
-                    currentKey={sortKey}
-                    currentDir={sortDir}
-                    onSort={handleSort}
-                    className="text-left"
-                  />
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 uppercase tracking-wider text-xs">
+                  <th className="px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-left">
                     Status
                   </th>
-                  <SortableTh
-                    label="Players"
-                    sortKey="player_count"
-                    currentKey={sortKey}
-                    currentDir={sortDir}
-                    onSort={handleSort}
-                    className="text-center"
-                  />
                   <SortableTh
                     label="Sessions"
                     sortKey="session_count"
@@ -366,118 +627,127 @@ export default function SuperAdminDashboard() {
                     className="text-center"
                   />
                   <SortableTh
-                    label="Last Active"
+                    label="Players"
+                    sortKey="player_count"
+                    currentKey={sortKey}
+                    currentDir={sortDir}
+                    onSort={handleSort}
+                    className="text-center"
+                  />
+                  <SortableTh
+                    label="Created"
+                    sortKey="account_created_at"
+                    currentKey={sortKey}
+                    currentDir={sortDir}
+                    onSort={handleSort}
+                    className="text-left"
+                  />
+                  <SortableTh
+                    label="Active"
                     sortKey="last_active_at"
                     currentKey={sortKey}
                     currentDir={sortDir}
                     onSort={handleSort}
                     className="text-left"
                   />
-                  <th className="px-5 py-3.5 w-8" />
+                  <th className="px-3 py-3 w-5" />
                 </tr>
               </thead>
 
-              <tbody>
+              <tbody
+                ref={listRef}
+                onKeyDown={handleKeyDown}
+                tabIndex={0}
+                aria-label="Coach rows — use arrow keys to navigate"
+                className="outline-none"
+              >
                 {/* Skeleton rows */}
                 {isLoading &&
-                  Array.from({ length: 6 }).map((_, i) => (
+                  Array.from({ length: 8 }).map((_, i) => (
                     <SkeletonRow key={i} />
                   ))}
 
                 {/* Data rows */}
                 {!isLoading &&
-                  sorted.map((row, i) => {
+                  sorted.map((row) => {
                     const status = getStatus(row);
                     const isSelected = selectedCoach?.coach_id === row.coach_id;
-                    const isLast = i === sorted.length - 1;
+                    const pyClass = density === "compact" ? "py-1.5" : "py-2.5";
 
                     return (
                       <tr
                         key={row.coach_id}
                         onClick={() => setSelectedCoach(row)}
-                        className={`cursor-pointer transition-colors ${
-                          !isLast ? "border-b border-gray-100" : ""
-                        } ${isSelected ? "bg-blue-50/50" : "hover:bg-gray-50/80"}`}
+                        aria-selected={isSelected}
+                        className={`
+                          cursor-pointer border-b border-gray-50 transition-colors duration-100
+                          ${isSelected
+                            ? "bg-indigo-50 border-l-2 border-l-indigo-500"
+                            : "hover:bg-gray-50/80 border-l-2 border-l-transparent"
+                          }
+                        `}
                       >
-                        {/* Email */}
-                        <td className="px-5 py-4">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-medium text-gray-900 leading-tight">
+                        {/* Email + join date */}
+                        <td className={`px-4 ${pyClass}`}>
+                          <div className="flex flex-col gap-0.5 min-w-0">
+                            <span
+                              className={`font-medium leading-tight truncate max-w-[160px] ${
+                                isSelected ? "text-indigo-700" : "text-gray-900"
+                              }`}
+                            >
                               {row.email}
                             </span>
-                            <span className="text-[11px] text-gray-400">
-                              Joined {shortDate(row.account_created_at)}
+                            <span className="text-[10px] text-gray-400">
+                              {shortDate(row.account_created_at)}
                             </span>
                           </div>
                         </td>
 
-                        {/* Team */}
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-2.5">
-                            {row.team_logo ? (
-                              <img
-                                src={row.team_logo}
-                                alt={row.team_name ?? ""}
-                                className="size-7 rounded-lg object-cover shrink-0 shadow-sm"
-                              />
-                            ) : (
-                              <div className="size-7 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center">
-                                <Users className="w-3.5 h-3.5 text-gray-400" />
-                              </div>
-                            )}
-                            <span className="text-gray-800">
-                              {row.team_name ?? (
-                                <span className="text-gray-400 italic">
-                                  Not set
-                                </span>
-                              )}
+                        {/* Status dot */}
+                        <td className={`px-4 ${pyClass}`}>
+                          <div className="flex items-center gap-1.5">
+                            <StatusDot status={status} />
+                            <span className="text-xs text-gray-500">
+                              {STATUS_CONFIG[status].label}
                             </span>
                           </div>
                         </td>
 
-                        {/* Status badge */}
-                        <td className="px-5 py-4">
-                          <StatusBadge status={status} />
+                        {/* Sessions */}
+                        <td className={`px-4 ${pyClass} text-center`}>
+                          <span className="inline-flex items-center justify-center w-7 h-5 rounded-md bg-blue-50 text-blue-700 text-xs font-bold">
+                            {row.session_count}
+                          </span>
                         </td>
 
                         {/* Players */}
-                        <td className="px-5 py-4 text-center">
-                          <span className="inline-flex items-center justify-center w-8 h-6 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold">
+                        <td className={`px-4 ${pyClass} text-center`}>
+                          <span className="inline-flex items-center justify-center w-7 h-5 rounded-md bg-gray-100 text-gray-600 text-xs font-bold">
                             {row.player_count}
                           </span>
                         </td>
 
-                        {/* Sessions */}
-                        <td className="px-5 py-4 text-center">
-                          <div className="flex flex-col items-center gap-0.5">
-                            <span className="inline-flex items-center justify-center w-8 h-6 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold">
-                              {row.session_count}
-                            </span>
-                            {row.last_session_at && (
-                              <span className="text-[10px] text-gray-400">
-                                {relativeTime(row.last_session_at)}
-                              </span>
-                            )}
-                          </div>
+                        {/* Created */}
+                        <td className={`px-4 ${pyClass}`}>
+                          <span className="text-xs text-gray-600">
+                            {shortDate(row.account_created_at)}
+                          </span>
                         </td>
 
-                        {/* Last Active */}
-                        <td className="px-5 py-4">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-gray-800 font-medium">
-                              {relativeTime(row.last_active_at)}
-                            </span>
-                            {row.last_sign_in_at && (
-                              <span className="text-[11px] text-gray-400">
-                                Login: {shortDate(row.last_sign_in_at)}
-                              </span>
-                            )}
-                          </div>
+                        {/* Last active */}
+                        <td className={`px-4 ${pyClass}`}>
+                          <span className="text-xs text-gray-600">
+                            {relativeTime(row.last_active_at)}
+                          </span>
                         </td>
 
-                        {/* Open drawer */}
-                        <td className="px-5 py-4">
-                          <ChevronRight className="size-4 text-gray-400 ml-auto" />
+                        {/* Arrow */}
+                        <td className={`pr-3 ${pyClass} text-right`}>
+                          <ChevronRight
+                            className={`size-3.5 transition-colors ${
+                              isSelected ? "text-indigo-400" : "text-gray-300"
+                            }`}
+                          />
                         </td>
                       </tr>
                     );
@@ -486,18 +756,23 @@ export default function SuperAdminDashboard() {
                 {/* Empty state */}
                 {!isLoading && !error && sorted.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-5 py-16 text-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="p-4 rounded-full bg-gray-100">
-                          <Users className="w-8 h-8 text-gray-400" />
-                        </div>
-                        <p className="font-semibold text-gray-700">
-                          No coaches found
+                    <td colSpan={5} className="px-4 py-12 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <Users className="w-7 h-7 text-gray-300" />
+                        <p className="text-sm font-medium text-gray-500">
+                          {search || activeFilters.size > 0 ? "No coaches match your criteria" : "No coaches found"}
                         </p>
-                        <p className="text-sm text-gray-400 max-w-xs">
-                          Coach accounts will appear here once users sign up and
-                          complete onboarding.
-                        </p>
+                        {(search || activeFilters.size > 0) && (
+                          <button
+                            onClick={() => {
+                              setSearch("");
+                              setActiveFilters(new Set());
+                            }}
+                            className="text-xs text-indigo-500 hover:text-indigo-700 transition-colors"
+                          >
+                            Clear filters and search
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -506,29 +781,26 @@ export default function SuperAdminDashboard() {
             </table>
           </div>
 
-          {/* Table footer */}
-          {!isLoading && sorted.length > 0 && (
-            <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50 text-xs text-gray-400 flex items-center justify-between">
+          {/* List footer */}
+          {!isLoading && (
+            <div className="shrink-0 px-4 py-2.5 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between text-[11px] text-gray-400">
               <span>
-                {sorted.length} coach{sorted.length !== 1 ? "es" : ""}
+                {search
+                  ? `${sorted.length} of ${rows.length} coaches`
+                  : `${rows.length} coach${rows.length !== 1 ? "es" : ""}`}
               </span>
               <span>
-                Sorted by{" "}
-                <strong className="text-gray-600">
-                  {sortKey.replace(/_/g, " ")}
-                </strong>{" "}
-                ({sortDir === "asc" ? "ascending" : "descending"})
+                ↑↓ to navigate · Esc to clear
               </span>
             </div>
           )}
         </div>
-      </div>
 
-      {/* Coach detail drawer — lazy-loads data on open */}
-      <CoachDetailDrawer
-        coach={selectedCoach}
-        onClose={() => setSelectedCoach(null)}
-      />
+        {/* ── RIGHT: Detail Panel ───────────────────────────────── */}
+        <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
+          <CoachDetailPanel coach={selectedCoach} />
+        </div>
+      </div>
     </div>
   );
 }
