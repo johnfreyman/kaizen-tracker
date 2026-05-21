@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Menu } from "lucide-react";
+import { Menu, Calendar, Users, Trophy, Gift, Settings as SettingsIcon, LogOut, TrendingUp } from "lucide-react";
 import { Drawer, DrawerTrigger, DrawerContent, DrawerOverlay, DrawerHeader, DrawerTitle } from "./components/ui/drawer";
 import LaunchPage from "./components/LaunchPage";
 import AttendancePage from "./components/AttendancePage";
 import SummaryPage from "./components/SummaryPage";
 import SettingsPage from "./components/SettingsPage";
 import RafflePage from "./components/RafflePage";
+import ChartsPage from "./components/ChartsPage";
 import LeaderboardTicker from "./components/LeaderboardTicker";
 import LoginPage from "./components/LoginPage";
 import ResetPasswordPage from "./components/ResetPasswordPage";
@@ -14,7 +15,7 @@ import SuperAdminDashboard from "./components/SuperAdminDashboard";
 import OnboardingPage from "./components/OnboardingPage";
 import { Toaster } from "./components/ui/sonner";
 
-type Page = "launch" | "attendance" | "summary" | "settings" | "raffle";
+type Page = "launch" | "attendance" | "summary" | "charts" | "settings" | "raffle";
 
 function AppContent() {
   const [activePage, setActivePage] = useState<Page>("launch");
@@ -52,6 +53,7 @@ function AppContent() {
     { id: "launch" as Page, label: "Launch", icon: Calendar },
     { id: "attendance" as Page, label: "Attendance", icon: Users },
     { id: "summary" as Page, label: "Summary", icon: Trophy },
+    { id: "charts" as Page, label: "Charts", icon: TrendingUp },
     ...(state.raffleEnabled ? [{ id: "raffle" as Page, label: "Raffle", icon: Gift }] : []),
     { id: "settings" as Page, label: "Settings", icon: SettingsIcon },
   ];
@@ -152,6 +154,7 @@ function AppContent() {
           {activePage === "launch" && <LaunchPage onNavigate={setActivePage} />}
           {activePage === "attendance" && <AttendancePage />}
           {activePage === "summary" && <SummaryPage />}
+          {activePage === "charts" && <ChartsPage />}
           {activePage === "raffle" && <RafflePage />}
           {activePage === "settings" && <SettingsPage />}
         </main>

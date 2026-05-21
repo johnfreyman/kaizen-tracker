@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Save, UserPlus, X, Upload, Gift, FileText, Archive, RotateCcw, Trash2, Trophy } from "lucide-react";
 import { useTeamStore, EVENT_TYPES, ConflictResolutionStrategy } from "../hooks/useTeamStore";
 import PlayerTypeDialog from "./PlayerTypeDialog";
@@ -33,6 +33,105 @@ export default function SettingsPage() {
   const [raffleEnabled, setRaffleEnabled] = useState(state.raffleEnabled);
   const [pendingPlayerName, setPendingPlayerName] = useState("");
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+
+  // Cleanup preview URL
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  // Helper to resize image using canvas (max 512px)
+  const resizeImage = async (file: File): Promise<File> => {
+    const img = document.createElement('img');
+    const objectUrl = URL.createObjectURL(file);
+    await new Promise<void>((resolve) => {
+      img.onload = () => resolve();
+      img.src = objectUrl;
+    });
+    const canvas = document.createElement('canvas');
+    const maxDim = 512;
+    let { width, height } = img;
+    if (width > height) {
+      if (width > maxDim) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      }
+    } else {
+      if (height > maxDim) {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
+    }
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas not supported');
+    ctx.drawImage(img, 0, 0, width, height);
+    const blob = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b as Blob), file.type));
+    URL.revokeObjectURL(objectUrl);
+    const resizedFile = new File([blob], file.name, { type: file.type });
+    return resizedFile;
+  };
+
+  // Handle file selection with validation and preview
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset previous errors
+    setValidationError(null);
+    // Validate type
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+    if (!allowedTypes.includes(file.type)) {
+      setValidationError('Unsupported file format. Please use PNG, JPEG, WebP, or SVG.');
+      return;
+    }
+    // Validate size (2 MiB)
+    const maxSize = 2 * 1024 * 1024; // 2 MiB
+    if (file.size > maxSize) {
+      setValidationError('File is too large. Maximum size is 2 MiB.');
+      return;
+    }
+    // Create preview URL (original or resized)
+    let preview = URL.createObjectURL(file);
+    setPreviewUrl(preview);
+    setSelectedFile(file);
+    // Resize before upload (skip SVG as it scales without rasterisation)
+    let fileToUpload = file;
+    if (file.type !== 'image/svg+xml') {
+      try {
+        fileToUpload = await resizeImage(file);
+      } catch (err) {
+        console.error('Resize error', err);
+        setValidationError('Failed to process image.');
+        return;
+      }
+    }
+    // Upload with progress indicator
+    setIsUploadingLogo(true);
+    setUploadProgress(0);
+    try {
+      // Supabase storage upload does not expose progress, so we simulate with a short interval
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => (prev < 90 ? prev + 10 : prev));
+      }, 200);
+      await uploadLogo(fileToUpload);
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+      setPreviewUrl(null);
+      toast.success('Team logo updated successfully.');
+    } catch (err) {
+      // Error handling is performed inside uploadLogo
+    } finally {
+      setIsUploadingLogo(false);
+      setUploadProgress(0);
+    }
+  };
+
   const [restoreReviewArchiveId, setRestoreReviewArchiveId] = useState<string | null>(null);
   const [conflictStrategy, setConflictStrategy] = useState<ConflictResolutionStrategy>("overwrite");
 
@@ -381,20 +480,7 @@ export default function SettingsPage() {
     toast.success("Settings saved successfully.");
   };
 
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
 
-    setIsUploadingLogo(true);
-    try {
-      await uploadLogo(file);
-      toast.success("Team logo updated successfully.");
-    } catch (err) {
-      // Error handles in the hook via toast
-    } finally {
-      setIsUploadingLogo(false);
-    }
-  };
 
   const handleAddPlayer = () => {
     setNewPlayerName("");
@@ -476,29 +562,53 @@ export default function SettingsPage() {
             <div className="relative">
               <input
                 type="file"
-                accept="image/*"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
                 disabled={isUploadingLogo}
-                onChange={handleLogoUpload}
+                onChange={handleFileSelect}
                 className="w-full px-4 py-3 rounded-2xl border border-gray-300 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-blue-50 file:text-blue-700 file:font-semibold hover:file:bg-blue-100 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               />
+              <p className="mt-1.5 text-xs text-gray-500">
+                Supported formats: PNG, JPEG, WebP, SVG &middot; Max 2 MiB &middot; Resized to 512px
+              </p>
+              {/* Validation error */}
+              {validationError && (
+                <Alert variant="destructive" className="mt-2">
+                  <AlertTitle>Upload Error</AlertTitle>
+                  <AlertDescription>{validationError}</AlertDescription>
+                </Alert>
+              )}
+              {/* Preview */}
+              {previewUrl && (
+                <div className="mt-4 flex items-center gap-4">
+                  <img src={previewUrl} alt="Logo preview" className="h-20 w-20 object-cover rounded-xl" />
+                  <span className="text-sm text-gray-600">Preview</span>
+                </div>
+              )}
+              {/* Upload progress */}
               {isUploadingLogo && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-blue-600 animate-pulse">
-                  Uploading...
+                <div className="mt-2 w-full">
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div
+                      className="bg-blue-600 h-2.5 rounded-full transition-width duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-blue-600 mt-1">Uploading... {uploadProgress}%</p>
+                </div>
+              )}
+              {state.teamLogo && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-2xl">
+                  <img
+                    src={state.teamLogo}
+                    alt="Team logo preview"
+                    className="size-20 object-cover rounded-xl mx-auto"
+                  />
+                  <p className="text-xs text-gray-500 text-center mt-2">
+                    Current logo
+                  </p>
                 </div>
               )}
             </div>
-            {state.teamLogo && (
-              <div className="mt-4 p-4 bg-gray-50 rounded-2xl">
-                <img
-                  src={state.teamLogo}
-                  alt="Team logo preview"
-                  className="size-20 object-cover rounded-xl mx-auto"
-                />
-                <p className="text-xs text-gray-500 text-center mt-2">
-                  Current logo
-                </p>
-              </div>
-            )}
           </div>
 
           <div>
