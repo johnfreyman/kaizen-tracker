@@ -4,3 +4,4 @@ node_modules
 .env.*
 !.env.example
 kaizen-project-source.zip
+kaizen-tracker-package.zip
