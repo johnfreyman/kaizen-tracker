@@ -228,9 +228,13 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
           if (hasSession && newUserId) {
             setIsLoading(true);
             try {
-              const { state: data, isNewCoach: newCoach } = await loadFromSupabase(newUserId);
-              setState(data);
-              setIsNewCoach(newCoach);
+              const superAdmin = await checkSuperAdmin(newUserId);
+              setIsSuperAdmin(superAdmin);
+              if (!superAdmin) {
+                const { state: data, isNewCoach: newCoach } = await loadFromSupabase(newUserId);
+                setState(data);
+                setIsNewCoach(newCoach);
+              }
             } catch (err) {
               console.error("Failed to load data on auth change:", err);
             } finally {
@@ -238,6 +242,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
             }
           } else {
             setState(defaultState);
+            setIsSuperAdmin(false);
             setIsLoading(false);
           }
         }
@@ -704,6 +709,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
         authError,
         isNewCoach,
         isPasswordRecovery,
+        isSuperAdmin,
         login,
         updatePassword,
         signUp,
