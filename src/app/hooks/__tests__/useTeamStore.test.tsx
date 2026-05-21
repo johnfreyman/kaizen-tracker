@@ -72,7 +72,7 @@ describe("useTeamStore error handling", () => {
   test("saveSession rolls back on Supabase failure", async () => {
     const mockInsert = vi.fn().mockResolvedValue({ error: new Error("insert error") });
     const mockDelete = vi.fn().mockResolvedValue({ error: null });
-    (supabase.from as any).mockImplementation((table) => {
+    (supabase.from as any).mockImplementation((table: any) => {
         if (table === "events") return { insert: mockInsert };
         if (table === "active_session") return { delete: mockDelete };
         return { upsert: vi.fn() };
@@ -101,7 +101,7 @@ describe("useTeamStore error handling", () => {
   test("archiveEvents rolls back on Supabase failure", async () => {
     const mockInsert = vi.fn().mockResolvedValue({ error: new Error("archival insert error") });
     const mockDelete = vi.fn().mockResolvedValue({ error: null });
-    (supabase.from as any).mockImplementation((table) => {
+    (supabase.from as any).mockImplementation((table: any) => {
         if (table === "archived_event_sets") return { insert: mockInsert };
         if (table === "events") return { delete: mockDelete };
         return { upsert: vi.fn() };
@@ -136,7 +136,7 @@ describe("useTeamStore error handling", () => {
   test("restoreArchive rolls back on Supabase failure", async () => {
     const mockUpsert = vi.fn().mockResolvedValue({ error: new Error("upsert error") });
     const mockDelete = vi.fn().mockResolvedValue({ error: null });
-    (supabase.from as any).mockImplementation((table) => {
+    (supabase.from as any).mockImplementation((table: any) => {
         if (table === "events") return { upsert: mockUpsert };
         if (table === "archived_event_sets") return { delete: mockDelete };
         return { insert: vi.fn(), delete: vi.fn() };
@@ -165,7 +165,7 @@ describe("useTeamStore error handling", () => {
 
   test("removePlayer rolls back on Supabase failure", async () => {
     const mockDelete = vi.fn().mockResolvedValue({ error: new Error("delete failed") });
-    (supabase.from as any).mockImplementation((table) => {
+    (supabase.from as any).mockImplementation((table: any) => {
         if (table === "roster") return { delete: mockDelete };
         return { upsert: vi.fn(), insert: vi.fn() };
       });
@@ -189,7 +189,7 @@ describe("useTeamStore error handling", () => {
 
   test("updateSettings rolls back on Supabase failure", async () => {
     const mockUpsert = vi.fn().mockResolvedValue({ error: new Error("upsert failure") });
-    (supabase.from as jest.Mock).mockImplementation(() => ({ upsert: mockUpsert }));
+    (supabase.from as any).mockImplementation(() => ({ upsert: mockUpsert }));
 
     const { result } = renderHook(() => useTeamStore(), { wrapper });
     const originalName = result.current.state.teamName;

@@ -145,7 +145,6 @@ interface TeamStoreContextType {
   isOnline: boolean;
   login: (email: string, password?: string) => Promise<boolean>;
   updatePassword: (newPassword: string) => Promise<boolean>;
-  signUp: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   startSession: (session: ActiveSession) => Promise<void>;
   saveSession: (presentPlayers: string[]) => Promise<void>;
@@ -322,27 +321,6 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (err: any) {
       setAuthError(err.message || "An authentication error occurred.");
-      return false;
-    } finally {
-      setIsAuthLoading(false);
-    }
-  };
-
-  const signUp = async (email: string, password: string): Promise<boolean> => {
-    setIsAuthLoading(true);
-    setAuthError(null);
-    try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: window.location.origin,
-        },
-      });
-      if (error) throw error;
-      return true;
-    } catch (err: any) {
-      setAuthError(err.message || "A registration error occurred.");
       return false;
     } finally {
       setIsAuthLoading(false);
@@ -830,7 +808,6 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
         isOnline,
         login,
         updatePassword,
-        signUp,
         logout,
         startSession,
         saveSession,
