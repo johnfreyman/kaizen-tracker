@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS public.team_settings (
 CREATE TABLE IF NOT EXISTS public.roster (
   id       UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
   coach_id UUID    NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE DEFAULT auth.uid(),
-  name     TEXT    NOT NULL,
+  name     TEXT    NOT NULL CHECK (char_length(name) > 0),
   is_guest BOOLEAN NOT NULL DEFAULT false,
   CONSTRAINT roster_coach_id_name_key UNIQUE (coach_id, name)
 );
@@ -34,10 +34,10 @@ CREATE TABLE IF NOT EXISTS public.roster (
 CREATE TABLE IF NOT EXISTS public.events (
   id       TEXT    PRIMARY KEY,
   coach_id UUID    NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE DEFAULT auth.uid(),
-  date     TEXT    NOT NULL,
+  date     TEXT    NOT NULL CHECK (date ~ '^\d{4}-\d{2}-\d{2}$'),
   type     TEXT    NOT NULL,
-  duration NUMERIC NOT NULL,
-  players  JSONB   NOT NULL DEFAULT '[]',
+  duration NUMERIC NOT NULL CHECK (duration > 0),
+  players  JSONB   NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(players) = 'array'),
   saved_at TEXT    NOT NULL,
   CONSTRAINT check_event_type CHECK (type IN ('Practice', 'Optional Training'))
 );
@@ -76,7 +76,7 @@ CREATE INDEX IF NOT EXISTS idx_events_coach_saved_at
 CREATE INDEX IF NOT EXISTS idx_roster_coach_id
   ON public.roster (coach_id);
 
--- archived_event_sets: coach-scoped list ordered newest-first
+CREATE INDEX IF NOT EXISTS idx_active_session_coach_id ON public.active_session (coach_id);
 CREATE INDEX IF NOT EXISTS idx_archived_sets_coach_archived_at
   ON public.archived_event_sets (coach_id, archived_at DESC);
 
