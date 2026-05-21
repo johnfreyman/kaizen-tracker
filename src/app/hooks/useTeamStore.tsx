@@ -125,7 +125,9 @@ interface TeamStoreContextType {
   isAuthLoading: boolean;
   authError: string | null;
   isNewCoach: boolean;
+  isPasswordRecovery: boolean;
   login: (email: string, password?: string) => Promise<boolean>;
+  updatePassword: (newPassword: string) => Promise<boolean>;
   signUp: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   startSession: (session: ActiveSession) => Promise<void>;
@@ -150,6 +152,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isNewCoach, setIsNewCoach] = useState(false);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const stateRef = useRef(state);
   const currentUserIdRef = useRef<string | null>(null);
 
@@ -187,11 +190,20 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
       const { data: { subscription: sub } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
         const hasSession = !!newSession;
         const newUserId = newSession?.user?.id ?? null;
-        
+
+        if (event === 'PASSWORD_RECOVERY') {
+          currentUserIdRef.current = newUserId;
+          setIsAuthenticated(true);
+          setIsPasswordRecovery(true);
+          setIsLoading(false);
+          setIsAuthLoading(false);
+          return;
+        }
+
         // Only trigger the load / loading screen if the authenticated user has actually changed.
         // This avoids redundant loading transitions on token refresh, background sync, or window focus events.
         const isUserChanged = newUserId !== currentUserIdRef.current;
-        
+
         if (isUserChanged) {
           currentUserIdRef.current = newUserId;
           setIsAuthenticated(hasSession);
@@ -273,6 +285,25 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await supabase.auth.signOut();
     setState(defaultState);
+  };
+
+  const updatePassword = async (newPassword: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      if (currentUserIdRef.current) {
+        const { state: data, isNewCoach: newCoach } = await loadFromSupabase(currentUserIdRef.current);
+        setState(data);
+        setIsNewCoach(newCoach);
+      }
+      setIsPasswordRecovery(false);
+      toast.success("Password updated successfully.");
+      return true;
+    } catch (err: any) {
+      console.error("Failed to update password:", err);
+      toast.error(`Failed to update password: ${err.message || "Unknown error"}`);
+      return false;
+    }
   };
 
   const updateState = (updates: Partial<TeamState>) => {
@@ -656,7 +687,9 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
         isAuthLoading,
         authError,
         isNewCoach,
+        isPasswordRecovery,
         login,
+        updatePassword,
         signUp,
         logout,
         startSession,

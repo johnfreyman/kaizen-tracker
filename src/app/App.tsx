@@ -7,6 +7,7 @@ import SettingsPage from "./components/SettingsPage";
 import RafflePage from "./components/RafflePage";
 import LeaderboardTicker from "./components/LeaderboardTicker";
 import LoginPage from "./components/LoginPage";
+import ResetPasswordPage from "./components/ResetPasswordPage";
 import { TeamStoreProvider, useTeamStore } from "./hooks/useTeamStore";
 import { Toaster } from "./components/ui/sonner";
 
@@ -14,7 +15,7 @@ type Page = "launch" | "attendance" | "summary" | "settings" | "raffle";
 
 function AppContent() {
   const [activePage, setActivePage] = useState<Page>("launch");
-  const { state, isLoading, isAuthenticated, logout } = useTeamStore();
+  const { state, isLoading, isAuthenticated, isPasswordRecovery, logout } = useTeamStore();
   const isNewAccount = state.teamName === "Team Name" && !state.teamLogo;
 
   if (isLoading) {
@@ -26,6 +27,10 @@ function AppContent() {
         </div>
       </div>
     );
+  }
+
+  if (isPasswordRecovery) {
+    return <ResetPasswordPage />;
   }
 
   if (!isAuthenticated) {
