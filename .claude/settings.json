@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -iE \"\\(\\\\.env$|\\\\.env\\\\.|secret|key|\\\\.pem|\\\\.DS_Store|\\\\.claude|dist/\\)\")",
+      "Bash(npx tsc *)"
+    ]
+  }
+}

@@ -2,8 +2,6 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode } fro
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
-const LOCAL_STORAGE_KEY = "kaizenTrackerState";
-
 export const EVENT_TYPES = {
   PRACTICE: "Practice",
   OPTIONAL_TRAINING: "Optional Training",
@@ -62,85 +60,17 @@ const defaultState: TeamState = {
   guestPlayers: [],
 };
 
-function readLocalState(): TeamState {
-  try {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (!saved) return { ...defaultState };
-    return { ...defaultState, ...JSON.parse(saved) };
-  } catch {
-    return { ...defaultState };
-  }
-}
-
-async function seedSupabase(s: TeamState, coachId: string) {
-  await supabase.from("team_settings").upsert({
-    coach_id: coachId,
-    team_name: s.teamName,
-    team_logo: s.teamLogo,
-    raffle_enabled: s.raffleEnabled,
-  }, { onConflict: 'coach_id' });
-
-  if (s.roster.length > 0) {
-    await supabase.from("roster").upsert(
-      s.roster.map((name) => ({ coach_id: coachId, name, is_guest: s.guestPlayers.includes(name) })),
-      { onConflict: 'coach_id,name' }
-    );
-  }
-
-  if (s.events.length > 0) {
-    await supabase.from("events").upsert(
-      s.events.map((e) => ({
-        coach_id: coachId,
-        id: e.id,
-        date: e.date,
-        type: e.type,
-        duration: e.duration,
-        players: e.players,
-        saved_at: e.savedAt,
-      }))
-    );
-  }
-
-  if (s.activeSession) {
-    await supabase.from("active_session").upsert({
-      coach_id: coachId,
-      id: s.activeSession.id,
-      date: s.activeSession.date,
-      type: s.activeSession.type,
-      duration: s.activeSession.duration,
-    }, { onConflict: 'coach_id' });
-  }
-
-  if (s.archivedEvents.length > 0) {
-    await supabase.from("archived_event_sets").upsert(
-      s.archivedEvents.map((a) => ({
-        coach_id: coachId,
-        id: a.id,
-        archived_at: a.archivedAt,
-        events: a.events,
-      }))
-    );
-  }
-}
-
-async function loadFromSupabase(): Promise<TeamState> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("No authenticated user.");
-  const coachId = user.id;
-
+async function loadFromSupabase(userId: string): Promise<{ state: TeamState; isNewCoach: boolean }> {
   const [settingsRes, rosterRes, eventsRes, sessionRes, archivesRes] = await Promise.all([
-    supabase.from("team_settings").select("*").maybeSingle(),
-    supabase.from("roster").select("*"),
-    supabase.from("events").select("*").order("saved_at", { ascending: false }),
-    supabase.from("active_session").select("*").maybeSingle(),
-    supabase.from("archived_event_sets").select("*").order("archived_at", { ascending: false }),
+    supabase.from("team_settings").select("*").eq("coach_id", userId).maybeSingle(),
+    supabase.from("roster").select("*").eq("coach_id", userId),
+    supabase.from("events").select("*").eq("coach_id", userId).order("saved_at", { ascending: false }),
+    supabase.from("active_session").select("*").eq("coach_id", userId).maybeSingle(),
+    supabase.from("archived_event_sets").select("*").eq("coach_id", userId).order("archived_at", { ascending: false }),
   ]);
 
-  // First run — no settings row yet: migrate localStorage data into Supabase
   if (!settingsRes.data) {
-    const local = readLocalState();
-    await seedSupabase(local, coachId);
-    return local;
+    return { state: { ...defaultState }, isNewCoach: true };
   }
 
   const settings = settingsRes.data;
@@ -156,32 +86,35 @@ async function loadFromSupabase(): Promise<TeamState> {
     archivesRes.data ?? [];
 
   return {
-    teamName: settings.team_name,
-    teamLogo: settings.team_logo,
-    raffleEnabled: settings.raffle_enabled,
-    roster: roster.map((r) => r.name),
-    guestPlayers: roster.filter((r) => r.is_guest).map((r) => r.name),
-    events: events.map((e) => ({
-      id: e.id,
-      date: e.date,
-      type: isEventType(e.type) ? e.type : EVENT_TYPES.PRACTICE,
-      duration: e.duration,
-      players: e.players,
-      savedAt: e.saved_at,
-    })),
-    activeSession: session
-      ? {
-          id: session.id,
-          date: session.date,
-          type: isEventType(session.type) ? session.type : EVENT_TYPES.PRACTICE,
-          duration: session.duration,
-        }
-      : null,
-    archivedEvents: archives.map((a) => ({
-      id: a.id,
-      archivedAt: a.archived_at,
-      events: a.events,
-    })),
+    state: {
+      teamName: settings.team_name,
+      teamLogo: settings.team_logo,
+      raffleEnabled: settings.raffle_enabled,
+      roster: roster.map((r) => r.name),
+      guestPlayers: roster.filter((r) => r.is_guest).map((r) => r.name),
+      events: events.map((e) => ({
+        id: e.id,
+        date: e.date,
+        type: isEventType(e.type) ? e.type : EVENT_TYPES.PRACTICE,
+        duration: e.duration,
+        players: e.players,
+        savedAt: e.saved_at,
+      })),
+      activeSession: session
+        ? {
+            id: session.id,
+            date: session.date,
+            type: isEventType(session.type) ? session.type : EVENT_TYPES.PRACTICE,
+            duration: session.duration,
+          }
+        : null,
+      archivedEvents: archives.map((a) => ({
+        id: a.id,
+        archivedAt: a.archived_at,
+        events: a.events,
+      })),
+    },
+    isNewCoach: false,
   };
 }
 
@@ -191,6 +124,7 @@ interface TeamStoreContextType {
   isAuthenticated: boolean;
   isAuthLoading: boolean;
   authError: string | null;
+  isNewCoach: boolean;
   login: (email: string, password?: string) => Promise<boolean>;
   signUp: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -215,6 +149,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [isNewCoach, setIsNewCoach] = useState(false);
   const stateRef = useRef(state);
   const currentUserIdRef = useRef<string | null>(null);
 
@@ -235,9 +170,10 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
         currentUserIdRef.current = session?.user?.id ?? null;
         setIsAuthenticated(hasSession);
         
-        if (hasSession) {
-          const data = await loadFromSupabase();
+        if (hasSession && currentUserIdRef.current) {
+          const { state: data, isNewCoach: newCoach } = await loadFromSupabase(currentUserIdRef.current);
           setState(data);
+          setIsNewCoach(newCoach);
         } else {
           setState(defaultState);
         }
@@ -261,11 +197,12 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
           setIsAuthenticated(hasSession);
           setAuthError(null);
           
-          if (hasSession) {
+          if (hasSession && newUserId) {
             setIsLoading(true);
             try {
-              const data = await loadFromSupabase();
+              const { state: data, isNewCoach: newCoach } = await loadFromSupabase(newUserId);
               setState(data);
+              setIsNewCoach(newCoach);
             } catch (err) {
               console.error("Failed to load data on auth change:", err);
             } finally {
@@ -349,7 +286,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase
         .from("active_session")
         .upsert(
-          { id: session.id, date: session.date, type: session.type, duration: session.duration },
+          { coach_id: currentUserIdRef.current, id: session.id, date: session.date, type: session.type, duration: session.duration },
           { onConflict: 'coach_id' }
         );
       if (error) throw error;
@@ -379,6 +316,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     try {
       const [insertRes, deleteRes] = await Promise.all([
         supabase.from("events").insert({
+          coach_id: currentUserIdRef.current,
           id: event.id,
           date: event.date,
           type: event.type,
@@ -417,7 +355,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     });
 
     try {
-      const { error } = await supabase.from("roster").insert({ name: trimmed, is_guest: isGuest });
+      const { error } = await supabase.from("roster").insert({ coach_id: currentUserIdRef.current, name: trimmed, is_guest: isGuest });
       if (error) throw error;
       toast.success(`${trimmed} added to roster.`);
       return true;
@@ -465,6 +403,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     try {
       const { error } = await supabase.from("team_settings").upsert(
         {
+          coach_id: currentUserIdRef.current,
           team_name: settings.teamName ?? current.teamName,
           team_logo: settings.teamLogo ?? current.teamLogo,
           raffle_enabled: settings.raffleEnabled ?? current.raffleEnabled,
@@ -506,6 +445,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     const eventIds = eventsToArchive.map((e) => e.id);
     try {
       const insertRes = await supabase.from("archived_event_sets").insert({
+        coach_id: currentUserIdRef.current,
         id: archive.id,
         archived_at: archive.archivedAt,
         events: archive.events,
@@ -570,6 +510,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
         const [upsertRes, deleteRes] = await Promise.all([
           supabase.from("events").upsert(
             eventsToRestore.map((e) => ({
+              coach_id: currentUserIdRef.current,
               id: e.id,
               date: e.date,
               type: e.type,
@@ -714,6 +655,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
         isAuthenticated,
         isAuthLoading,
         authError,
+        isNewCoach,
         login,
         signUp,
         logout,
