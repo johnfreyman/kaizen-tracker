@@ -63,92 +63,28 @@ CREATE POLICY "Allow authenticated read of own status" ON public.super_admins
 
 
 -- =========================================================================
--- 4. SEED SUPER ADMIN USER ACCOUNT
+-- 4. GRANT SUPER ADMIN ACCESS TO AN EXISTING USER
 -- =========================================================================
-
--- Ensure pgcrypto extension is active for bcrypt-hashed password seeding
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
-DO $$
-DECLARE
-  new_admin_id UUID;
-  admin_email CONSTANT TEXT := 'REDACTED_ADMIN_EMAIL';
-  admin_password CONSTANT TEXT := 'REDACTED_PASSWORD';
-BEGIN
-  -- Check if the user already exists in auth.users
-  SELECT id INTO new_admin_id FROM auth.users WHERE email = admin_email;
-
-  -- If user doesn't exist, insert into auth.users and auth.identities
-  IF new_admin_id IS NULL THEN
-    new_admin_id := gen_random_uuid();
-
-    INSERT INTO auth.users (
-      instance_id,
-      id,
-      aud,
-      role,
-      email,
-      encrypted_password,
-      email_confirmed_at,
-      created_at,
-      updated_at,
-      raw_app_meta_data,
-      raw_user_meta_data,
-      is_super_admin,
-      phone
-    )
-    VALUES (
-      '00000000-0000-0000-0000-000000000000',
-      new_admin_id,
-      'authenticated',
-      'authenticated',
-      admin_email,
-      crypt(admin_password, gen_salt('bf')),
-      now(),
-      now(),
-      now(),
-      '{"provider":"email","providers":["email"]}',
-      '{}',
-      false,
-      null
-    );
-
-    -- Link the email identity to support email password login in GoTrue / Supabase Auth
-    IF NOT EXISTS (SELECT 1 FROM auth.identities WHERE provider_id = admin_email AND provider = 'email') THEN
-      INSERT INTO auth.identities (
-        id,
-        user_id,
-        identity_data,
-        provider,
-        provider_id,
-        last_sign_in_at,
-        created_at,
-        updated_at
-      )
-      VALUES (
-        gen_random_uuid(),
-        new_admin_id,
-        json_build_object('sub', new_admin_id::text, 'email', admin_email),
-        'email',
-        admin_email,
-        now(),
-        now(),
-        now()
-      );
-    END IF;
-  END IF;
-
-  -- Ensure profile row exists (if trigger didn't run or wasn't active during seeding)
-  INSERT INTO public.profiles (id, email, created_at)
-  VALUES (new_admin_id, admin_email, now())
-  ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email;
-
-  -- Ensure super admin registration row exists
-  INSERT INTO public.super_admins (user_id)
-  VALUES (new_admin_id)
-  ON CONFLICT (user_id) DO NOTHING;
-
-END $$;
+--
+-- NEVER hardcode emails or passwords in this file.
+-- Follow these steps to promote a user to super admin:
+--
+-- Step 1 — Ensure the user account exists.
+--   If the account does not exist yet, create it via the Supabase dashboard:
+--     Authentication → Users → "Add user" → enter email + strong password
+--
+-- Step 2 — Look up the user's UUID:
+--     SELECT id FROM auth.users WHERE email = 'your-admin@example.com';
+--
+-- Step 3 — Insert into super_admins (replace the UUID placeholder):
+--     INSERT INTO public.super_admins (user_id)
+--     VALUES ('<UUID-FROM-STEP-2>')
+--     ON CONFLICT (user_id) DO NOTHING;
+--
+-- Step 4 — Verify the profile row was created by the trigger, or insert manually:
+--     INSERT INTO public.profiles (id, email, created_at)
+--     VALUES ('<UUID-FROM-STEP-2>', 'your-admin@example.com', now())
+--     ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email;
 
 
 -- =========================================================================

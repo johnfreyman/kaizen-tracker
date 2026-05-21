@@ -71,76 +71,11 @@ CREATE POLICY "Allow authenticated write on active_session" ON active_session FO
 CREATE POLICY "Allow authenticated read on archived_event_sets" ON archived_event_sets FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Allow authenticated write on archived_event_sets" ON archived_event_sets FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Enable pgcrypto for password hashing
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
--- Seed a pre-confirmed admin user (email: admin@example.com, password: YOUR_SECURE_PASSWORD)
-DO $$
-DECLARE
-  new_user_id UUID;
-  admin_email CONSTANT TEXT := 'admin@example.com';
-  admin_password CONSTANT TEXT := 'YOUR_SECURE_PASSWORD'; -- Replace this with a secure password before running
-BEGIN
-  -- Only insert if this email doesn't already exist
-  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = admin_email) THEN
-    new_user_id := gen_random_uuid();
-
-    INSERT INTO auth.users (
-      instance_id,
-      id,
-      aud,
-      role,
-      email,
-      encrypted_password,
-      email_confirmed_at,
-      created_at,
-      updated_at,
-      raw_app_meta_data,
-      raw_user_meta_data,
-      is_super_admin,
-      phone
-    )
-    VALUES (
-      '00000000-0000-0000-0000-000000000000',
-      new_user_id,
-      'authenticated',
-      'authenticated',
-      admin_email,
-      crypt(admin_password, gen_salt('bf')),
-      now(),
-      now(),
-      now(),
-      '{"provider":"email","providers":["email"]}',
-      '{}',
-      false,
-      null
-    );
-
-    -- Link the email identity (required by newer Supabase auth versions)
-    IF NOT EXISTS (SELECT 1 FROM auth.identities WHERE provider_id = admin_email AND provider = 'email') THEN
-      INSERT INTO auth.identities (
-        id,
-        user_id,
-        identity_data,
-        provider,
-        provider_id,
-        last_sign_in_at,
-        created_at,
-        updated_at
-      )
-      VALUES (
-        gen_random_uuid(),
-        new_user_id,
-        json_build_object('sub', new_user_id::text, 'email', admin_email),
-        'email',
-        admin_email,
-        now(),
-        now(),
-        now()
-      );
-    END IF;
-  END IF;
-END $$;
+-- ADMIN USER SETUP (do NOT add credentials to this file)
+-- Create the initial coach/admin account manually via the Supabase dashboard:
+--   Authentication → Users → "Add user" → enter email + strong password → "Create user"
+-- The new user's profile row will be created automatically by the handle_new_user trigger
+-- (defined in supabase-migration-super-admin.sql). No SQL seeding needed here.
 
 -- Enable Supabase Storage team-assets bucket & RLS policies
 INSERT INTO storage.buckets (id, name, public)
