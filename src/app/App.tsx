@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Trophy, Calendar, Users, Settings as SettingsIcon, Gift, LogOut } from "lucide-react";
+import { Menu } from "lucide-react";
+import { Drawer, DrawerTrigger, DrawerContent, DrawerOverlay, DrawerHeader, DrawerTitle } from "./components/ui/drawer";
 import LaunchPage from "./components/LaunchPage";
 import AttendancePage from "./components/AttendancePage";
 import SummaryPage from "./components/SummaryPage";
@@ -81,8 +82,36 @@ function AppContent() {
           </div>
 
           <div className="flex items-center gap-3 w-full md:w-auto">
+          {/* Mobile Navigation Drawer */}
+          <Drawer>
+            <DrawerTrigger asChild>
+              <button aria-label="Open navigation menu" className="md:hidden p-2 rounded-md bg-white/80 backdrop-blur-sm shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <Menu className="size-5" />
+                <span className="sr-only">Open menu</span>
+              </button>
+            </DrawerTrigger>
+            <DrawerOverlay />
+            <DrawerContent>
+              <DrawerHeader>
+                <DrawerTitle>Menu</DrawerTitle>
+              </DrawerHeader>
+              <nav className="flex flex-col gap-2 p-2">
+                {navItems.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => setActivePage(id)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-md hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${activePage === id ? "bg-blue-600 text-white" : ""}`}
+                  >
+                    <Icon className="size-5" />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </nav>
+            </DrawerContent>
+          </Drawer>
+
             {/* Navigation */}
-            <nav className="grid grid-cols-2 md:flex gap-2 bg-white/80 backdrop-blur-sm p-2 rounded-2xl shadow-lg flex-1 md:flex-none">
+            <nav className="hidden md:grid grid-cols-2 md:flex gap-2 bg-white/80 backdrop-blur-sm p-2 rounded-2xl shadow-lg flex-1 md:flex-none">
               {navItems.map(({ id, label, icon: Icon }) => {
                 const shouldPulse = id === "settings" && isNewAccount;
                 return (
