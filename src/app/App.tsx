@@ -14,6 +14,7 @@ import { TeamStoreProvider, useTeamStore } from "./hooks/useTeamStore";
 import SuperAdminDashboard from "./components/SuperAdminDashboard";
 import OnboardingPage from "./components/OnboardingPage";
 import { Toaster } from "./components/ui/sonner";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 type Page = "launch" | "attendance" | "summary" | "charts" | "settings" | "raffle";
 
@@ -151,12 +152,36 @@ function AppContent() {
 
         {/* Page Content */}
         <main className="animate-fade-in">
-          {activePage === "launch" && <LaunchPage onNavigate={setActivePage} />}
-          {activePage === "attendance" && <AttendancePage />}
-          {activePage === "summary" && <SummaryPage />}
-          {activePage === "charts" && <ChartsPage />}
-          {activePage === "raffle" && <RafflePage />}
-          {activePage === "settings" && <SettingsPage />}
+          {activePage === "launch" && (
+            <ErrorBoundary key="launch">
+              <LaunchPage onNavigate={setActivePage} />
+            </ErrorBoundary>
+          )}
+          {activePage === "attendance" && (
+            <ErrorBoundary key="attendance">
+              <AttendancePage />
+            </ErrorBoundary>
+          )}
+          {activePage === "summary" && (
+            <ErrorBoundary key="summary">
+              <SummaryPage />
+            </ErrorBoundary>
+          )}
+          {activePage === "charts" && (
+            <ErrorBoundary key="charts">
+              <ChartsPage />
+            </ErrorBoundary>
+          )}
+          {activePage === "raffle" && (
+            <ErrorBoundary key="raffle">
+              <RafflePage />
+            </ErrorBoundary>
+          )}
+          {activePage === "settings" && (
+            <ErrorBoundary key="settings">
+              <SettingsPage />
+            </ErrorBoundary>
+          )}
         </main>
       </div>
     </div>
@@ -166,7 +191,9 @@ function AppContent() {
 export default function App() {
   return (
     <TeamStoreProvider>
-      <AppContent />
+      <ErrorBoundary>
+        <AppContent />
+      </ErrorBoundary>
       <Toaster />
     </TeamStoreProvider>
   );
