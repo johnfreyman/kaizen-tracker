@@ -1,111 +1,308 @@
-import { useEffect, useState, Fragment } from "react";
-import { LogOut, ChevronDown, ChevronRight } from "lucide-react";
+import { useEffect, useState, Fragment, useMemo } from "react";
+import {
+  LogOut,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  Users,
+  Calendar,
+  Archive,
+  ShieldCheck,
+  ShieldOff,
+  UserCheck,
+  UserX,
+  AlertTriangle,
+  Activity,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useTeamStore } from "../hooks/useTeamStore";
 
-interface CoachSummary {
-  coachId: string;
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface CoachSummaryRow {
+  coach_id: string;
   email: string;
-  teamName: string;
-  teamLogo: string;
-  playerCount: number;
-  sessionCount: number;
-  raffleEnabled: boolean;
-  players: string[];
-  recentSessions: string[];
+  account_created_at: string | null;
+  last_sign_in_at: string | null;
+  email_confirmed_at: string | null;
+  auth_provider: string | null;
+  team_name: string | null;
+  team_logo: string | null;
+  raffle_enabled: boolean | null;
+  player_count: number;
+  session_count: number;
+  last_session_at: string | null;
+  total_archives: number;
+  last_active_at: string | null;
+  email_verified: boolean;
 }
+
+type SortKey = keyof Pick<
+  CoachSummaryRow,
+  | "email"
+  | "team_name"
+  | "player_count"
+  | "session_count"
+  | "last_active_at"
+  | "account_created_at"
+>;
+
+type SortDir = "asc" | "desc";
+
+// ---------------------------------------------------------------------------
+// Status badge logic
+// ---------------------------------------------------------------------------
+
+type StatusType = "active" | "inactive" | "unverified" | "no-team-setup";
+
+function getStatus(row: CoachSummaryRow): StatusType {
+  if (!row.email_verified) return "unverified";
+  if (!row.team_name) return "no-team-setup";
+  if (!row.last_active_at) return "inactive";
+  const daysSinceActive =
+    (Date.now() - new Date(row.last_active_at).getTime()) /
+    (1000 * 60 * 60 * 24);
+  return daysSinceActive <= 30 ? "active" : "inactive";
+}
+
+const STATUS_CONFIG: Record<
+  StatusType,
+  { label: string; className: string; icon: React.ElementType }
+> = {
+  active: {
+    label: "Active",
+    className: "bg-emerald-100 text-emerald-700 border border-emerald-200",
+    icon: Activity,
+  },
+  inactive: {
+    label: "Inactive",
+    className: "bg-amber-100 text-amber-700 border border-amber-200",
+    icon: UserX,
+  },
+  unverified: {
+    label: "Unverified",
+    className: "bg-red-100 text-red-600 border border-red-200",
+    icon: ShieldOff,
+  },
+  "no-team-setup": {
+    label: "No Setup",
+    className: "bg-gray-100 text-gray-500 border border-gray-200",
+    icon: AlertTriangle,
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Date helpers
+// ---------------------------------------------------------------------------
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return "—";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffSecs = Math.floor(diffMs / 1000);
+  if (diffSecs < 60) return "just now";
+  const diffMins = Math.floor(diffSecs / 60);
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 30) return `${diffDays}d ago`;
+  const diffMonths = Math.floor(diffDays / 30);
+  if (diffMonths < 12) return `${diffMonths}mo ago`;
+  return `${Math.floor(diffMonths / 12)}y ago`;
+}
+
+function shortDate(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function SkeletonRow() {
+  return (
+    <tr className="border-b border-gray-100 animate-pulse">
+      {[180, 140, 80, 70, 90, 90].map((w, i) => (
+        <td key={i} className="px-5 py-4">
+          <div
+            className="h-4 rounded-full bg-gray-200"
+            style={{ width: w }}
+          />
+        </td>
+      ))}
+      <td className="px-5 py-4">
+        <div className="h-4 w-4 rounded-full bg-gray-200 ml-auto" />
+      </td>
+    </tr>
+  );
+}
+
+interface SortableThProps {
+  label: string;
+  sortKey: SortKey;
+  currentKey: SortKey;
+  currentDir: SortDir;
+  onSort: (key: SortKey) => void;
+  className?: string;
+}
+
+function SortableTh({
+  label,
+  sortKey,
+  currentKey,
+  currentDir,
+  onSort,
+  className = "",
+}: SortableThProps) {
+  const isActive = currentKey === sortKey;
+  return (
+    <th
+      className={`px-5 py-3.5 font-semibold text-gray-500 uppercase tracking-wider text-xs cursor-pointer select-none hover:text-gray-800 transition-colors group ${className}`}
+      onClick={() => onSort(sortKey)}
+    >
+      <span className="flex items-center gap-1">
+        {label}
+        <span className={`transition-opacity ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-40"}`}>
+          {isActive && currentDir === "desc" ? (
+            <ChevronDown className="w-3 h-3" />
+          ) : (
+            <ChevronUp className="w-3 h-3" />
+          )}
+        </span>
+      </span>
+    </th>
+  );
+}
+
+interface StatusBadgeProps {
+  status: StatusType;
+}
+
+function StatusBadge({ status }: StatusBadgeProps) {
+  const cfg = STATUS_CONFIG[status];
+  const Icon = cfg.icon;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${cfg.className}`}
+    >
+      <Icon className="w-3 h-3" />
+      {cfg.label}
+    </span>
+  );
+}
+
+interface DetailFieldProps {
+  label: string;
+  value: React.ReactNode;
+  icon?: React.ElementType;
+}
+
+function DetailField({ label, value, icon: Icon }: DetailFieldProps) {
+  return (
+    <div className="flex items-start gap-2.5">
+      {Icon && (
+        <span className="mt-0.5 p-1 bg-gray-100 rounded-md shrink-0">
+          <Icon className="w-3.5 h-3.5 text-gray-500" />
+        </span>
+      )}
+      <div className="min-w-0">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">
+          {label}
+        </p>
+        <p className="text-sm text-gray-800 font-medium break-all">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 
 export default function SuperAdminDashboard() {
   const { logout } = useTeamStore();
-  const [summaries, setSummaries] = useState<CoachSummary[]>([]);
+
+  const [rows, setRows] = useState<CoachSummaryRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedCoachId, setExpandedCoachId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("last_active_at");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
+  // -------------------------------------------------------------------------
+  // Data fetch — single view query, no N+1
+  // -------------------------------------------------------------------------
   useEffect(() => {
-    async function fetchAllData() {
+    async function fetch() {
       try {
-        const [profilesRes, settingsRes, rosterRes, eventsRes] = await Promise.all([
-          supabase.from("profiles").select("id, email"),
-          supabase.from("team_settings").select("coach_id, team_name, team_logo, raffle_enabled"),
-          supabase.from("roster").select("coach_id, name"),
-          supabase.from("events").select("coach_id, date, saved_at"),
-        ]);
+        const { data, error } = await supabase
+          .from("admin_coach_summary_view")
+          .select("*");
 
-        if (profilesRes.error) throw profilesRes.error;
-        if (settingsRes.error) throw settingsRes.error;
-        if (rosterRes.error) throw rosterRes.error;
-        if (eventsRes.error) throw eventsRes.error;
-
-        const profiles = profilesRes.data ?? [];
-        const settings = settingsRes.data ?? [];
-        const rosterRows = rosterRes.data ?? [];
-        const eventRows = eventsRes.data ?? [];
-
-        const settingsMap = new Map(settings.map((s) => [s.coach_id, s]));
-
-        const rosterByCoach = new Map<string, string[]>();
-        for (const r of rosterRows) {
-          const list = rosterByCoach.get(r.coach_id) ?? [];
-          list.push(r.name);
-          rosterByCoach.set(r.coach_id, list);
-        }
-
-        const eventsByCoach = new Map<string, { date: string; saved_at: string }[]>();
-        for (const e of eventRows) {
-          const list = eventsByCoach.get(e.coach_id) ?? [];
-          list.push({ date: e.date, saved_at: e.saved_at });
-          eventsByCoach.set(e.coach_id, list);
-        }
-
-        const data: CoachSummary[] = profiles.map((profile) => {
-          const ts = settingsMap.get(profile.id);
-          const players = (rosterByCoach.get(profile.id) ?? []).sort((a, b) =>
-            a.localeCompare(b)
-          );
-          const coachEvents = eventsByCoach.get(profile.id) ?? [];
-          const recentSessions = [...coachEvents]
-            .sort((a, b) => b.saved_at.localeCompare(a.saved_at))
-            .slice(0, 5)
-            .map((e) => e.date);
-
-          return {
-            coachId: profile.id,
-            email: profile.email,
-            teamName: ts?.team_name ?? "—",
-            teamLogo: ts?.team_logo ?? "",
-            playerCount: players.length,
-            sessionCount: coachEvents.length,
-            raffleEnabled: ts?.raffle_enabled ?? false,
-            players,
-            recentSessions,
-          };
-        });
-
-        setSummaries(data);
+        if (error) throw error;
+        setRows((data as CoachSummaryRow[]) ?? []);
       } catch (err: any) {
-        setError(err.message || "Failed to load data.");
+        setError(err.message ?? "Failed to load coach data.");
       } finally {
         setIsLoading(false);
       }
     }
-
-    fetchAllData();
+    fetch();
   }, []);
 
-  const toggleRow = (coachId: string) => {
-    setExpandedCoachId((prev) => (prev === coachId ? null : coachId));
+  // -------------------------------------------------------------------------
+  // Sorting — client-side, O(n log n), no extra API calls
+  // -------------------------------------------------------------------------
+  const handleSort = (key: SortKey) => {
+    setSortDir((prev) => (sortKey === key && prev === "asc" ? "desc" : "asc"));
+    setSortKey(key);
   };
 
+  const sorted = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const av = a[sortKey] ?? "";
+      const bv = b[sortKey] ?? "";
+      const cmp = String(av).localeCompare(String(bv), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [rows, sortKey, sortDir]);
+
+  // -------------------------------------------------------------------------
+  // Stats summary
+  // -------------------------------------------------------------------------
+  const stats = useMemo(() => {
+    const active = rows.filter((r) => getStatus(r) === "active").length;
+    const unverified = rows.filter((r) => !r.email_verified).length;
+    const noSetup = rows.filter((r) => r.email_verified && !r.team_name).length;
+    return { total: rows.length, active, unverified, noSetup };
+  }, [rows]);
+
+  // -------------------------------------------------------------------------
+  // Render
+  // -------------------------------------------------------------------------
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <div className="mx-auto max-w-7xl p-4 md:p-6">
-        <header className="mb-6 flex items-center justify-between">
+      <div className="mx-auto max-w-[1400px] p-4 md:p-6 space-y-6">
+
+        {/* Header */}
+        <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
               Super Admin Dashboard
             </h1>
-            <p className="text-sm text-gray-500 mt-1">All coaches across the platform</p>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Coach health &amp; activity across the platform
+            </p>
           </div>
           <button
             onClick={logout}
@@ -117,159 +314,378 @@ export default function SuperAdminDashboard() {
           </button>
         </header>
 
-        {isLoading && (
-          <div className="flex items-center justify-center py-24">
-            <div className="size-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          </div>
-        )}
-
-        {error && (
-          <div className="rounded-2xl bg-red-50 border border-red-200 p-4 text-red-700 text-sm">
-            {error}
-          </div>
-        )}
-
+        {/* Summary stat cards */}
         {!isLoading && !error && (
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              {
+                label: "Total Coaches",
+                value: stats.total,
+                icon: Users,
+                color: "text-blue-600 bg-blue-50 border-blue-100",
+              },
+              {
+                label: "Active (30d)",
+                value: stats.active,
+                icon: Activity,
+                color: "text-emerald-600 bg-emerald-50 border-emerald-100",
+              },
+              {
+                label: "Unverified",
+                value: stats.unverified,
+                icon: ShieldOff,
+                color: "text-red-500 bg-red-50 border-red-100",
+              },
+              {
+                label: "No Team Setup",
+                value: stats.noSetup,
+                icon: AlertTriangle,
+                color: "text-amber-600 bg-amber-50 border-amber-100",
+              },
+            ].map(({ label, value, icon: Icon, color }) => (
+              <div
+                key={label}
+                className={`flex items-center gap-3 rounded-2xl border bg-white/70 backdrop-blur-sm px-4 py-3 shadow-sm ${color}`}
+              >
+                <span className={`p-2 rounded-xl ${color.split(" ").slice(1).join(" ")}`}>
+                  <Icon className={`w-4 h-4 ${color.split(" ")[0]}`} />
+                </span>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900 leading-none">
+                    {value}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="rounded-2xl bg-red-50 border border-red-200 p-4 text-red-700 text-sm flex items-start gap-3">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Table */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[860px]">
               <thead>
-                <tr className="border-b border-gray-100">
+                <tr className="border-b border-gray-100 bg-gray-50/60">
+                  <SortableTh
+                    label="Coach"
+                    sortKey="email"
+                    currentKey={sortKey}
+                    currentDir={sortDir}
+                    onSort={handleSort}
+                    className="text-left"
+                  />
+                  <SortableTh
+                    label="Team"
+                    sortKey="team_name"
+                    currentKey={sortKey}
+                    currentDir={sortDir}
+                    onSort={handleSort}
+                    className="text-left"
+                  />
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-500 uppercase tracking-wider text-xs">
-                    Coach
+                    Status
                   </th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 uppercase tracking-wider text-xs">
-                    Team
-                  </th>
-                  <th className="text-center px-5 py-3.5 font-semibold text-gray-500 uppercase tracking-wider text-xs">
-                    Players
-                  </th>
-                  <th className="text-center px-5 py-3.5 font-semibold text-gray-500 uppercase tracking-wider text-xs">
-                    Sessions
-                  </th>
-                  <th className="text-center px-5 py-3.5 font-semibold text-gray-500 uppercase tracking-wider text-xs">
-                    Raffle
-                  </th>
-                  <th className="px-5 py-3.5" />
+                  <SortableTh
+                    label="Players"
+                    sortKey="player_count"
+                    currentKey={sortKey}
+                    currentDir={sortDir}
+                    onSort={handleSort}
+                    className="text-center"
+                  />
+                  <SortableTh
+                    label="Sessions"
+                    sortKey="session_count"
+                    currentKey={sortKey}
+                    currentDir={sortDir}
+                    onSort={handleSort}
+                    className="text-center"
+                  />
+                  <SortableTh
+                    label="Last Active"
+                    sortKey="last_active_at"
+                    currentKey={sortKey}
+                    currentDir={sortDir}
+                    onSort={handleSort}
+                    className="text-left"
+                  />
+                  <th className="px-5 py-3.5 w-8" />
                 </tr>
               </thead>
+
               <tbody>
-                {summaries.map((s, i) => (
-                  <Fragment key={s.coachId}>
-                    <tr
-                      onClick={() => toggleRow(s.coachId)}
-                      className={`cursor-pointer transition-colors ${
-                        i !== summaries.length - 1 ? "border-b border-gray-100" : ""
-                      } ${
-                        expandedCoachId === s.coachId
-                          ? "bg-blue-50/60"
-                          : "hover:bg-gray-50"
-                      }`}
-                    >
-                      <td className="px-5 py-4 text-gray-800 font-medium">{s.email}</td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
-                          {s.teamLogo ? (
-                            <img
-                              src={s.teamLogo}
-                              alt={s.teamName}
-                              className="size-8 rounded-lg object-cover shrink-0 shadow-sm"
-                            />
-                          ) : (
-                            <div className="size-8 rounded-lg bg-gray-100 shrink-0" />
-                          )}
-                          <span className="text-gray-800">{s.teamName}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-4 text-center text-gray-700">
-                        {s.playerCount}
-                      </td>
-                      <td className="px-5 py-4 text-center text-gray-700">
-                        {s.sessionCount}
-                      </td>
-                      <td className="px-5 py-4 text-center">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            s.raffleEnabled
-                              ? "bg-green-100 text-green-700"
-                              : "bg-gray-100 text-gray-500"
+                {/* Skeleton rows */}
+                {isLoading &&
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <SkeletonRow key={i} />
+                  ))}
+
+                {/* Data rows */}
+                {!isLoading &&
+                  sorted.map((row, i) => {
+                    const status = getStatus(row);
+                    const isExpanded = expandedId === row.coach_id;
+                    const isLast = i === sorted.length - 1;
+
+                    return (
+                      <Fragment key={row.coach_id}>
+                        <tr
+                          onClick={() =>
+                            setExpandedId((prev) =>
+                              prev === row.coach_id ? null : row.coach_id
+                            )
+                          }
+                          className={`cursor-pointer transition-colors ${
+                            !isLast ? "border-b border-gray-100" : ""
+                          } ${
+                            isExpanded
+                              ? "bg-blue-50/50"
+                              : "hover:bg-gray-50/80"
                           }`}
                         >
-                          {s.raffleEnabled ? "On" : "Off"}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4">
-                        {expandedCoachId === s.coachId ? (
-                          <ChevronDown className="size-4 text-gray-400 ml-auto" />
-                        ) : (
-                          <ChevronRight className="size-4 text-gray-400 ml-auto" />
-                        )}
-                      </td>
-                    </tr>
+                          {/* Email */}
+                          <td className="px-5 py-4">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-medium text-gray-900 leading-tight">
+                                {row.email}
+                              </span>
+                              <span className="text-[11px] text-gray-400">
+                                Joined {shortDate(row.account_created_at)}
+                              </span>
+                            </div>
+                          </td>
 
-                    {expandedCoachId === s.coachId && (
-                      <tr className="bg-blue-50/40">
-                        <td colSpan={6} className="px-5 pb-5 pt-3">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                                Players ({s.playerCount})
-                              </p>
-                              {s.players.length === 0 ? (
-                                <p className="text-gray-400 text-sm italic">No players</p>
+                          {/* Team */}
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-2.5">
+                              {row.team_logo ? (
+                                <img
+                                  src={row.team_logo}
+                                  alt={row.team_name ?? ""}
+                                  className="size-7 rounded-lg object-cover shrink-0 shadow-sm"
+                                />
                               ) : (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {s.players.map((name) => (
-                                    <span
-                                      key={name}
-                                      className="px-2.5 py-1 rounded-full bg-white text-gray-700 text-xs font-medium shadow-sm border border-gray-200"
-                                    >
-                                      {name}
-                                    </span>
-                                  ))}
+                                <div className="size-7 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center">
+                                  <Users className="w-3.5 h-3.5 text-gray-400" />
                                 </div>
                               )}
+                              <span className="text-gray-800">
+                                {row.team_name ?? (
+                                  <span className="text-gray-400 italic">
+                                    Not set
+                                  </span>
+                                )}
+                              </span>
                             </div>
-                            <div>
-                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                                Recent Sessions
-                              </p>
-                              {s.recentSessions.length === 0 ? (
-                                <p className="text-gray-400 text-sm italic">No sessions</p>
-                              ) : (
-                                <ul className="space-y-1.5">
-                                  {s.recentSessions.map((date, idx) => (
-                                    <li
-                                      key={idx}
-                                      className="text-sm text-gray-700 flex items-center gap-2"
-                                    >
-                                      <span className="size-1.5 rounded-full bg-blue-400 shrink-0" />
-                                      {date}
-                                    </li>
-                                  ))}
-                                </ul>
+                          </td>
+
+                          {/* Status badge */}
+                          <td className="px-5 py-4">
+                            <StatusBadge status={status} />
+                          </td>
+
+                          {/* Players */}
+                          <td className="px-5 py-4 text-center">
+                            <span className="inline-flex items-center justify-center w-8 h-6 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold">
+                              {row.player_count}
+                            </span>
+                          </td>
+
+                          {/* Sessions */}
+                          <td className="px-5 py-4 text-center">
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="inline-flex items-center justify-center w-8 h-6 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold">
+                                {row.session_count}
+                              </span>
+                              {row.last_session_at && (
+                                <span className="text-[10px] text-gray-400">
+                                  {relativeTime(row.last_session_at)}
+                                </span>
                               )}
                             </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                ))}
+                          </td>
 
-                {summaries.length === 0 && (
+                          {/* Last Active */}
+                          <td className="px-5 py-4">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-gray-800 font-medium">
+                                {relativeTime(row.last_active_at)}
+                              </span>
+                              {row.last_sign_in_at && (
+                                <span className="text-[11px] text-gray-400">
+                                  Login: {shortDate(row.last_sign_in_at)}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Expand chevron */}
+                          <td className="px-5 py-4">
+                            {isExpanded ? (
+                              <ChevronDown className="size-4 text-gray-400 ml-auto" />
+                            ) : (
+                              <ChevronRight className="size-4 text-gray-400 ml-auto" />
+                            )}
+                          </td>
+                        </tr>
+
+                        {/* Expanded detail panel */}
+                        {isExpanded && (
+                          <tr className="bg-blue-50/30 border-b border-gray-100">
+                            <td colSpan={7} className="px-5 pb-5 pt-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+
+                                {/* Account info */}
+                                <div className="space-y-3">
+                                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-200 pb-1.5">
+                                    Account
+                                  </p>
+                                  <DetailField
+                                    label="Email Verification"
+                                    icon={row.email_verified ? ShieldCheck : ShieldOff}
+                                    value={
+                                      row.email_verified ? (
+                                        <span className="text-emerald-600">Verified</span>
+                                      ) : (
+                                        <span className="text-red-500">Not verified</span>
+                                      )
+                                    }
+                                  />
+                                  <DetailField
+                                    label="Auth Provider"
+                                    icon={UserCheck}
+                                    value={
+                                      row.auth_provider
+                                        ? row.auth_provider.charAt(0).toUpperCase() +
+                                          row.auth_provider.slice(1)
+                                        : "—"
+                                    }
+                                  />
+                                  <DetailField
+                                    label="Account Created"
+                                    icon={Calendar}
+                                    value={shortDate(row.account_created_at)}
+                                  />
+                                  <DetailField
+                                    label="Last Login"
+                                    icon={Activity}
+                                    value={
+                                      row.last_sign_in_at
+                                        ? `${relativeTime(row.last_sign_in_at)} · ${shortDate(row.last_sign_in_at)}`
+                                        : "Never"
+                                    }
+                                  />
+                                </div>
+
+                                {/* Activity info */}
+                                <div className="space-y-3">
+                                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-200 pb-1.5">
+                                    Activity
+                                  </p>
+                                  <DetailField
+                                    label="Total Sessions"
+                                    icon={Calendar}
+                                    value={row.session_count}
+                                  />
+                                  <DetailField
+                                    label="Last Session"
+                                    icon={Activity}
+                                    value={
+                                      row.last_session_at
+                                        ? `${relativeTime(row.last_session_at)} · ${shortDate(row.last_session_at)}`
+                                        : "No sessions yet"
+                                    }
+                                  />
+                                  <DetailField
+                                    label="Total Archives"
+                                    icon={Archive}
+                                    value={row.total_archives}
+                                  />
+                                  <DetailField
+                                    label="Raffle Enabled"
+                                    icon={Activity}
+                                    value={
+                                      row.raffle_enabled ? (
+                                        <span className="text-emerald-600">Yes</span>
+                                      ) : (
+                                        <span className="text-gray-400">No</span>
+                                      )
+                                    }
+                                  />
+                                </div>
+
+                                {/* Team roster */}
+                                <div className="space-y-3 sm:col-span-2 lg:col-span-1">
+                                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-200 pb-1.5">
+                                    Roster ({row.player_count} players)
+                                  </p>
+                                  {row.player_count === 0 ? (
+                                    <p className="text-sm text-gray-400 italic">
+                                      No players on roster
+                                    </p>
+                                  ) : (
+                                    <p className="text-sm text-gray-600">
+                                      {row.player_count} player
+                                      {row.player_count !== 1 ? "s" : ""}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+
+                {/* Empty state */}
+                {!isLoading && !error && sorted.length === 0 && (
                   <tr>
-                    <td
-                      colSpan={6}
-                      className="px-5 py-12 text-center text-gray-400 text-sm"
-                    >
-                      No coaches found.
+                    <td colSpan={7} className="px-5 py-16 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="p-4 rounded-full bg-gray-100">
+                          <Users className="w-8 h-8 text-gray-400" />
+                        </div>
+                        <p className="font-semibold text-gray-700">
+                          No coaches found
+                        </p>
+                        <p className="text-sm text-gray-400 max-w-xs">
+                          Coach accounts will appear here once users sign up and
+                          complete onboarding.
+                        </p>
+                      </div>
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-        )}
+
+          {/* Table footer */}
+          {!isLoading && sorted.length > 0 && (
+            <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50 text-xs text-gray-400 flex items-center justify-between">
+              <span>
+                {sorted.length} coach{sorted.length !== 1 ? "es" : ""}
+              </span>
+              <span>
+                Sorted by{" "}
+                <strong className="text-gray-600">
+                  {sortKey.replace(/_/g, " ")}
+                </strong>{" "}
+                ({sortDir === "asc" ? "ascending" : "descending"})
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

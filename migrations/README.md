@@ -19,6 +19,7 @@ We follow a strict, sequential migration philosophy. Migrations must be run one 
 | **2** | [`002_super_admin.sql`](file:///Users/jfreyman/left-brain-projects/kaizen-tracker/migrations/002_super_admin.sql) | **Profiles & Super Admin:** User profiles tracking via triggers, super-admin capability tables, and permissive read-all SELECT policies. Depends entirely on the tables defined in `001_schema.sql`. |
 | **3** | [`003_atomic_operations.sql`](file:///Users/jfreyman/left-brain-projects/kaizen-tracker/migrations/003_atomic_operations.sql) | **Transactional RPCs:** Creates database-level functions (`save_session`, `archive_events`, `restore_archive`) to execute multi-table DML inside safe atomic transactions. |
 | **4** | [`004_adjust_logo_constraint.sql`](file:///Users/jfreyman/left-brain-projects/kaizen-tracker/migrations/004_adjust_logo_constraint.sql) | **Adjust constraints:** Drops the old 200-character CHECK constraint on `team_logo` and expands it to 2048 characters to accommodate long storage URLs. |
+| **5** | [`005_admin_coach_summary_view.sql`](file:///Users/jfreyman/left-brain-projects/kaizen-tracker/migrations/005_admin_coach_summary_view.sql) | **Admin Coach Summary View:** Creates a `SECURITY DEFINER` view (`admin_coach_summary_view`) that aggregates coach health and activity metrics — including auth metadata, team settings, session counts, last active timestamp, archive counts, and email verification status — in a single query for the Super Admin Dashboard. |
 
 ---
 
@@ -32,6 +33,7 @@ To configure a new Supabase project from scratch:
 4. Create another new query, copy [`002_super_admin.sql`](file:///Users/jfreyman/left-brain-projects/kaizen-tracker/migrations/002_super_admin.sql), paste, and click **Run**.
 5. Create a third new query, copy [`003_atomic_operations.sql`](file:///Users/jfreyman/left-brain-projects/kaizen-tracker/migrations/003_atomic_operations.sql), paste, and click **Run**.
 6. Create a fourth new query, copy [`004_adjust_logo_constraint.sql`](file:///Users/jfreyman/left-brain-projects/kaizen-tracker/migrations/004_adjust_logo_constraint.sql), paste, and click **Run**.
+7. Create a fifth new query, copy [`005_admin_coach_summary_view.sql`](file:///Users/jfreyman/left-brain-projects/kaizen-tracker/migrations/005_admin_coach_summary_view.sql), paste, and click **Run**.
 
 Verify that all migrations execute successfully without errors.
 
