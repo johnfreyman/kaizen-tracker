@@ -41,7 +41,7 @@ export default function PlayerTypeDialog({
             {isLoading ? (
               <span className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : null}
-            Kaizen Player
+            Roster Player
           </button>
         </div>
         <button
