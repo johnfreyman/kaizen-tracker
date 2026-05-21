@@ -178,14 +178,21 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     const initAuth = async () => {
       setIsLoading(true);
       setIsAuthLoading(true);
-      
+
+      // PASSWORD_RECOVERY fires during SDK init, before the onAuthStateChange
+      // listener below is registered — read the hash synchronously to catch it.
+      const hashParams = new URLSearchParams(window.location.hash.slice(1));
+      const isRecoveryFlow = hashParams.get('type') === 'recovery';
+
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const hasSession = !!session;
         currentUserIdRef.current = session?.user?.id ?? null;
         setIsAuthenticated(hasSession);
-        
-        if (hasSession && currentUserIdRef.current) {
+
+        if (isRecoveryFlow) {
+          setIsPasswordRecovery(true);
+        } else if (hasSession && currentUserIdRef.current) {
           const superAdmin = await checkSuperAdmin(currentUserIdRef.current);
           setIsSuperAdmin(superAdmin);
           if (!superAdmin) {
