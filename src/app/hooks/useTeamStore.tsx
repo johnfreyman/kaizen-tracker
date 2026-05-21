@@ -332,6 +332,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     clearPendingEventFromStorage();
     setPendingEvent(null);
     setState(defaultState);
+    setIsPasswordRecovery(false);
   };
 
   const updatePassword = async (newPassword: string): Promise<boolean> => {
@@ -343,7 +344,6 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
         setState(data);
         setIsNewCoach(newCoach);
       }
-      setIsPasswordRecovery(false);
       toast.success("Password updated successfully.");
       return true;
     } catch (err: any) {

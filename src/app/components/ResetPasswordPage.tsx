@@ -1,18 +1,21 @@
 import React, { useState } from "react";
-import { Trophy, Lock, ArrowRight, Eye, EyeOff, Sparkles, AlertCircle } from "lucide-react";
+import { Trophy, Lock, ArrowRight, Eye, EyeOff, Sparkles, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useTeamStore } from "../hooks/useTeamStore";
 
 export default function ResetPasswordPage() {
-  const { updatePassword } = useTeamStore();
+  const { updatePassword, logout } = useTeamStore();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
+    setSubmitError(null);
 
     if (password.length < 6) {
       setValidationError("Password must be at least 6 characters.");
@@ -24,9 +27,37 @@ export default function ResetPasswordPage() {
     }
 
     setIsSubmitting(true);
-    await updatePassword(password);
+    const success = await updatePassword(password);
     setIsSubmitting(false);
+
+    if (success) {
+      setIsSuccess(true);
+    }
   };
+
+  if (isSuccess) {
+    return (
+      <div className="min-h-screen bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-indigo-950 to-slate-950 flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/15 rounded-3xl p-8 shadow-2xl text-center space-y-6 animate-fade-in">
+          <div className="size-16 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+            <CheckCircle2 className="size-8" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold text-white tracking-tight">Password Reset Successful</h2>
+            <p className="text-gray-300 text-sm leading-relaxed">
+              Your password has been updated successfully. You can now log in using your new credentials.
+            </p>
+          </div>
+          <button
+            onClick={() => logout()}
+            className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-2xl transition-all text-sm active:scale-[0.98] shadow-lg shadow-blue-500/15 uppercase tracking-wider"
+          >
+            Proceed to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-indigo-950 to-slate-950 flex items-center justify-center p-4 select-none">
@@ -49,10 +80,10 @@ export default function ResetPasswordPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {validationError && (
+            {(validationError || submitError) && (
               <div className="flex gap-2.5 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-sm animate-shake">
                 <AlertCircle className="size-5 shrink-0" />
-                <p>{validationError}</p>
+                <p>{validationError || submitError}</p>
               </div>
             )}
 
@@ -122,6 +153,18 @@ export default function ResetPasswordPage() {
                 </>
               )}
             </button>
+
+            {/* Cancel option to return to login */}
+            <div className="text-center pt-2">
+              <button
+                type="button"
+                onClick={() => logout()}
+                disabled={isSubmitting}
+                className="text-xs font-semibold text-gray-400 hover:text-white transition-colors duration-200 hover:underline focus:outline-none"
+              >
+                Cancel and return to login
+              </button>
+            </div>
           </form>
         </div>
       </div>
