@@ -279,7 +279,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
               return (
                 <label
                   key={type}
-                  className="relative block cursor-pointer select-none"
+                  className="relative block cursor-pointer select-none h-full"
                 >
                   <input
                     type="radio"
@@ -292,7 +292,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                     className="sr-only"
                   />
                   <div
-                    className={`flex flex-col items-center p-6 rounded-2xl border-2 text-center transition-all duration-200 active:scale-[0.99] group ${
+                    className={`flex flex-col items-center justify-center p-6 rounded-2xl border-2 text-center transition-all duration-200 active:scale-[0.99] group h-full ${
                       isSelected
                         ? "border-blue-600 bg-gradient-to-tr from-blue-50/30 to-indigo-50/30 text-blue-900 shadow-md ring-4 ring-blue-500/5 scale-[1.01]"
                         : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50/50 hover:scale-[1.01]"
