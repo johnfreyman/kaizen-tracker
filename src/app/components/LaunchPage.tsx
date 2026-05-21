@@ -308,12 +308,12 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                     </div>
 
                     <span className="font-extrabold text-base tracking-tight mb-1">
-                      {isPractice ? "Practice" : "Training Type / Focus Area"}
+                      {isPractice ? "Practice" : "Optional Training"}
                     </span>
                     <span className={`text-xs font-medium leading-relaxed max-w-xs ${isSelected ? "text-blue-900/80" : "text-slate-400"}`}>
                       {isPractice
                         ? "Official team practice for rostered players."
-                        : "Voluntary extra work (e.g., Conditioning, Skill Work)"}
+                        : "Voluntary sessions for skill development, conditioning, and extra work."}
                     </span>
                   </div>
                 </label>
