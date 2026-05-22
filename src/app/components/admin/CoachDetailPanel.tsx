@@ -214,9 +214,11 @@ function EmptyState() {
 
 export interface CoachDetailPanelProps {
   coach: CoachSummaryRow | null;
+  onCoachRefresh?: () => void;
+  onCoachPurged?: () => void;
 }
 
-export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
+export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged }: CoachDetailPanelProps) {
   const [detail, setDetail] = useState<CoachDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -520,9 +522,8 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
                 <VerificationTimeline
                   coach={coach}
                   state={purge}
-                  onResend={() => handleServerSideAction("Resend Verification Email")}
-                  onExtend={() => handleServerSideAction("Extend Purge Window")}
-                  onPurgeNow={() => handleServerSideAction("Purge Coach Now")}
+                  onRefreshCoach={onCoachRefresh}
+                  onPurgeSuccess={onCoachPurged}
                 />
               </div>
             )}

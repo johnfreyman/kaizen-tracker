@@ -42,10 +42,14 @@ export function getPurgeState(row: CoachSummaryRow): PurgeState | null {
   // ── DB-backed path (migration 007 applied) ──────────────────────────────
   if (row.purge_status != null && row.purge_deadline != null) {
     if (row.purge_status === "soft_deleted") {
-      const daysOld = row.account_created_at
-        ? Math.round(
-            (Date.now() - new Date(row.account_created_at).getTime()) / 86_400_000
-          )
+      const DAY_MS = 86_400_000;
+      const clockStartMs = row.original_deadline
+        ? new Date(row.original_deadline).getTime() - 90 * DAY_MS
+        : row.account_created_at
+          ? new Date(row.account_created_at).getTime()
+          : null;
+      const daysOld = clockStartMs != null
+        ? Math.round((Date.now() - clockStartMs) / DAY_MS)
         : PURGE_WINDOW_DAYS;
 
       return {
@@ -66,10 +70,13 @@ export function getPurgeState(row: CoachSummaryRow): PurgeState | null {
       Math.round((deadlineMs - Date.now()) / DAY)
     );
 
-    const daysOld = row.account_created_at
-      ? Math.round(
-          (Date.now() - new Date(row.account_created_at).getTime()) / DAY
-        )
+    const clockStartMs = row.original_deadline
+      ? new Date(row.original_deadline).getTime() - 90 * DAY
+      : row.account_created_at
+        ? new Date(row.account_created_at).getTime()
+        : null;
+    const daysOld = clockStartMs != null
+      ? Math.round((Date.now() - clockStartMs) / DAY)
       : PURGE_WINDOW_DAYS - daysRemaining;
 
     let stage: PurgeStage;

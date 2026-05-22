@@ -1,5 +1,7 @@
-import React from "react";
-import { RefreshCw, Clock, UserX } from "lucide-react";
+import { useState, useCallback } from "react";
+import { RefreshCw, Clock, UserX, Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 import { PurgeBadge } from "./PurgeBadge";
 import { PURGE_WINDOW_DAYS, type PurgeState } from "./getPurgeState";
 import type { CoachSummaryRow } from "@/app/components/admin/CoachDetailDrawer";
@@ -7,28 +9,86 @@ import type { CoachSummaryRow } from "@/app/components/admin/CoachDetailDrawer";
 interface VerificationTimelineProps {
   coach: CoachSummaryRow;
   state: PurgeState;
-  /** Admin actions — wire to your supabase RPCs / activity_log writes. */
-  onResend?: () => void;
-  onExtend?: () => void;
-  onPurgeNow?: () => void;
+  /** Called after a successful resend or extend so the parent can refresh the coach row. */
+  onRefreshCoach?: () => void;
+  /** Called after a successful purge so the parent can dismiss the detail pane. */
+  onPurgeSuccess?: () => void;
 }
 
 /**
  * Verification + purge lifecycle panel for the detail pane.
  * Render conditionally — only when getPurgeState(coach) is non-null.
- *
- * The timeline events shown here are synthesized from account_created_at
- * for the design mock. In production, drive them from a real
- * `verification_events` table or the existing `activity_log` (migration 006).
  */
 export function VerificationTimeline({
   coach,
   state,
-  onResend,
-  onExtend,
-  onPurgeNow,
+  onRefreshCoach,
+  onPurgeSuccess,
 }: VerificationTimelineProps) {
   const daysOld = state.daysOld;
+
+  const [loading, setLoading] = useState<"resend" | "extend" | "purge" | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const handleResend = useCallback(async () => {
+    setLoading("resend");
+    setActionError(null);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: coach.email,
+      });
+      if (error) throw error;
+      toast.success("Verification email resent.");
+      onRefreshCoach?.();
+    } catch (err: any) {
+      setActionError(err.message ?? "Failed to resend email.");
+    } finally {
+      setLoading(null);
+    }
+  }, [coach.email, onRefreshCoach]);
+
+  const handleExtend = useCallback(async () => {
+    setLoading("extend");
+    setActionError(null);
+    try {
+      const { error } = await supabase.rpc("admin_extend_purge_deadline", {
+        p_coach_id: coach.coach_id,
+        p_days: 30,
+      });
+      if (error) throw error;
+      toast.success("Purge deadline extended by 30 days.");
+      onRefreshCoach?.();
+    } catch (err: any) {
+      setActionError(err.message ?? "Failed to extend deadline.");
+    } finally {
+      setLoading(null);
+    }
+  }, [coach.coach_id, onRefreshCoach]);
+
+  const handlePurgeNow = useCallback(async () => {
+    if (
+      !window.confirm(
+        "Soft-delete this coach? PII will be anonymized; aggregate counts retained for 275 days."
+      )
+    )
+      return;
+    setLoading("purge");
+    setActionError(null);
+    try {
+      const { error } = await supabase.rpc("admin_purge_now", {
+        p_coach_id: coach.coach_id,
+      });
+      if (error) throw error;
+      toast.success("Coach account purged.");
+      onRefreshCoach?.();
+      onPurgeSuccess?.();
+    } catch (err: any) {
+      setActionError(err.message ?? "Failed to purge coach.");
+    } finally {
+      setLoading(null);
+    }
+  }, [coach.coach_id, onRefreshCoach, onPurgeSuccess]);
 
   // TODO(backend): replace with rows from activity_log filtered by coach_id
   //                + action in ('verification_sent', 'reminder_sent', 'final_notice_sent')
@@ -50,6 +110,8 @@ export function VerificationTimeline({
     soft_deleted: `Account purged${state.hardDeleteAt ? `. Hard-delete on ${new Date(state.hardDeleteAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}.` : "."}`,
   }[state.stage];
 
+  const anyLoading = loading !== null;
+
   return (
     <div className="px-4 py-3 border-b border-slate-100">
       <div className="flex items-center justify-between mb-2">
@@ -60,7 +122,7 @@ export function VerificationTimeline({
       </div>
 
       <p className={`text-[11.5px] leading-snug mb-2.5 ${state.stage === "imminent" ? "text-red-700" : "text-slate-600"}`}>
-         {stageBlurb}
+        {stageBlurb}
       </p>
 
       <ol className="relative pl-4 space-y-1.5">
@@ -96,24 +158,43 @@ export function VerificationTimeline({
 
       <div className="mt-3 grid grid-cols-2 gap-1.5">
         <button
-          onClick={onResend}
-          className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-[11.5px] font-medium transition-colors"
+          onClick={handleResend}
+          disabled={anyLoading}
+          className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-[11.5px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <RefreshCw className="w-3 h-3" /> Resend email
+          {loading === "resend"
+            ? <Loader2 className="w-3 h-3 animate-spin" />
+            : <RefreshCw className="w-3 h-3" />
+          }
+          Resend email
         </button>
         <button
-          onClick={onExtend}
-          className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-[11.5px] font-medium transition-colors"
+          onClick={handleExtend}
+          disabled={anyLoading}
+          className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-[11.5px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Clock className="w-3 h-3" /> Extend 30d
+          {loading === "extend"
+            ? <Loader2 className="w-3 h-3 animate-spin" />
+            : <Clock className="w-3 h-3" />
+          }
+          Extend 30d
         </button>
         <button
-          onClick={onPurgeNow}
-          className="col-span-2 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50 text-[11.5px] font-medium transition-colors"
+          onClick={handlePurgeNow}
+          disabled={anyLoading}
+          className="col-span-2 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50 text-[11.5px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <UserX className="w-3 h-3" /> Purge now
+          {loading === "purge"
+            ? <Loader2 className="w-3 h-3 animate-spin" />
+            : <UserX className="w-3 h-3" />
+          }
+          Purge now
         </button>
       </div>
+
+      {actionError && (
+        <p className="mt-2 text-[11px] text-red-600 leading-snug">{actionError}</p>
+      )}
     </div>
   );
 }
