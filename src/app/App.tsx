@@ -96,7 +96,7 @@ function AppContent() {
     { id: "attendance"as Page, label: "Attendance", icon: Users },
     { id: "summary"   as Page, label: "Reports",    icon: BarChart2 },
     { id: "charts"    as Page, label: "Analytics",  icon: TrendingUp },
-    ...(state.raffleEnabled ? [{ id: "raffle" as Page, label: "Refills", icon: Gift }] : []),
+    ...(state.raffleEnabled ? [{ id: "raffle" as Page, label: "Raffle", icon: Gift }] : []),
   ];
 
   const bottomNavItems = [
