@@ -460,7 +460,7 @@ export default function SuperAdminDashboard() {
   const [activeFilters, setActiveFilters] = useState<Set<FilterType>>(new Set());
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [density, setDensity] = useState<"standard" | "compact">("standard");
-  const [isChartsOpen, setIsChartsOpen] = useState(true);
+  const [isChartsOpen, setIsChartsOpen] = useState(false);
   const [isPaneCollapsed, setIsPaneCollapsed] = useState(false);
 
   // Ref for keyboard navigation — track focused card index within filtered list
