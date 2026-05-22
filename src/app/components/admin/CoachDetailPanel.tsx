@@ -384,11 +384,55 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
     }
   }, [coach]);
 
-  const handleServerSideAction = useCallback((label: string) => {
-    toast.info(
-      `"${label}" requires server-side admin access — use the Supabase Dashboard or a privileged Edge Function.`
-    );
-  }, []);
+  const handleResendVerification = useCallback(async () => {
+    if (!coach) return;
+    setActionLoading("resend-verification");
+    try {
+      const { error } = await supabase.functions.invoke("admin-coach-actions", {
+        body: { action: "resend-verification", coachId: coach.coach_id, email: coach.email },
+      });
+      if (error) throw error;
+      toast.success(`Verification email resent to ${coach.email}.`);
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to resend verification email.");
+    } finally {
+      setActionLoading(null);
+    }
+  }, [coach]);
+
+  const handleForceLogout = useCallback(async () => {
+    if (!coach) return;
+    setActionLoading("force-logout");
+    try {
+      const { error } = await supabase.functions.invoke("admin-coach-actions", {
+        body: { action: "force-logout", coachId: coach.coach_id },
+      });
+      if (error) throw error;
+      toast.success(`${coach.email} has been signed out of all devices.`);
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to force logout.");
+    } finally {
+      setActionLoading(null);
+      setPendingConfirm(null);
+    }
+  }, [coach]);
+
+  const handleSuspendAccount = useCallback(async () => {
+    if (!coach) return;
+    setActionLoading("suspend-account");
+    try {
+      const { error } = await supabase.functions.invoke("admin-coach-actions", {
+        body: { action: "suspend-account", coachId: coach.coach_id },
+      });
+      if (error) throw error;
+      toast.success(`${coach.email} has been suspended.`);
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to suspend account.");
+    } finally {
+      setActionLoading(null);
+      setPendingConfirm(null);
+    }
+  }, [coach]);
 
   // ---------------------------------------------------------------------------
   // Derived values
@@ -656,16 +700,19 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
               <TextAction
                 label="Resend verification"
                 icon={Send}
+                loading={actionLoading === "resend-verification"}
                 disabled={coach.email_verified || !!actionLoading}
-                onClick={() => handleServerSideAction("Resend Verification Email")}
+                onClick={handleResendVerification}
               />
 
-              {/* View as coach */}
+              {/* View as coach — requires privileged Edge Function (not yet implemented) */}
               <TextAction
                 label="View as coach"
                 icon={ArrowUpRight}
                 disabled={!!actionLoading}
-                onClick={() => handleServerSideAction("View As Coach")}
+                onClick={() =>
+                  toast.info('"View As Coach" is not yet implemented.')
+                }
               />
 
               {/* Export data */}
@@ -701,21 +748,51 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
               </div>
 
               {/* Force logout */}
-              <TextAction
-                label="Force logout"
-                icon={LogOut}
-                disabled={!!actionLoading}
-                onClick={() => handleServerSideAction("Force Logout")}
-              />
+              <div>
+                <TextAction
+                  label="Force logout"
+                  icon={LogOut}
+                  loading={actionLoading === "force-logout"}
+                  disabled={!!actionLoading}
+                  onClick={() =>
+                    setPendingConfirm(
+                      pendingConfirm === "force-logout" ? null : "force-logout"
+                    )
+                  }
+                />
+                {pendingConfirm === "force-logout" && (
+                  <ConfirmBanner
+                    message={`Sign ${coach.email} out of all devices?`}
+                    loading={actionLoading === "force-logout"}
+                    onConfirm={handleForceLogout}
+                    onCancel={() => setPendingConfirm(null)}
+                  />
+                )}
+              </div>
 
               {/* Suspend account — danger */}
-              <TextAction
-                label="Suspend account"
-                icon={UserX}
-                danger
-                disabled={!!actionLoading}
-                onClick={() => handleServerSideAction("Disable Account")}
-              />
+              <div>
+                <TextAction
+                  label="Suspend account"
+                  icon={UserX}
+                  danger
+                  loading={actionLoading === "suspend-account"}
+                  disabled={!!actionLoading}
+                  onClick={() =>
+                    setPendingConfirm(
+                      pendingConfirm === "suspend-account" ? null : "suspend-account"
+                    )
+                  }
+                />
+                {pendingConfirm === "suspend-account" && (
+                  <ConfirmBanner
+                    message={`Suspend ${coach.email}? They will be unable to sign in.`}
+                    loading={actionLoading === "suspend-account"}
+                    onConfirm={handleSuspendAccount}
+                    onCancel={() => setPendingConfirm(null)}
+                  />
+                )}
+              </div>
             </div>
 
           </div>

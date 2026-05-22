@@ -422,9 +422,55 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
     }
   }, [coach]);
 
-  const handleServerSideAction = useCallback((label: string) => {
-    toast.info(`"${label}" requires server-side admin access — use the Supabase Dashboard or a privileged Edge Function.`);
-  }, []);
+  const handleResendVerification = useCallback(async () => {
+    if (!coach) return;
+    setActionLoading("resend-verification");
+    try {
+      const { error } = await supabase.functions.invoke("admin-coach-actions", {
+        body: { action: "resend-verification", coachId: coach.coach_id, email: coach.email },
+      });
+      if (error) throw error;
+      toast.success(`Verification email resent to ${coach.email}.`);
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to resend verification email.");
+    } finally {
+      setActionLoading(null);
+    }
+  }, [coach]);
+
+  const handleForceLogout = useCallback(async () => {
+    if (!coach) return;
+    setActionLoading("force-logout");
+    try {
+      const { error } = await supabase.functions.invoke("admin-coach-actions", {
+        body: { action: "force-logout", coachId: coach.coach_id },
+      });
+      if (error) throw error;
+      toast.success(`${coach.email} has been signed out of all devices.`);
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to force logout.");
+    } finally {
+      setActionLoading(null);
+      setPendingConfirm(null);
+    }
+  }, [coach]);
+
+  const handleSuspendAccount = useCallback(async () => {
+    if (!coach) return;
+    setActionLoading("suspend-account");
+    try {
+      const { error } = await supabase.functions.invoke("admin-coach-actions", {
+        body: { action: "suspend-account", coachId: coach.coach_id },
+      });
+      if (error) throw error;
+      toast.success(`${coach.email} has been suspended.`);
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to suspend account.");
+    } finally {
+      setActionLoading(null);
+      setPendingConfirm(null);
+    }
+  }, [coach]);
 
   const handleCopyId = useCallback((id: string) => {
     navigator.clipboard.writeText(id);
@@ -637,8 +683,9 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
                     <ActionButton
                       label="Resend Onboarding"
                       icon={Send}
-                      disabled={!!actionLoading}
-                      onClick={() => handleServerSideAction("Resend Onboarding Email")}
+                      loading={actionLoading === "resend-verification"}
+                      disabled={coach.email_verified || !!actionLoading}
+                      onClick={handleResendVerification}
                     />
 
                     <ActionButton
@@ -650,22 +697,50 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
                       onClick={handleExportData}
                     />
 
-                    <ActionButton
-                      label="Force Logout"
-                      icon={LogOut}
-                      variant="warning"
-                      disabled={!!actionLoading}
-                      onClick={() => handleServerSideAction("Force Logout")}
-                    />
+                    <div>
+                      <ActionButton
+                        label="Force Logout"
+                        icon={LogOut}
+                        variant="warning"
+                        loading={actionLoading === "force-logout"}
+                        disabled={!!actionLoading}
+                        onClick={() =>
+                          setPendingConfirm(
+                            pendingConfirm === "force-logout" ? null : "force-logout"
+                          )
+                        }
+                      />
+                      {pendingConfirm === "force-logout" && (
+                        <ConfirmBanner
+                          message={`Sign ${coach.email} out of all devices?`}
+                          loading={actionLoading === "force-logout"}
+                          onConfirm={handleForceLogout}
+                          onCancel={() => setPendingConfirm(null)}
+                        />
+                      )}
+                    </div>
 
                     <div className="sm:col-span-2">
                       <ActionButton
                         label="Disable Account"
                         icon={UserX}
                         variant="danger"
+                        loading={actionLoading === "suspend-account"}
                         disabled={!!actionLoading}
-                        onClick={() => handleServerSideAction("Disable Account")}
+                        onClick={() =>
+                          setPendingConfirm(
+                            pendingConfirm === "suspend-account" ? null : "suspend-account"
+                          )
+                        }
                       />
+                      {pendingConfirm === "suspend-account" && (
+                        <ConfirmBanner
+                          message={`Suspend ${coach.email}? They will be unable to sign in.`}
+                          loading={actionLoading === "suspend-account"}
+                          onConfirm={handleSuspendAccount}
+                          onCancel={() => setPendingConfirm(null)}
+                        />
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1019,7 +1094,7 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
                 </div>
 
                 <button
-                  onClick={() => handleServerSideAction("Manage Subscription Invoice Settings")}
+                  onClick={() => toast.info('"Manage Billing Portal" is not yet implemented.')}
                   className="mt-3.5 w-full flex items-center justify-center gap-1 px-3 py-2 border border-slate-205 rounded-xl bg-white text-xs font-bold text-slate-650 hover:bg-slate-50 transition-colors shadow-sm cursor-pointer"
                 >
                   <span>Manage Billing Portal</span>

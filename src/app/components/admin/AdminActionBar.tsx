@@ -238,7 +238,7 @@ export default function AdminActionBar() {
         label: "Export Data",
         icon: Download,
         type: "secondary",
-        onExecute: () => toast.success("Data export initiated."),
+        onExecute: () => toast.info("Export Data is not yet implemented."),
       },
       {
         id: "view-audit-logs",
@@ -254,7 +254,7 @@ export default function AdminActionBar() {
         type: "danger",
         requiresConfirmation: true,
         confirmationMessage: "This will send an email/push notification to all coaches. Proceed?",
-        onExecute: () => toast.success("Announcement broadcast sent."),
+        onExecute: () => toast.info("Send Announcement is not yet implemented."),
       },
       {
         id: "open-diagnostics",
