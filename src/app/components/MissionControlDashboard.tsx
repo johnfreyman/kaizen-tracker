@@ -1,4 +1,4 @@
-import { Play, Users, ChevronRight, Activity, Trophy, Target, Clock } from "lucide-react";
+import { Play, Users, Activity, Trophy, Target, Clock } from "lucide-react";
 import { useTeamStore, EVENT_TYPES, ActiveSession } from "../hooks/useTeamStore";
 import { useSessionTimer, formatElapsed } from "../hooks/useSessionTimer";
 import { formatDate } from "@/lib/dates";
@@ -301,20 +301,23 @@ function IdleHero({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={onStart}
-            className="flex items-center gap-2.5 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors text-sm shadow-lg shadow-blue-900/30"
-          >
-            <Play className="size-4 fill-current" />
-            Start Today's Practice
-            <ChevronRight className="size-4" />
-          </button>
+        <div className="space-y-2.5">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={onStart}
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors text-sm shadow-lg shadow-blue-900/30"
+            >
+              <Play className="size-4 fill-current" />
+              Quick Start
+            </button>
+            {/* Show what Quick Start will use so there's no ambiguity */}
+            <span className="text-white/25 text-xs">Practice · 1.5h · starts now</span>
+          </div>
           <button
             onClick={onConfigure}
-            className="flex items-center gap-1.5 px-3 py-3 text-white/40 hover:text-white/65 font-medium text-sm transition-colors"
+            className="text-blue-400/60 hover:text-blue-400 font-medium text-xs transition-colors"
           >
-            Configure ▾
+            Set up manually →
           </button>
         </div>
       </div>
