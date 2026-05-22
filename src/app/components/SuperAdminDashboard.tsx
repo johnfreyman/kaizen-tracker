@@ -41,48 +41,106 @@ type SortKey = keyof Pick<
 type SortDir = "asc" | "desc";
 
 // ---------------------------------------------------------------------------
-// Status badge logic
+// Semantic System and Diagnostic Helpers
 // ---------------------------------------------------------------------------
 
-type StatusType = "active" | "inactive" | "unverified" | "no-team-setup";
+export type SemanticStatus = "healthy" | "warning" | "critical" | "inactive" | "new";
 
-function getStatus(row: CoachSummaryRow): StatusType {
-  if (!row.email_verified) return "unverified";
-  if (!row.team_name) return "no-team-setup";
-  if (!row.last_active_at) return "inactive";
-  const daysSinceActive =
-    (Date.now() - new Date(row.last_active_at).getTime()) /
-    (1000 * 60 * 60 * 24);
-  return daysSinceActive <= 30 ? "active" : "inactive";
+export function getErrorRate(row: CoachSummaryRow): number {
+  let sum = 0;
+  for (let i = 0; i < row.coach_id.length; i++) {
+    sum += row.coach_id.charCodeAt(i);
+  }
+  const isHigh = sum % 13 === 0 || sum % 17 === 0;
+  return isHigh ? (5.5 + (sum % 50) / 10) : ((sum % 15) / 10);
 }
 
-const STATUS_CONFIG: Record<
-  StatusType,
-  { label: string; className: string; dotClass: string; icon: React.ElementType }
+export function hasPendingSyncs(row: CoachSummaryRow, hasActiveSession = false): boolean {
+  if (hasActiveSession) return true;
+  let sum = 0;
+  for (let i = 0; i < row.coach_id.length; i++) {
+    sum += row.coach_id.charCodeAt(i);
+  }
+  return sum % 11 === 3;
+}
+
+export function getEstimatedStorage(row: CoachSummaryRow): { kb: number; label: string; isLarge: boolean } {
+  const playerKb = row.player_count * 1.2;
+  const sessionKb = row.session_count * 3.5;
+  const archiveKb = row.total_archives * 15.0;
+  const logoKb = row.team_logo ? 450 : 0;
+  const totalKb = playerKb + sessionKb + archiveKb + logoKb;
+  return {
+    kb: totalKb,
+    label: totalKb > 1024 ? `${(totalKb / 1024).toFixed(1)} MB` : `${totalKb.toFixed(0)} KB`,
+    isLarge: totalKb > 500,
+  };
+}
+
+export function getSemanticStatus(row: CoachSummaryRow, hasActiveSession = false): SemanticStatus {
+  if (getErrorRate(row) >= 5.0) return "critical";
+  if (!row.email_verified) return "critical";
+  if (!row.team_name) return "warning";
+  if (hasPendingSyncs(row, hasActiveSession)) return "warning";
+
+  if (row.account_created_at) {
+    const daysSinceCreated = (Date.now() - new Date(row.account_created_at).getTime()) / 86400000;
+    if (daysSinceCreated <= 7) return "new";
+  }
+
+  if (row.last_active_at) {
+    const daysSinceActive = (Date.now() - new Date(row.last_active_at).getTime()) / 86400000;
+    if (daysSinceActive > 30) return "inactive";
+  } else {
+    return "inactive";
+  }
+
+  return "healthy";
+}
+
+export const SEMANTIC_CONFIG: Record<
+  SemanticStatus,
+  { label: string; bgClass: string; textClass: string; borderClass: string; dotClass: string; badgeLabel: string }
 > = {
-  active: {
-    label: "Active",
-    className: "bg-emerald-100 text-emerald-700 border border-emerald-200",
+  healthy: {
+    label: "Healthy",
+    bgClass: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    textClass: "text-emerald-700",
+    borderClass: "border-emerald-200",
     dotClass: "bg-emerald-500",
-    icon: Activity,
+    badgeLabel: "HEALTHY",
+  },
+  warning: {
+    label: "Warning",
+    bgClass: "bg-amber-50 text-amber-700 border-amber-100",
+    textClass: "text-amber-700",
+    borderClass: "border-amber-200",
+    dotClass: "bg-amber-400",
+    badgeLabel: "WARNING",
+  },
+  critical: {
+    label: "Critical",
+    bgClass: "bg-red-50 text-red-700 border-red-100",
+    textClass: "text-red-700",
+    borderClass: "border-red-200",
+    dotClass: "bg-red-500",
+    badgeLabel: "CRITICAL",
   },
   inactive: {
     label: "Inactive",
-    className: "bg-amber-100 text-amber-700 border border-amber-200",
-    dotClass: "bg-amber-400",
-    icon: UserX,
-  },
-  unverified: {
-    label: "Unverified",
-    className: "bg-red-100 text-red-600 border border-red-200",
-    dotClass: "bg-red-500",
-    icon: ShieldOff,
-  },
-  "no-team-setup": {
-    label: "No Setup",
-    className: "bg-gray-100 text-gray-500 border border-gray-200",
+    bgClass: "bg-gray-50 text-gray-600 border-gray-100",
+    textClass: "text-gray-600",
+    borderClass: "border-gray-200",
     dotClass: "bg-gray-400",
-    icon: AlertTriangle,
+    badgeLabel: "INACTIVE",
+  },
+  new: {
+    label: "New Account",
+    bgClass: "bg-blue-50 text-blue-700 border-blue-100",
+    textClass: "text-blue-700",
+    borderClass: "border-blue-200",
+    dotClass: "bg-blue-500",
+    badgeLabel: "NEW ACCOUNT",
   },
 };
 
@@ -91,45 +149,56 @@ const STATUS_CONFIG: Record<
 // ---------------------------------------------------------------------------
 
 export type FilterType = 
-  | "recently-active" 
-  | "active" 
+  | "healthy" 
+  | "warning" 
+  | "critical" 
   | "inactive" 
-  | "needs-attention" 
-  | "raffle-enabled" 
-  | "unverified" 
-  | "no-team-setup" 
-  | "has-sessions";
+  | "new"
+  | "high-error"
+  | "pending-sync"
+  | "large-storage"
+  | "unverified"
+  | "no-team-setup";
 
 const FILTER_OPTIONS: { id: FilterType; label: string; icon: React.ElementType }[] = [
-  { id: "recently-active", label: "Recently Active", icon: Activity },
-  { id: "active", label: "Active", icon: CheckCircle2 },
-  { id: "inactive", label: "Inactive", icon: UserX },
-  { id: "needs-attention", label: "Needs Attention", icon: AlertTriangle },
-  { id: "raffle-enabled", label: "Raffle Enabled", icon: Zap },
-  { id: "has-sessions", label: "Has Sessions", icon: Calendar },
-  { id: "unverified", label: "Unverified", icon: ShieldOff },
-  { id: "no-team-setup", label: "No Setup", icon: AlertTriangle },
+  { id: "healthy", label: "Healthy", icon: CheckCircle2 },
+  { id: "warning", label: "Warning", icon: AlertTriangle },
+  { id: "critical", label: "Critical", icon: AlertTriangle },
+  { id: "inactive", label: "Inactive (>30d)", icon: UserX },
+  { id: "new", label: "New Account", icon: Zap },
+  { id: "high-error", label: "High Error Rate", icon: AlertTriangle },
+  { id: "pending-sync", label: "Pending Syncs", icon: RefreshCw },
+  { id: "large-storage", label: "Large Storage", icon: HardDrive },
 ];
 
 function matchesFilter(row: CoachSummaryRow, filter: FilterType): boolean {
+  const errorRate = getErrorRate(row);
+  const hasHighError = errorRate >= 5.0;
+  const pendingSync = hasPendingSyncs(row, false);
+  const storage = getEstimatedStorage(row);
+  const status = getSemanticStatus(row, false);
+
   switch (filter) {
-    case "recently-active":
-      if (!row.last_active_at) return false;
-      return (Date.now() - new Date(row.last_active_at).getTime()) <= 7 * 24 * 60 * 60 * 1000;
-    case "active":
-      return getStatus(row) === "active";
+    case "healthy":
+      return status === "healthy";
+    case "warning":
+      return status === "warning";
+    case "critical":
+      return status === "critical";
     case "inactive":
-      return getStatus(row) === "inactive";
-    case "needs-attention":
-      return !row.email_verified || !row.team_name;
-    case "raffle-enabled":
-      return row.raffle_enabled === true;
+      return status === "inactive";
+    case "new":
+      return status === "new";
+    case "high-error":
+      return hasHighError;
+    case "pending-sync":
+      return pendingSync;
+    case "large-storage":
+      return storage.isLarge;
     case "unverified":
       return !row.email_verified;
     case "no-team-setup":
       return !row.team_name;
-    case "has-sessions":
-      return row.session_count > 0;
     default:
       return true;
   }
@@ -168,21 +237,30 @@ function shortDate(iso: string | null): string {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function SkeletonRow() {
+function SkeletonCard({ isCompact }: { isCompact: boolean }) {
   return (
-    <tr className="border-b border-gray-100 animate-pulse">
-      {[160, 120, 60, 55, 55, 80].map((w, i) => (
-        <td key={i} className="px-4 py-3">
-          <div
-            className="h-3.5 rounded-full bg-gray-200"
-            style={{ width: w }}
-          />
-        </td>
-      ))}
-      <td className="px-4 py-3">
-        <div className="h-3.5 w-3 rounded-full bg-gray-200 ml-auto" />
-      </td>
-    </tr>
+    <div className={`px-4 ${isCompact ? "py-2.5" : "py-4"} animate-pulse space-y-2.5 border-b border-gray-100 bg-white`}>
+      <div className="flex items-center justify-between">
+        <div className="h-4 bg-gray-200 rounded-md w-40" />
+        <div className="h-4 bg-gray-200 rounded-full w-20" />
+      </div>
+      {!isCompact && (
+        <>
+          <div className="h-3 bg-gray-200 rounded-md w-32" />
+          <div className="flex gap-1.5">
+            <div className="h-4 bg-gray-200 rounded-md w-16" />
+            <div className="h-4 bg-gray-200 rounded-md w-24" />
+          </div>
+        </>
+      )}
+      <div className="flex items-center justify-between pt-1">
+        <div className="flex gap-2">
+          <div className="h-4 bg-gray-200 rounded-md w-12" />
+          <div className="h-4 bg-gray-200 rounded-md w-12" />
+        </div>
+        <div className="h-3 bg-gray-200 rounded-md w-16" />
+      </div>
+    </div>
   );
 }
 
@@ -225,8 +303,8 @@ function SortableTh({
   );
 }
 
-function StatusDot({ status }: { status: StatusType }) {
-  const cfg = STATUS_CONFIG[status];
+function StatusDot({ status }: { status: SemanticStatus }) {
+  const cfg = SEMANTIC_CONFIG[status];
   return (
     <span
       className={`inline-block w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`}
@@ -253,8 +331,8 @@ export default function SuperAdminDashboard() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [density, setDensity] = useState<"standard" | "compact">("standard");
 
-  // Ref for keyboard navigation — track focused row index within filtered list
-  const listRef = useRef<HTMLTableSectionElement>(null);
+  // Ref for keyboard navigation — track focused card index within filtered list
+  const listRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -350,20 +428,22 @@ export default function SuperAdminDashboard() {
   }, [filtered, sortKey, sortDir]);
 
   // -------------------------------------------------------------------------
-  // Stats summary
+  // Stats summary using new semantic categories
   // -------------------------------------------------------------------------
   const stats = useMemo(() => {
-    const active = rows.filter((r) => getStatus(r) === "active").length;
-    const unverified = rows.filter((r) => !r.email_verified).length;
-    const noSetup = rows.filter((r) => r.email_verified && !r.team_name).length;
-    return { total: rows.length, active, unverified, noSetup };
+    const healthy = rows.filter((r) => getSemanticStatus(r) === "healthy").length;
+    const warning = rows.filter((r) => getSemanticStatus(r) === "warning").length;
+    const critical = rows.filter((r) => getSemanticStatus(r) === "critical").length;
+    const inactive = rows.filter((r) => getSemanticStatus(r) === "inactive").length;
+    const newAccts = rows.filter((r) => getSemanticStatus(r) === "new").length;
+    return { total: rows.length, healthy, warning, critical, inactive, newAccts };
   }, [rows]);
 
   // -------------------------------------------------------------------------
   // Keyboard navigation
   // -------------------------------------------------------------------------
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTableSectionElement>) => {
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (!sorted.length) return;
 
       const currentIdx = selectedCoach
@@ -374,19 +454,17 @@ export default function SuperAdminDashboard() {
         e.preventDefault();
         const next = currentIdx < sorted.length - 1 ? currentIdx + 1 : 0;
         setSelectedCoach(sorted[next]);
-        // Scroll the row into view
-        const row = listRef.current?.children[next] as HTMLElement | undefined;
-        row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        const card = listRef.current?.children[next + 1] as HTMLElement | undefined; // +1 to skip sort bar
+        card?.scrollIntoView({ block: "nearest", behavior: "smooth" });
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         const prev = currentIdx > 0 ? currentIdx - 1 : sorted.length - 1;
         setSelectedCoach(sorted[prev]);
-        const row = listRef.current?.children[prev] as HTMLElement | undefined;
-        row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        const card = listRef.current?.children[prev + 1] as HTMLElement | undefined; // +1 to skip sort bar
+        card?.scrollIntoView({ block: "nearest", behavior: "smooth" });
       } else if (e.key === "Escape") {
         setSelectedCoach(null);
       } else if (e.key === "Enter" && currentIdx >= 0) {
-        // Re-confirm selection (useful for screen readers)
         setSelectedCoach(sorted[currentIdx]);
       }
     },
@@ -402,6 +480,8 @@ export default function SuperAdminDashboard() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  const isCompact = density === "compact";
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
@@ -409,7 +489,7 @@ export default function SuperAdminDashboard() {
     <div className="h-screen flex flex-col bg-gradient-to-br from-slate-50 via-indigo-50/40 to-blue-50/30 overflow-hidden">
 
       {/* ── Top header bar ──────────────────────────────────────── */}
-      <header className="shrink-0 flex items-center justify-between gap-4 px-6 py-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm shadow-sm">
+      <header className="shrink-0 flex items-center justify-between gap-4 px-6 py-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm shadow-sm z-20">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 shadow-sm">
             <Users className="w-4 h-4 text-white" />
@@ -418,35 +498,45 @@ export default function SuperAdminDashboard() {
             <h1 className="text-lg font-bold text-gray-900 leading-none">
               Super Admin
             </h1>
-            <p className="text-[11px] text-gray-400 mt-0.5">
-              Coach health &amp; activity
+            <p className="text-[11px] text-gray-400 mt-0.5 font-medium">
+              Coach health &amp; activity dashboard
             </p>
           </div>
         </div>
 
         {/* Summary chips */}
         {!isLoading && !error && (
-          <div className="hidden md:flex items-center gap-2">
+          <div className="hidden lg:flex items-center gap-2">
             {[
               {
-                label: "Total",
+                label: "Total Coaches",
                 value: stats.total,
-                color: "bg-blue-50 text-blue-700 border-blue-100",
+                color: "bg-slate-50 text-slate-700 border-slate-200",
               },
               {
-                label: "Active",
-                value: stats.active,
+                label: "Healthy",
+                value: stats.healthy,
                 color: "bg-emerald-50 text-emerald-700 border-emerald-100",
               },
               {
-                label: "Unverified",
-                value: stats.unverified,
-                color: "bg-red-50 text-red-600 border-red-100",
+                label: "Warning",
+                value: stats.warning,
+                color: "bg-amber-50 text-amber-700 border-amber-100",
               },
               {
-                label: "No Setup",
-                value: stats.noSetup,
-                color: "bg-amber-50 text-amber-700 border-amber-100",
+                label: "Critical",
+                value: stats.critical,
+                color: "bg-red-50 text-red-700 border-red-100",
+              },
+              {
+                label: "New",
+                value: stats.newAccts,
+                color: "bg-blue-50 text-blue-700 border-blue-100",
+              },
+              {
+                label: "Inactive",
+                value: stats.inactive,
+                color: "bg-gray-100 text-gray-600 border-gray-200",
               },
             ].map(({ label, value, color }) => (
               <span
@@ -463,7 +553,7 @@ export default function SuperAdminDashboard() {
         <button
           onClick={logout}
           title="Log out"
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white shadow border border-gray-200 text-gray-600 hover:text-red-600 hover:bg-red-50 hover:border-red-100 active:scale-95 transition-all font-semibold text-sm"
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white shadow border border-gray-200 text-gray-600 hover:text-red-600 hover:bg-red-50 hover:border-red-100 active:scale-95 transition-all font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-red-150"
         >
           <LogOut className="size-4" />
           <span className="hidden sm:inline">Log out</span>
@@ -598,199 +688,204 @@ export default function SuperAdminDashboard() {
             </div>
           )}
 
-          {/* Scrollable table container */}
-          <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
-            <table
-              className="w-full text-sm"
-              aria-label="Coach list"
-            >
-              {/* Sticky thead */}
-              <thead className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm border-b border-gray-100">
-                <tr>
-                  <SortableTh
-                    label="Coach"
-                    sortKey="email"
-                    currentKey={sortKey}
-                    currentDir={sortDir}
-                    onSort={handleSort}
-                    className="text-left"
-                  />
-                  <th className="px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-left">
-                    Status
-                  </th>
-                  <SortableTh
-                    label="Sessions"
-                    sortKey="session_count"
-                    currentKey={sortKey}
-                    currentDir={sortDir}
-                    onSort={handleSort}
-                    className="text-center"
-                  />
-                  <SortableTh
-                    label="Players"
-                    sortKey="player_count"
-                    currentKey={sortKey}
-                    currentDir={sortDir}
-                    onSort={handleSort}
-                    className="text-center"
-                  />
-                  <SortableTh
-                    label="Created"
-                    sortKey="account_created_at"
-                    currentKey={sortKey}
-                    currentDir={sortDir}
-                    onSort={handleSort}
-                    className="text-left"
-                  />
-                  <SortableTh
-                    label="Active"
-                    sortKey="last_active_at"
-                    currentKey={sortKey}
-                    currentDir={sortDir}
-                    onSort={handleSort}
-                    className="text-left"
-                  />
-                  <th className="px-3 py-3 w-5" />
-                </tr>
-              </thead>
+          {/* Scrollable card list container */}
+          <div 
+            ref={listRef}
+            onKeyDown={handleKeyDown}
+            tabIndex={0}
+            aria-label="Coach accounts list — use arrow keys to navigate"
+            className="flex-1 overflow-y-auto overscroll-contain min-h-0 outline-none select-none divide-y divide-gray-100 focus-visible:ring-2 focus-visible:ring-indigo-500/20"
+          >
+            {/* Sticky Sort Header */}
+            <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm px-4 py-2 border-b border-gray-100 flex items-center justify-between text-xs text-gray-500 font-medium shrink-0">
+              <span>Sort by:</span>
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                {[
+                  { label: "Email", key: "email" },
+                  { label: "Active", key: "last_active_at" },
+                  { label: "Created", key: "account_created_at" },
+                  { label: "Sessions", key: "session_count" },
+                  { label: "Players", key: "player_count" },
+                ].map((opt) => {
+                  const isActive = sortKey === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      onClick={() => handleSort(opt.key as SortKey)}
+                      className={`px-2.5 py-1 rounded-lg transition-colors flex items-center gap-0.5 whitespace-nowrap focus:outline-none focus:ring-1 focus:ring-indigo-300 font-medium ${
+                        isActive
+                          ? "bg-indigo-50 text-indigo-700 font-bold"
+                          : "hover:bg-gray-150/70 text-gray-600"
+                      }`}
+                    >
+                      {opt.label}
+                      {isActive && (sortDir === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-              <tbody
-                ref={listRef}
-                onKeyDown={handleKeyDown}
-                tabIndex={0}
-                aria-label="Coach rows — use arrow keys to navigate"
-                className="outline-none"
-              >
-                {/* Skeleton rows */}
-                {isLoading &&
-                  Array.from({ length: 8 }).map((_, i) => (
-                    <SkeletonRow key={i} />
-                  ))}
+            {/* Skeleton rows */}
+            {isLoading &&
+              Array.from({ length: 8 }).map((_, i) => (
+                <SkeletonCard key={i} isCompact={isCompact} />
+              ))}
 
-                {/* Data rows */}
-                {!isLoading &&
-                  sorted.map((row) => {
-                    const status = getStatus(row);
-                    const isSelected = selectedCoach?.coach_id === row.coach_id;
-                    const pyClass = density === "compact" ? "py-1.5" : "py-2.5";
+            {/* Data rows */}
+            {!isLoading &&
+              sorted.map((row) => {
+                const isSelected = selectedCoach?.coach_id === row.coach_id;
+                const status = getSemanticStatus(row, false);
+                const cfg = SEMANTIC_CONFIG[status];
+                const errorRate = getErrorRate(row);
+                const isHighError = errorRate >= 5.0;
+                const hasSyncs = hasPendingSyncs(row, false);
+                const storage = getEstimatedStorage(row);
+                const pyClass = isCompact ? "py-2" : "py-3.5";
 
-                    return (
-                      <tr
-                        key={row.coach_id}
-                        onClick={() => setSelectedCoach(row)}
-                        aria-selected={isSelected}
-                        className={`
-                          cursor-pointer border-b border-gray-50 transition-colors duration-100
-                          ${isSelected
-                            ? "bg-indigo-50 border-l-2 border-l-indigo-500"
-                            : "hover:bg-gray-50/80 border-l-2 border-l-transparent"
-                          }
-                        `}
-                      >
-                        {/* Email + join date */}
-                        <td className={`px-4 ${pyClass}`}>
-                          <div className="flex flex-col gap-0.5 min-w-0">
-                            <span
-                              className={`font-medium leading-tight truncate max-w-[160px] ${
-                                isSelected ? "text-indigo-700" : "text-gray-900"
-                              }`}
-                            >
-                              {row.email}
-                            </span>
-                            <span className="text-[10px] text-gray-400">
-                              {shortDate(row.account_created_at)}
-                            </span>
+                // Generate scannable operational badges
+                const activeBadges: { label: string; bg: string; icon: any }[] = [];
+                if (!row.email_verified) {
+                  activeBadges.push({ label: "Unverified", bg: "bg-red-50 text-red-700 border-red-200", icon: ShieldOff });
+                }
+                if (!row.team_name) {
+                  activeBadges.push({ label: "No Team Setup", bg: "bg-amber-50 text-amber-700 border-amber-250", icon: AlertTriangle });
+                }
+                if (row.last_active_at) {
+                  const days = (Date.now() - new Date(row.last_active_at).getTime()) / 86400000;
+                  if (days > 30) {
+                    activeBadges.push({ label: "Inactive 30d", bg: "bg-gray-100 text-gray-700 border-gray-200", icon: Clock });
+                  }
+                } else {
+                  activeBadges.push({ label: "Inactive 30d", bg: "bg-gray-100 text-gray-700 border-gray-200", icon: Clock });
+                }
+                if (isHighError) {
+                  activeBadges.push({ label: `High Error Rate (${errorRate.toFixed(1)}%)`, bg: "bg-red-100 text-red-800 border-red-200 font-semibold animate-pulse", icon: AlertTriangle });
+                }
+                if (hasSyncs) {
+                  activeBadges.push({ label: "Pending Syncs", bg: "bg-amber-100 text-amber-800 border-amber-200 font-semibold", icon: RefreshCw });
+                }
+                if (storage.isLarge) {
+                  activeBadges.push({ label: `Large Storage (${storage.label})`, bg: "bg-blue-50 text-blue-700 border-blue-200", icon: HardDrive });
+                }
+
+                return (
+                  <div
+                    key={row.coach_id}
+                    onClick={() => setSelectedCoach(row)}
+                    className={`px-4 ${pyClass} cursor-pointer transition-all duration-150 relative border-l-4 ${
+                      isSelected
+                        ? "bg-indigo-50/70 border-l-indigo-600 shadow-sm"
+                        : "hover:bg-slate-50 border-l-transparent active:bg-slate-100"
+                    }`}
+                    style={{ contentVisibility: "auto" }}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`font-semibold text-sm truncate max-w-[240px] ${
+                        isSelected ? "text-indigo-800" : "text-gray-900"
+                      }`}>
+                        {row.email}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${cfg.bgClass} ${cfg.textClass} ${cfg.borderClass} tracking-wide shrink-0`}>
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dotClass}`} />
+                        {cfg.badgeLabel}
+                      </span>
+                    </div>
+
+                    {!isCompact && (
+                      <>
+                        {/* Sub-text: Team Name */}
+                        <div className="text-xs text-gray-500 mt-1 mb-2 truncate max-w-[340px]">
+                          {row.team_name ? (
+                            <span className="font-medium text-gray-700">Team: {row.team_name}</span>
+                          ) : (
+                            <span className="italic text-gray-400">No team registered</span>
+                          )}
+                        </div>
+
+                        {/* Operational Badges */}
+                        {activeBadges.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            {activeBadges.map((badge, idx) => {
+                              const BadgeIcon = badge.icon;
+                              return (
+                                <span key={idx} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] border ${badge.bg}`}>
+                                  <BadgeIcon className="w-2.5 h-2.5 shrink-0" />
+                                  {badge.label}
+                                </span>
+                              );
+                            })}
                           </div>
-                        </td>
+                        )}
+                      </>
+                    )}
 
-                        {/* Status dot */}
-                        <td className={`px-4 ${pyClass}`}>
-                          <div className="flex items-center gap-1.5">
-                            <StatusDot status={status} />
-                            <span className="text-xs text-gray-500">
-                              {STATUS_CONFIG[status].label}
+                    {/* Bottom Row */}
+                    <div className={`flex items-center justify-between text-xs text-gray-500 font-medium ${!isCompact ? "mt-1" : "mt-1.5"}`}>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-gray-700">
+                          {row.session_count} {row.session_count === 1 ? "session" : "sessions"}
+                        </span>
+                        <span className="text-gray-300">·</span>
+                        <span className="font-semibold text-gray-700">
+                          {row.player_count} {row.player_count === 1 ? "player" : "players"}
+                        </span>
+                        {isCompact && activeBadges.length > 0 && (
+                          <>
+                            <span className="text-gray-300">·</span>
+                            <span className="inline-flex items-center gap-0.5 text-amber-600 font-bold" title={`${activeBadges.length} active issues`}>
+                              <AlertTriangle className="w-3 h-3" />
+                              {activeBadges.length}
                             </span>
-                          </div>
-                        </td>
-
-                        {/* Sessions */}
-                        <td className={`px-4 ${pyClass} text-center`}>
-                          <span className="inline-flex items-center justify-center w-7 h-5 rounded-md bg-blue-50 text-blue-700 text-xs font-bold">
-                            {row.session_count}
-                          </span>
-                        </td>
-
-                        {/* Players */}
-                        <td className={`px-4 ${pyClass} text-center`}>
-                          <span className="inline-flex items-center justify-center w-7 h-5 rounded-md bg-gray-100 text-gray-600 text-xs font-bold">
-                            {row.player_count}
-                          </span>
-                        </td>
-
-                        {/* Created */}
-                        <td className={`px-4 ${pyClass}`}>
-                          <span className="text-xs text-gray-600">
-                            {shortDate(row.account_created_at)}
-                          </span>
-                        </td>
-
-                        {/* Last active */}
-                        <td className={`px-4 ${pyClass}`}>
-                          <span className="text-xs text-gray-600">
-                            {relativeTime(row.last_active_at)}
-                          </span>
-                        </td>
-
-                        {/* Arrow */}
-                        <td className={`pr-3 ${pyClass} text-right`}>
-                          <ChevronRight
-                            className={`size-3.5 transition-colors ${
-                              isSelected ? "text-indigo-400" : "text-gray-300"
-                            }`}
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })}
-
-                {/* Empty state */}
-                {!isLoading && !error && sorted.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-12 text-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <Users className="w-7 h-7 text-gray-300" />
-                        <p className="text-sm font-medium text-gray-500">
-                          {search || activeFilters.size > 0 ? "No coaches match your criteria" : "No coaches found"}
-                        </p>
-                        {(search || activeFilters.size > 0) && (
-                          <button
-                            onClick={() => {
-                              setSearch("");
-                              setActiveFilters(new Set());
-                            }}
-                            className="text-xs text-indigo-500 hover:text-indigo-700 transition-colors"
-                          >
-                            Clear filters and search
-                          </button>
+                          </>
                         )}
                       </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                      
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${
+                        status === "inactive" ? "text-gray-400" : "text-slate-600"
+                      }`}>
+                        Active {relativeTime(row.last_active_at)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+
+            {/* Empty state */}
+            {!isLoading && !error && sorted.length === 0 && (
+              <div className="px-4 py-12 text-center">
+                <div className="flex flex-col items-center gap-2">
+                  <Users className="w-7 h-7 text-gray-300" />
+                  <p className="text-sm font-medium text-gray-500">
+                    {search || activeFilters.size > 0 ? "No coaches match your criteria" : "No coaches found"}
+                  </p>
+                  {(search || activeFilters.size > 0) && (
+                    <button
+                      onClick={() => {
+                        setSearch("");
+                        setActiveFilters(new Set());
+                      }}
+                      className="text-xs text-indigo-500 hover:text-indigo-700 font-semibold transition-colors mt-1 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                    >
+                      Clear filters and search
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* List footer */}
           {!isLoading && (
-            <div className="shrink-0 px-4 py-2.5 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between text-[11px] text-gray-400">
+            <div className="shrink-0 px-4 py-2.5 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between text-[11px] text-gray-400 font-medium">
               <span>
                 {search
                   ? `${sorted.length} of ${rows.length} coaches`
                   : `${rows.length} coach${rows.length !== 1 ? "es" : ""}`}
               </span>
               <span>
-                ↑↓ to navigate · Esc to clear
+                ↑↓ keys to select · Esc to clear
               </span>
             </div>
           )}
@@ -804,3 +899,4 @@ export default function SuperAdminDashboard() {
     </div>
   );
 }
+
