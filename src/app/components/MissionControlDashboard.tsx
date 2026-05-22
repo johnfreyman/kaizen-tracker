@@ -1,8 +1,7 @@
-import { Play, Users, Activity, Trophy, Target, Clock } from "lucide-react";
+import { Play, Users, Activity, Target, Clock } from "lucide-react";
 import { useTeamStore, EVENT_TYPES, ActiveSession } from "../hooks/useTeamStore";
 import { useSessionTimer, formatElapsed } from "../hooks/useSessionTimer";
 import { formatDate } from "@/lib/dates";
-import { calculateTotals } from "@/lib/stats";
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -42,13 +41,6 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
   const optionalEvents = state.events.filter((e) => e.type === EVENT_TYPES.OPTIONAL_TRAINING);
   const totalPracticeHrs = practiceEvents.reduce((s, e) => s + e.duration, 0);
   const totalOptionalHrs = optionalEvents.reduce((s, e) => s + e.duration, 0);
-
-  const totals = calculateTotals(state.events, state.roster);
-  const leaderboard = Object.entries(totals)
-    .map(([name, t]) => ({ name, hours: t.practice + t.training }))
-    .filter((p) => p.hours > 0)
-    .sort((a, b) => b.hours - a.hours)
-    .slice(0, 5);
 
   const today = new Date().toLocaleDateString(undefined, {
     weekday: "long",
@@ -105,12 +97,12 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
         )}
       </div>
 
-      {/* ── Content Grid ───────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* ── Recent Sessions ────────────────────────────────────── */}
+      <div>
         {/* Recent Sessions */}
         <SectionCard
           title="Recent Sessions"
-          action={state.events.length > 5 ? { label: "View all →", onClick: () => onNavigate("summary") } : undefined}
+          action={state.events.length > 6 ? { label: "View all →", onClick: () => onNavigate("summary") } : undefined}
           empty={state.events.length === 0}
           emptyMessage="No sessions logged yet. Start your first session above."
         >
@@ -139,47 +131,6 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
           </div>
         </SectionCard>
 
-        {/* Leaderboard */}
-        <SectionCard
-          title="Leaderboard"
-          action={
-            leaderboard.length > 0
-              ? { label: "Full report →", onClick: () => onNavigate("summary") }
-              : undefined
-          }
-          empty={leaderboard.length === 0}
-          emptyMessage="Leaderboard will appear once players accumulate hours."
-        >
-          <div className="divide-y divide-white/[0.05]">
-            {leaderboard.map((player, i) => (
-              <div key={player.name} className="flex items-center gap-4 px-5 py-3">
-                <span
-                  className={`w-6 text-center text-xs font-bold flex-shrink-0 ${
-                    i === 0
-                      ? "text-yellow-400"
-                      : i === 1
-                      ? "text-white/50"
-                      : i === 2
-                      ? "text-amber-600"
-                      : "text-white/25"
-                  }`}
-                >
-                  {i + 1}
-                </span>
-                <div className="size-7 rounded-lg bg-white/[0.06] flex items-center justify-center text-xs font-bold text-white/60 flex-shrink-0">
-                  {player.name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase()}
-                </div>
-                <span className="flex-1 text-white/80 text-sm font-medium truncate">{player.name}</span>
-                <div className="flex items-baseline gap-1 flex-shrink-0">
-                  <span className="mc-mono text-white/70 text-sm font-semibold tabular-nums">
-                    {player.hours % 1 === 0 ? player.hours : player.hours.toFixed(1)}
-                  </span>
-                  <span className="text-white/30 text-xs">h</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
       </div>
     </div>
   );
