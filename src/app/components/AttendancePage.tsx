@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Save, UserPlus, Edit, Trophy } from "lucide-react";
 import { useTeamStore } from "../hooks/useTeamStore";
 import PlayerTypeDialog from "./PlayerTypeDialog";
+import LeaderboardTicker from "./LeaderboardTicker";
 import { formatDate } from "@/lib/dates";
 import { toast } from "sonner";
 import {
@@ -25,7 +26,7 @@ import {
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 
-export default function AttendancePage() {
+export default function AttendancePage({ onNavigate }: { onNavigate?: (page: string) => void } = {}) {
   const { state, saveSession, addPlayer, editLastSession, isGuest } = useTeamStore();
   const [presentPlayers, setPresentPlayers] = useState<Set<string>>(new Set());
   const [pendingPlayerName, setPendingPlayerName] = useState("");
@@ -123,6 +124,9 @@ export default function AttendancePage() {
 
   return (
     <div className="space-y-6">
+      {/* Leaderboard Ticker */}
+      <LeaderboardTicker onNavigate={onNavigate} />
+
       {/* Session Banner */}
       <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 md:p-8 shadow-xl border border-gray-200 md:flex md:items-center md:justify-between gap-4">
         <div>

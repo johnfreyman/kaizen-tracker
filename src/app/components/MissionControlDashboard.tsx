@@ -2,6 +2,7 @@ import { Play, Users, Activity, Target, Clock } from "lucide-react";
 import { useTeamStore, EVENT_TYPES, ActiveSession } from "../hooks/useTeamStore";
 import { useSessionTimer, formatElapsed } from "../hooks/useSessionTimer";
 import { formatDate } from "@/lib/dates";
+import LeaderboardTicker from "./LeaderboardTicker";
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -51,6 +52,9 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
 
   return (
     <div className="space-y-4 animate-hero-enter">
+      {/* ── Leaderboard Ticker ─────────────────────────────────── */}
+      <LeaderboardTicker onNavigate={onNavigate} />
+
       {/* ── Hero Panel ─────────────────────────────────────────── */}
       {state.activeSession ? (
         <ActiveSessionHero

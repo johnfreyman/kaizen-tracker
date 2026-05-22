@@ -224,7 +224,7 @@ function AppContent() {
               <ErrorBoundary key={activePage}>
                 {activePage === "dashboard"  && <MissionControlDashboard onNavigate={navigate} />}
                 {activePage === "launch"     && <LaunchPage onNavigate={navigate} />}
-                {activePage === "attendance" && <AttendancePage />}
+                {activePage === "attendance" && <AttendancePage onNavigate={navigate} />}
                 {activePage === "summary"    && <SummaryPage />}
                 {activePage === "charts"     && <ChartsPage />}
                 {activePage === "raffle"     && <RafflePage />}
