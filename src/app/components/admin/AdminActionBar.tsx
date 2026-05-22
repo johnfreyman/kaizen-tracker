@@ -221,10 +221,7 @@ function CommandPalette({
 
 export default function AdminActionBar() {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<AdminAction | null>(null);
-
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Define the available actions
   const actions: AdminAction[] = useMemo(
@@ -295,20 +292,8 @@ export default function AdminActionBar() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Click outside for dropdown
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   // Execution wrapper (handles confirmation)
   const executeAction = (action: AdminAction) => {
-    setIsDropdownOpen(false);
     if (action.requiresConfirmation) {
       setPendingAction(action);
     } else {
@@ -350,44 +335,14 @@ export default function AdminActionBar() {
             </div>
           </div>
 
-          {/* More Actions Dropdown */}
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm active:scale-95 whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-indigo-200",
-                isDropdownOpen
-                  ? "bg-indigo-50 border border-indigo-200 text-indigo-700"
-                  : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
-              )}
-            >
-              <span>More</span>
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
-
-            {isDropdownOpen && (
-              <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 animate-in fade-in slide-in-from-top-2 duration-100 z-50">
-                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Advanced Actions
-                </div>
-                {dropdownActions.map((action) => (
-                  <button
-                    key={action.id}
-                    onClick={() => executeAction(action)}
-                    className={cn(
-                      "w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors text-left",
-                      action.type === "danger"
-                        ? "text-red-600 hover:bg-red-50"
-                        : "text-slate-700 hover:bg-slate-50"
-                    )}
-                  >
-                    <action.icon className={cn("w-4 h-4", action.type === "danger" ? "text-red-500" : "text-slate-400")} />
-                    <span className="truncate">{action.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* All Actions (replaces clipping dropdown) */}
+          <button
+            onClick={() => setIsPaletteOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm active:scale-95 whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-indigo-200 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+          >
+            <span>All Actions</span>
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
 
         </div>
       </div>
