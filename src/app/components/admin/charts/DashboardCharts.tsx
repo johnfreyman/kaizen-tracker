@@ -4,6 +4,8 @@ import {
   BarChart,
   Bar,
   XAxis,
+  YAxis,
+  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
@@ -181,11 +183,11 @@ export function DashboardCharts({ data, isOpen, onToggle }: DashboardChartsProps
       {isOpen && (
         <div>
           {/* ── Four mini charts ──────────────────────────────────── */}
-          <div className="flex gap-3 px-4 pb-3 overflow-x-auto no-scrollbar">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-4 pb-4">
 
             {/* Session Activity — 14-day area */}
-            <div className="flex flex-col min-w-[170px] flex-1 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
-              <div className="flex items-center justify-between mb-1.5">
+            <div className="flex flex-col rounded-xl border border-gray-100 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
                   Sessions (14d)
                 </span>
@@ -199,32 +201,47 @@ export function DashboardCharts({ data, isOpen, onToggle }: DashboardChartsProps
                   </span>
                 )}
               </div>
-              <ResponsiveContainer width="100%" height={56}>
-                <AreaChart data={data.days14} margin={{ top: 2, right: 2, left: -32, bottom: 0 }}>
+              <ResponsiveContainer width="100%" height={100}>
+                <AreaChart data={data.days14} margin={{ top: 8, right: 6, left: -22, bottom: 4 }}>
                   <defs>
                     <linearGradient id="dc-sess-grad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.25} />
+                      <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.2} />
                       <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="label" tick={false} axisLine={false} tickLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 500 }}
+                    axisLine={false}
+                    tickLine={false}
+                    dy={4}
+                    interval={2}
+                  />
+                  <YAxis
+                    tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 500 }}
+                    axisLine={false}
+                    tickLine={false}
+                    dx={-4}
+                    width={18}
+                  />
                   <Tooltip content={<MiniTooltip />} />
                   <Area
                     type="monotone"
                     dataKey="sessions"
                     stroke="#3b82f6"
-                    strokeWidth={1.5}
+                    strokeWidth={2}
                     fill="url(#dc-sess-grad)"
                     dot={false}
-                    activeDot={{ r: 3, strokeWidth: 0 }}
+                    activeDot={{ r: 4, strokeWidth: 0 }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
 
             {/* Active Coaches — 14-day area */}
-            <div className="flex flex-col min-w-[170px] flex-1 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
-              <div className="flex items-center justify-between mb-1.5">
+            <div className="flex flex-col rounded-xl border border-gray-100 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
                   Active Coaches (14d)
                 </span>
@@ -238,74 +255,115 @@ export function DashboardCharts({ data, isOpen, onToggle }: DashboardChartsProps
                   </span>
                 )}
               </div>
-              <ResponsiveContainer width="100%" height={56}>
-                <AreaChart data={data.days14} margin={{ top: 2, right: 2, left: -32, bottom: 0 }}>
+              <ResponsiveContainer width="100%" height={100}>
+                <AreaChart data={data.days14} margin={{ top: 8, right: 6, left: -22, bottom: 4 }}>
                   <defs>
                     <linearGradient id="dc-act-grad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#10b981" stopOpacity={0.25} />
+                      <stop offset="5%"  stopColor="#10b981" stopOpacity={0.2} />
                       <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="label" tick={false} axisLine={false} tickLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 500 }}
+                    axisLine={false}
+                    tickLine={false}
+                    dy={4}
+                    interval={2}
+                  />
+                  <YAxis
+                    tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 500 }}
+                    axisLine={false}
+                    tickLine={false}
+                    dx={-4}
+                    width={18}
+                  />
                   <Tooltip content={<MiniTooltip />} />
                   <Area
                     type="monotone"
                     dataKey="active"
                     stroke="#10b981"
-                    strokeWidth={1.5}
+                    strokeWidth={2}
                     fill="url(#dc-act-grad)"
                     dot={false}
-                    activeDot={{ r: 3, strokeWidth: 0 }}
+                    activeDot={{ r: 4, strokeWidth: 0 }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
 
             {/* New Accounts — 8-week bar */}
-            <div className="flex flex-col min-w-[170px] flex-1 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
-              <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1.5">
+            <div className="flex flex-col rounded-xl border border-gray-100 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
+              <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider mb-2">
                 New Accounts (8w)
               </span>
-              <ResponsiveContainer width="100%" height={56}>
-                <BarChart data={data.weeks8} margin={{ top: 2, right: 2, left: -32, bottom: 0 }}>
-                  <XAxis dataKey="label" tick={false} axisLine={false} tickLine={false} />
+              <ResponsiveContainer width="100%" height={100}>
+                <BarChart data={data.weeks8} margin={{ top: 8, right: 6, left: -22, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 500 }}
+                    axisLine={false}
+                    tickLine={false}
+                    dy={4}
+                  />
+                  <YAxis
+                    tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 500 }}
+                    axisLine={false}
+                    tickLine={false}
+                    dx={-4}
+                    width={18}
+                  />
                   <Tooltip content={<MiniTooltip />} />
                   <Bar
                     dataKey="count"
                     fill="#8b5cf6"
                     radius={[3, 3, 0, 0]}
-                    maxBarSize={24}
+                    maxBarSize={20}
                   />
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
-            {/* Storage Distribution — horizontal bars */}
-            <div className="flex flex-col min-w-[170px] flex-1 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
+            {/* Storage Distribution — segmented horizontal progress bar with clear labels */}
+            <div className="flex flex-col rounded-xl border border-gray-100 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
               <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider mb-2.5">
                 Storage Distribution
               </span>
-              <div className="flex flex-col gap-2.5 justify-center flex-1">
-                {data.storageDistribution.map((tier) => (
-                  <div key={tier.label} className="flex items-center gap-2">
-                    <span className="text-[10px] text-gray-500 w-14 shrink-0 leading-none">
-                      {tier.label}
-                    </span>
-                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              
+              <div className="flex flex-col justify-between flex-1">
+                {/* Single segmented visual bar */}
+                <div className="flex h-3 bg-gray-100 rounded-full overflow-hidden mb-3 shadow-inner">
+                  {data.storageDistribution.map((tier) => (
+                    tier.pct > 0 && (
                       <div
-                        className="h-full rounded-full transition-all duration-700"
+                        key={tier.label}
+                        className="h-full transition-all duration-700 hover:opacity-90 relative"
                         style={{ width: `${tier.pct}%`, backgroundColor: tier.color }}
+                        title={`${tier.label}: ${tier.count} coaches (${tier.pct}%)`}
                       />
+                    )
+                  ))}
+                </div>
+
+                {/* Clear Segment Labels (Legend) */}
+                <div className="grid grid-cols-1 gap-1.5 flex-1 justify-center">
+                  {data.storageDistribution.map((tier) => (
+                    <div key={tier.label} className="flex items-center justify-between text-[10px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tier.color }} />
+                        <span className="font-semibold text-slate-600 leading-none">{tier.label}</span>
+                      </div>
+                      <span className="font-bold text-slate-500 shrink-0">{tier.count} ({tier.pct}%)</span>
                     </div>
-                    <span className="text-[10px] font-bold text-gray-600 w-5 text-right shrink-0">
-                      {tier.count}
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
+
                 {/* Spike alert */}
                 {data.storageDistribution[2]?.count > 0 && (
-                  <p className="text-[9px] text-amber-600 font-semibold mt-0.5 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                  <p className="text-[9px] text-amber-600 font-semibold mt-2.5 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block animate-pulse" />
                     {data.storageDistribution[2].count} coach{data.storageDistribution[2].count !== 1 ? "es" : ""} near limit
                   </p>
                 )}

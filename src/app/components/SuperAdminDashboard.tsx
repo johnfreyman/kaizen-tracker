@@ -721,9 +721,9 @@ export default function SuperAdminDashboard() {
     });
     const total = rows.length || 1;
     const storageDistribution = [
-      { label: "< 100KB",   count: storageCounts[0], pct: Math.round((storageCounts[0] / total) * 100), color: "#10b981" },
-      { label: "100–500KB", count: storageCounts[1], pct: Math.round((storageCounts[1] / total) * 100), color: "#f59e0b" },
-      { label: "> 500KB",   count: storageCounts[2], pct: Math.round((storageCounts[2] / total) * 100), color: "#ef4444" },
+      { label: "< 100 GB",   count: storageCounts[0], pct: Math.round((storageCounts[0] / total) * 100), color: "#10b981" },
+      { label: "100–500 GB", count: storageCounts[1], pct: Math.round((storageCounts[1] / total) * 100), color: "#f59e0b" },
+      { label: "500–1000 GB", count: storageCounts[2], pct: Math.round((storageCounts[2] / total) * 100), color: "#ef4444" },
     ];
 
     // 84 days = 12 weeks for heatmap
