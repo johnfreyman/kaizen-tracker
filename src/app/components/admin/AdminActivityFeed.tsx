@@ -221,40 +221,58 @@ export function AdminActivityFeed() {
   return (
     <div className="flex flex-col h-full bg-white/70">
 
-      {/* Header */}
-      <div className="shrink-0 px-4 py-3 border-b border-gray-100 bg-white/90">
-        <div className="flex items-center justify-between mb-2.5">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-gray-800">Activity Feed</span>
-            {isLive && (
-              <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600">
+      {/* Header & Tabs Navigation Container */}
+      <div className="shrink-0 px-5 pt-4 border-b border-gray-100 bg-white/95 backdrop-blur-sm space-y-4">
+        {/* Header Section */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-sm font-bold text-gray-900 tracking-tight flex items-center gap-2">
+              <Activity className="w-4 h-4 text-indigo-500 shrink-0" />
+              <span>Activity Feed</span>
+            </h2>
+            <span className="text-gray-300 text-xs">•</span>
+            {isLive ? (
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100/60 leading-none">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
                 Live
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-50 text-gray-400 border border-gray-200/60 leading-none">
+                Offline
               </span>
             )}
           </div>
           {!isLoading && entries.length > 0 && (
-            <span className="text-[10px] text-gray-400 font-medium">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold text-gray-500 bg-gray-50 border border-gray-200/50">
               {entries.length} events
             </span>
           )}
         </div>
 
-        {/* Filter pills */}
-        <div className="flex gap-1.5 flex-wrap">
-          {FILTERS.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setActiveFilter(f.key)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
-                activeFilter === f.key
-                  ? "bg-indigo-600 text-white"
-                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+        {/* Tab Navigation Section */}
+        <div className="border-t border-gray-100 -mx-5 px-5">
+          <nav className="flex gap-6 overflow-x-auto no-scrollbar scroll-smooth" aria-label="Activity Feed Filters">
+            {FILTERS.map((f) => {
+              const isActive = activeFilter === f.key;
+              return (
+                <button
+                  key={f.key}
+                  onClick={() => setActiveFilter(f.key)}
+                  className={`relative pb-3 pt-2 text-[11px] font-semibold transition-all duration-200 whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${
+                    isActive
+                      ? "text-indigo-600 font-bold"
+                      : "text-gray-500 hover:text-gray-800"
+                  }`}
+                  style={{ minHeight: "44px" }}
+                >
+                  <span className="px-1 py-1 block">{f.label}</span>
+                  {isActive && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-full animate-in fade-in slide-in-from-bottom-1 duration-150" />
+                  )}
+                </button>
+              );
+            })}
+          </nav>
         </div>
       </div>
 
