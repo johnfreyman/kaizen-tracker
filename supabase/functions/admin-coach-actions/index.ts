@@ -6,7 +6,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-type Action = "resend-verification" | "force-logout" | "suspend-account";
+type Action = "resend-verification" | "force-logout" | "suspend-account" | "view-as-coach";
 
 interface RequestBody {
   action: Action;
@@ -81,6 +81,16 @@ Deno.serve(async (req) => {
         });
         if (error) throw error;
         break;
+      }
+      case "view-as-coach": {
+        if (!email) return json({ error: "Missing email for view-as-coach" }, 400);
+        // generateLink does NOT send any email — it returns the link for us to use directly
+        const { data: linkData, error } = await adminClient.auth.admin.generateLink({
+          type: "magiclink",
+          email,
+        });
+        if (error) throw error;
+        return json({ success: true, link: linkData.properties.action_link }, 200);
       }
       default:
         return json({ error: `Unknown action: ${action}` }, 400);

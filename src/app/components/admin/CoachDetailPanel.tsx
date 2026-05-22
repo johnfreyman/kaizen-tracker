@@ -384,6 +384,24 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
     }
   }, [coach]);
 
+  const handleViewAsCoach = useCallback(async () => {
+    if (!coach) return;
+    setActionLoading("view-as-coach");
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-coach-actions", {
+        body: { action: "view-as-coach", coachId: coach.coach_id, email: coach.email },
+      });
+      if (error) throw error;
+      window.open(data.link, "_blank", "noopener,noreferrer");
+      toast.success("Coach session opened in new tab.");
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to generate coach link.");
+    } finally {
+      setActionLoading(null);
+      setPendingConfirm(null);
+    }
+  }, [coach]);
+
   const handleResendVerification = useCallback(async () => {
     if (!coach) return;
     setActionLoading("resend-verification");
@@ -705,15 +723,28 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
                 onClick={handleResendVerification}
               />
 
-              {/* View as coach — requires privileged Edge Function (not yet implemented) */}
-              <TextAction
-                label="View as coach"
-                icon={ArrowUpRight}
-                disabled={!!actionLoading}
-                onClick={() =>
-                  toast.info('"View As Coach" is not yet implemented.')
-                }
-              />
+              {/* View as coach */}
+              <div>
+                <TextAction
+                  label="View as coach"
+                  icon={ArrowUpRight}
+                  loading={actionLoading === "view-as-coach"}
+                  disabled={!!actionLoading}
+                  onClick={() =>
+                    setPendingConfirm(
+                      pendingConfirm === "view-as-coach" ? null : "view-as-coach"
+                    )
+                  }
+                />
+                {pendingConfirm === "view-as-coach" && (
+                  <ConfirmBanner
+                    message={`Open a one-time sign-in session for ${coach.email} in a new tab?`}
+                    loading={actionLoading === "view-as-coach"}
+                    onConfirm={handleViewAsCoach}
+                    onCancel={() => setPendingConfirm(null)}
+                  />
+                )}
+              </div>
 
               {/* Export data */}
               <TextAction
