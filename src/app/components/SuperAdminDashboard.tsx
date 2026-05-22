@@ -701,6 +701,13 @@ export default function SuperAdminDashboard() {
               {!isLoading && sorted.map((row) => {
                 const isSelected = selectedCoach?.coach_id === row.coach_id;
                 const status = getSemanticStatus(row, false);
+                const STATUS_CFG = {
+                  healthy: { dot: SEMANTIC_CONFIG.healthy.dotClass, label: SEMANTIC_CONFIG.healthy.label },
+                  warning: { dot: SEMANTIC_CONFIG.warning.dotClass, label: SEMANTIC_CONFIG.warning.label },
+                  critical: { dot: SEMANTIC_CONFIG.critical.dotClass, label: SEMANTIC_CONFIG.critical.label },
+                  inactive: { dot: SEMANTIC_CONFIG.inactive.dotClass, label: SEMANTIC_CONFIG.inactive.label },
+                  new: { dot: SEMANTIC_CONFIG.new.dotClass, label: SEMANTIC_CONFIG.new.label },
+                };
 
                 const activeBadges: { label: string; bg: string; icon: React.ElementType }[] = [];
                 if (!row.email_verified) {
@@ -730,8 +737,15 @@ export default function SuperAdminDashboard() {
                     <div className="flex items-start gap-2.5">
                       <TeamLogo team={row.team_name} logoUrl={row.team_logo} size={44} />
                       <div className="min-w-0 flex-1">
-                        <div className={`font-semibold text-sm truncate leading-snug ${isSelected ? "text-indigo-800" : "text-gray-900"}`}>
-                          {row.team_name ?? <span className="italic text-gray-400 font-normal text-xs">No team</span>}
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-[13px] text-slate-900 truncate">
+                            {row.team_name ?? <span className="italic text-slate-400 font-normal">No team registered</span>}
+                          </span>
+                          <span
+                            className={`w-2 h-2 rounded-full shrink-0 ${STATUS_CFG[status].dot}`}
+                            title={STATUS_CFG[status].label}
+                            aria-label={`Status: ${STATUS_CFG[status].label}`}
+                          />
                         </div>
                         <div className="flex items-center gap-1 mt-0.5">
                           <div className="w-4 h-4 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[8px] font-bold shrink-0 uppercase">
@@ -758,7 +772,7 @@ export default function SuperAdminDashboard() {
                     )}
 
                     {/* Footer */}
-                    <div className="flex items-center justify-between text-[11px] text-gray-500 font-medium">
+                    <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-gray-500 font-medium">
                       <div className="flex items-center gap-1.5">
                         <span>{row.session_count} sessions</span>
                         <span className="text-gray-300">·</span>
