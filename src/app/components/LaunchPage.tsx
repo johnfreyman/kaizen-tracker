@@ -4,10 +4,8 @@ import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
 import { useTeamStore, ActiveSession, EventType, EVENT_TYPES } from "../hooks/useTeamStore";
 
-type Page = "launch" | "attendance" | "summary" | "settings";
-
 interface LaunchPageProps {
-  onNavigate: (page: Page) => void;
+  onNavigate: (page: string) => void;
 }
 
 export default function LaunchPage({ onNavigate }: LaunchPageProps) {

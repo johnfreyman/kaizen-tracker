@@ -1,13 +1,23 @@
 import { useState } from "react";
-import { Menu, Calendar, Users, Trophy, Gift, Settings as SettingsIcon, LogOut, TrendingUp } from "lucide-react";
-import { Drawer, DrawerTrigger, DrawerContent, DrawerOverlay, DrawerHeader, DrawerTitle } from "./components/ui/drawer";
+import {
+  Home,
+  Calendar,
+  Users,
+  BarChart2,
+  TrendingUp,
+  Gift,
+  Settings as SettingsIcon,
+  LogOut,
+  Trophy,
+} from "lucide-react";
+import MissionControlDashboard from "./components/MissionControlDashboard";
 import LaunchPage from "./components/LaunchPage";
 import AttendancePage from "./components/AttendancePage";
 import SummaryPage from "./components/SummaryPage";
 import SettingsPage from "./components/SettingsPage";
 import RafflePage from "./components/RafflePage";
 import ChartsPage from "./components/ChartsPage";
-import LeaderboardTicker from "./components/LeaderboardTicker";
+import SessionStatusBar from "./components/SessionStatusBar";
 import LoginPage from "./components/LoginPage";
 import ResetPasswordPage from "./components/ResetPasswordPage";
 import { TeamStoreProvider, useTeamStore } from "./hooks/useTeamStore";
@@ -16,174 +26,240 @@ import OnboardingPage from "./components/OnboardingPage";
 import { Toaster } from "./components/ui/sonner";
 import ErrorBoundary from "./components/ErrorBoundary";
 
-type Page = "launch" | "attendance" | "summary" | "charts" | "settings" | "raffle";
+type Page = "dashboard" | "launch" | "attendance" | "summary" | "charts" | "settings" | "raffle";
+
+const PAGE_TITLES: Record<Page, string> = {
+  dashboard:  "Mission Control",
+  launch:     "Session Setup",
+  attendance: "Attendance",
+  summary:    "Reports",
+  charts:     "Analytics",
+  raffle:     "Raffle",
+  settings:   "Settings",
+};
 
 function AppContent() {
-  const [activePage, setActivePage] = useState<Page>("launch");
-  const { state, isLoading, isAuthenticated, isPasswordRecovery, isSuperAdmin, isNewCoach, logout } = useTeamStore();
+  const [activePage, setActivePage] = useState<Page>("dashboard");
+  const { state, isLoading, isAuthenticated, isPasswordRecovery, isSuperAdmin, isNewCoach, logout } =
+    useTeamStore();
   const isNewAccount = state.teamName === "Team Name" && !state.teamLogo;
+  const navigate = (page: string) => setActivePage(page as Page);
 
+  /* ── Loading ─────────────────────────────────────────────────── */
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+      <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
         <div className="text-center space-y-4">
-          <div className="size-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-gray-600 font-semibold">Loading from Supabase…</p>
+          <div className="size-12 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-white/40 text-sm">Loading…</p>
         </div>
       </div>
     );
   }
 
-  if (isPasswordRecovery) {
-    return <ResetPasswordPage />;
-  }
+  if (isPasswordRecovery) return <ResetPasswordPage />;
+  if (!isAuthenticated)   return <LoginPage />;
+  if (isSuperAdmin)       return <SuperAdminDashboard />;
+  if (isNewCoach)         return <OnboardingPage />;
 
-  if (!isAuthenticated) {
-    return <LoginPage />;
-  }
-
-  if (isSuperAdmin) {
-    return <SuperAdminDashboard />;
-  }
-
-  if (isNewCoach) {
-    return <OnboardingPage />;
-  }
-
-  const navItems = [
-    { id: "launch" as Page, label: "Launch", icon: Calendar },
-    { id: "attendance" as Page, label: "Attendance", icon: Users },
-    { id: "summary" as Page, label: "Summary", icon: Trophy },
-    { id: "charts" as Page, label: "Charts", icon: TrendingUp },
+  /* ── Nav item definitions ────────────────────────────────────── */
+  const mainNavItems = [
+    { id: "dashboard" as Page, label: "Dashboard",  icon: Home },
+    { id: "launch"    as Page, label: "Session",    icon: Calendar },
+    { id: "attendance"as Page, label: "Attendance", icon: Users },
+    { id: "summary"   as Page, label: "Reports",    icon: BarChart2 },
+    { id: "charts"    as Page, label: "Analytics",  icon: TrendingUp },
     ...(state.raffleEnabled ? [{ id: "raffle" as Page, label: "Raffle", icon: Gift }] : []),
-    { id: "settings" as Page, label: "Settings", icon: SettingsIcon },
   ];
 
+  const bottomNavItems = [
+    { id: "dashboard"  as Page, label: "Home",      icon: Home },
+    { id: "launch"     as Page, label: "Session",   icon: Calendar },
+    { id: "attendance" as Page, label: "Attend",    icon: Users },
+    { id: "summary"    as Page, label: "Reports",   icon: BarChart2 },
+    { id: "settings"   as Page, label: "Settings",  icon: SettingsIcon },
+  ];
+
+  const isSessionActive = !!state.activeSession;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <div className="mx-auto max-w-7xl p-4 md:p-6">
-        {/* Header */}
-        <header className="mb-6 space-y-4 md:space-y-0 md:flex md:items-center md:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative size-16 flex items-center justify-center rounded-2xl bg-white shadow-lg overflow-hidden">
+    /* ── Root shell ─────────────────────────────────────────────── */
+    <div className="dark">
+      <div className="flex h-screen overflow-hidden bg-[#0d1117]">
+
+        {/* ── Sidebar (desktop only) ─────────────────────────────── */}
+        <aside className="hidden md:flex flex-col w-56 flex-shrink-0 bg-[#090e16] border-r border-white/[0.07]">
+
+          {/* Logo + team */}
+          <div className="flex items-center gap-3 px-4 h-14 border-b border-white/[0.07] flex-shrink-0">
+            <div className="size-8 rounded-lg overflow-hidden flex items-center justify-center bg-blue-600/20 flex-shrink-0">
               {state.teamLogo ? (
-                <img
-                  src={state.teamLogo}
-                  alt="Team logo"
-                  className="size-full object-cover"
-                />
+                <img src={state.teamLogo} alt="Team logo" className="size-full object-cover" />
               ) : (
-                <Trophy className="size-8 text-blue-600" />
+                <Trophy className="size-4 text-blue-400" />
               )}
             </div>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-                {state.teamName || "Team Name"}
-              </h1>
-              <p className="text-sm text-gray-600">Attendance & training hours</p>
+            <div className="min-w-0">
+              <div className="text-white/85 text-sm font-semibold truncate leading-tight">
+                {state.teamName || "My Team"}
+              </div>
+              <div className="text-white/25 text-[10px] uppercase tracking-wider">Mission Control</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 w-full md:w-auto">
-          {/* Mobile Navigation Drawer */}
-          <Drawer>
-            <DrawerTrigger asChild>
-              <button aria-label="Open navigation menu" className="md:hidden p-2 rounded-md bg-white/80 backdrop-blur-sm shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-                <Menu className="size-5" />
-                <span className="sr-only">Open menu</span>
-              </button>
-            </DrawerTrigger>
-            <DrawerOverlay />
-            <DrawerContent>
-              <DrawerHeader>
-                <DrawerTitle>Menu</DrawerTitle>
-              </DrawerHeader>
-              <nav className="flex flex-col gap-2 p-2">
-                {navItems.map(({ id, label, icon: Icon }) => (
-                  <button
-                    key={id}
-                    onClick={() => setActivePage(id)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${activePage === id ? "bg-blue-600 text-white" : ""}`}
-                  >
-                    <Icon className="size-5" />
-                    <span>{label}</span>
-                  </button>
-                ))}
-              </nav>
-            </DrawerContent>
-          </Drawer>
+          {/* Nav items */}
+          <nav className="flex-1 py-3 px-2.5 space-y-0.5 overflow-y-auto">
+            {mainNavItems.map(({ id, label, icon: Icon }) => {
+              const isActive = activePage === id;
+              const showBadge = id === "attendance" && isSessionActive;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setActivePage(id)}
+                  className={`group relative w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    isActive
+                      ? "bg-blue-600/12 text-blue-300"
+                      : "text-white/45 hover:text-white/75 hover:bg-white/[0.05]"
+                  }`}
+                >
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 bg-blue-400 rounded-r-full" />
+                  )}
+                  <Icon className={`size-4 flex-shrink-0 ${isActive ? "text-blue-400" : ""}`} />
+                  <span>{label}</span>
+                  {showBadge && (
+                    <span className="ml-auto size-1.5 rounded-full bg-emerald-400 animate-session-pulse" />
+                  )}
+                </button>
+              );
+            })}
+          </nav>
 
-            {/* Navigation */}
-            <nav className="hidden md:grid grid-cols-2 md:flex gap-2 bg-white/80 backdrop-blur-sm p-2 rounded-2xl shadow-lg flex-1 md:flex-none">
-              {navItems.map(({ id, label, icon: Icon }) => {
-                const shouldPulse = id === "settings" && isNewAccount;
-                return (
-                  <button
-                    key={id}
-                    onClick={() => setActivePage(id)}
-                    className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${
-                      activePage === id
-                        ? "bg-blue-600 text-white shadow-md"
-                        : shouldPulse
-                        ? "text-blue-600 bg-blue-50 border border-blue-200 shadow-md shadow-blue-500/10 animate-pulse hover:bg-blue-100"
-                        : "text-gray-600 hover:bg-gray-100"
-                    }`}
-                  >
-                    <Icon className={`size-4 ${shouldPulse ? "text-blue-500" : ""}`} />
-                    <span className="hidden sm:inline">{label}</span>
-                  </button>
-                );
-              })}
-            </nav>
+          {/* Footer: Settings + Logout */}
+          <div className="flex-shrink-0 px-2.5 py-3 border-t border-white/[0.07] space-y-0.5">
+            <button
+              onClick={() => setActivePage("settings")}
+              className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                activePage === "settings"
+                  ? "bg-blue-600/12 text-blue-300"
+                  : isNewAccount
+                  ? "text-amber-400/80 hover:text-amber-300 hover:bg-amber-500/8 animate-pulse"
+                  : "text-white/45 hover:text-white/75 hover:bg-white/[0.05]"
+              }`}
+            >
+              {activePage === "settings" && (
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 bg-blue-400 rounded-r-full" />
+              )}
+              <SettingsIcon className="size-4 flex-shrink-0" />
+              <span>Settings</span>
+            </button>
 
-            {/* Logout Button */}
             <button
               onClick={logout}
-              title="Log out"
-              className="flex items-center justify-center p-3 size-12 rounded-2xl bg-white/80 backdrop-blur-sm shadow-lg text-gray-500 hover:text-red-600 hover:bg-red-50 active:scale-95 transition-all border border-transparent hover:border-red-100"
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-white/30 hover:text-red-400 hover:bg-red-500/8 transition-all"
             >
-              <LogOut className="size-5" />
+              <LogOut className="size-4 flex-shrink-0" />
+              <span>Log out</span>
             </button>
           </div>
-        </header>
+        </aside>
 
-        {/* Leaderboard Ticker */}
-        <LeaderboardTicker onNavigate={setActivePage} />
+        {/* ── Main column ────────────────────────────────────────── */}
+        <div className="flex-1 flex flex-col min-h-0">
 
-        {/* Page Content */}
-        <main className="animate-fade-in">
-          {activePage === "launch" && (
-            <ErrorBoundary key="launch">
-              <LaunchPage onNavigate={setActivePage} />
-            </ErrorBoundary>
-          )}
-          {activePage === "attendance" && (
-            <ErrorBoundary key="attendance">
-              <AttendancePage />
-            </ErrorBoundary>
-          )}
-          {activePage === "summary" && (
-            <ErrorBoundary key="summary">
-              <SummaryPage />
-            </ErrorBoundary>
-          )}
-          {activePage === "charts" && (
-            <ErrorBoundary key="charts">
-              <ChartsPage />
-            </ErrorBoundary>
-          )}
-          {activePage === "raffle" && (
-            <ErrorBoundary key="raffle">
-              <RafflePage />
-            </ErrorBoundary>
-          )}
-          {activePage === "settings" && (
-            <ErrorBoundary key="settings">
-              <SettingsPage />
-            </ErrorBoundary>
-          )}
-        </main>
+          {/* TopBar */}
+          <header className="flex-shrink-0 flex items-center justify-between h-14 px-4 md:px-6 bg-[#0d1117]/90 backdrop-blur-sm border-b border-white/[0.07] z-40">
+            {/* Mobile: team logo + name | Desktop: page title */}
+            <div className="flex items-center gap-3">
+              {/* Mobile logo */}
+              <div className="flex md:hidden items-center gap-2.5">
+                <div className="size-7 rounded-md overflow-hidden flex items-center justify-center bg-blue-600/20 flex-shrink-0">
+                  {state.teamLogo ? (
+                    <img src={state.teamLogo} alt="Team logo" className="size-full object-cover" />
+                  ) : (
+                    <Trophy className="size-3.5 text-blue-400" />
+                  )}
+                </div>
+                <span className="text-white/80 text-sm font-semibold">
+                  {state.teamName || "My Team"}
+                </span>
+              </div>
+              {/* Desktop page title */}
+              <h1 className="hidden md:block text-white/70 text-sm font-semibold">
+                {PAGE_TITLES[activePage]}
+              </h1>
+            </div>
+
+            {/* Right side */}
+            <div className="flex items-center gap-2">
+              {/* Active session indicator (mobile only — desktop uses status bar) */}
+              {isSessionActive && (
+                <div className="md:hidden flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/12 border border-emerald-500/20">
+                  <span className="size-1.5 rounded-full bg-emerald-400 animate-session-pulse" />
+                  <span className="text-emerald-300 text-[11px] font-bold uppercase tracking-wider">Live</span>
+                </div>
+              )}
+
+              {/* Logout (desktop — it's in the sidebar too, but keep for overflow) */}
+              <button
+                onClick={logout}
+                title="Log out"
+                className="md:hidden size-9 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/8 transition-all"
+              >
+                <LogOut className="size-4" />
+              </button>
+            </div>
+          </header>
+
+          {/* Session Status Bar */}
+          <SessionStatusBar onNavigate={navigate} />
+
+          {/* Scrollable page content */}
+          <main className="flex-1 overflow-y-auto">
+            <div className="max-w-5xl mx-auto p-4 md:p-6 pb-24 md:pb-8 animate-fade-in">
+              <ErrorBoundary key={activePage}>
+                {activePage === "dashboard"  && <MissionControlDashboard onNavigate={navigate} />}
+                {activePage === "launch"     && <LaunchPage onNavigate={navigate} />}
+                {activePage === "attendance" && <AttendancePage />}
+                {activePage === "summary"    && <SummaryPage />}
+                {activePage === "charts"     && <ChartsPage />}
+                {activePage === "raffle"     && <RafflePage />}
+                {activePage === "settings"   && <SettingsPage />}
+              </ErrorBoundary>
+            </div>
+          </main>
+        </div>
       </div>
+
+      {/* ── Mobile bottom nav ──────────────────────────────────── */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 h-16 bg-[#090e16]/96 backdrop-blur-md border-t border-white/[0.07]">
+        <div className="flex items-center justify-around h-full px-1">
+          {bottomNavItems.map(({ id, label, icon: Icon }) => {
+            const isActive = activePage === id;
+            const showDot = id === "attendance" && isSessionActive;
+            return (
+              <button
+                key={id}
+                onClick={() => setActivePage(id)}
+                className={`relative flex flex-col items-center justify-center gap-1 px-3 h-full min-w-[56px] transition-colors ${
+                  isActive ? "text-blue-400" : "text-white/35 hover:text-white/60"
+                }`}
+              >
+                {isActive && (
+                  <span className="absolute top-0 inset-x-3 h-0.5 bg-blue-400 rounded-b-full" />
+                )}
+                <div className="relative">
+                  <Icon className="size-5" />
+                  {showDot && (
+                    <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-emerald-400 border border-[#090e16] animate-session-pulse" />
+                  )}
+                </div>
+                <span className="text-[10px] font-medium leading-none">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
