@@ -27,9 +27,9 @@ export default function RewardsCard({ onNavigate }: Props) {
     .reduce((sum, e) => sum + e.players.length, 0);
 
   return (
-    <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/8 to-orange-500/5 overflow-hidden">
+    <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/8 to-orange-500/5 p-5 flex flex-col gap-4">
       {/* Header */}
-      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-amber-500/15">
+      <div className="flex items-center gap-2 pb-3 border-b border-amber-500/15">
         <Gift className="size-3.5 text-amber-400" />
         <h3 className="text-amber-300/70 text-xs font-bold uppercase tracking-widest flex-1">
           Rewards
@@ -42,27 +42,25 @@ export default function RewardsCard({ onNavigate }: Props) {
       </div>
 
       {/* Body */}
-      <div className="px-5 py-4 space-y-3">
+      <div className="flex flex-col gap-4">
         {eligibleCount === 0 ? (
           <p className="text-white/30 text-sm">
             No eligible players yet. Attend optional training to enter the raffle.
           </p>
         ) : (
-          <>
-            <div className="flex items-center gap-3">
-              <div className="size-10 rounded-xl bg-amber-500/15 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
-                <Trophy className="size-5 text-amber-400" />
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-xl bg-amber-500/15 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
+              <Trophy className="size-5 text-amber-400" />
+            </div>
+            <div>
+              <div className="text-white/80 text-sm font-semibold">
+                {eligibleCount} player{eligibleCount !== 1 ? "s" : ""} in the draw
               </div>
-              <div>
-                <div className="text-white/80 text-sm font-semibold">
-                  {eligibleCount} player{eligibleCount !== 1 ? "s" : ""} in the draw
-                </div>
-                <div className="text-white/30 text-xs">
-                  {optionalEntries} total raffle {optionalEntries === 1 ? "entry" : "entries"}
-                </div>
+              <div className="text-white/30 text-xs">
+                {optionalEntries} total raffle {optionalEntries === 1 ? "entry" : "entries"}
               </div>
             </div>
-          </>
+          </div>
         )}
 
         {/* CTA */}

@@ -97,7 +97,7 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
       </div>
 
       {/* ── Stats Tiles ────────────────────────────────────────── */}
-      <div className="stagger-5 grid grid-cols-3 gap-3">
+      <div className="stagger-5 grid grid-cols-3 gap-4">
         {state.activeSession ? (
           <>
             <StatTile label="On Roster" value={String(state.roster.length)} icon={<Users className="size-4" />} color="blue" />
@@ -305,7 +305,7 @@ function StatTile({
   const p = palettes[color];
 
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-4 flex flex-col gap-3 hover:bg-white/[0.05] transition-colors">
+    <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-5 flex flex-col gap-3 hover:bg-white/[0.05] transition-colors">
       <div className={`size-8 rounded-lg flex items-center justify-center ${p.icon}`}>{icon}</div>
       <div>
         <div className={`mc-mono text-3xl font-bold tabular-nums leading-none ${p.val}`}>{value}</div>

@@ -563,8 +563,8 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
           </div>
 
           {/* ── Scrollable Cards Grid Container ── */}
-          <div className="flex-1 overflow-y-auto overscroll-contain p-6 space-y-6 scrollbar-gutter-stable">
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+          <div className="flex-1 overflow-y-auto overscroll-contain p-6 space-y-4 scrollbar-gutter-stable">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
 
               {/* ── CARD 1: ACCOUNT PROFILE ── */}
               <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between self-stretch">

@@ -394,7 +394,7 @@ function KpiCard({
       onClick={isClickable ? onClick : undefined}
       title={isClickable ? (isActive ? `Remove "${card.label}" filter` : `Filter by "${card.label}"`) : card.label}
       className={[
-        "group flex flex-col justify-between p-3 rounded-xl border transition-all duration-150 min-w-[118px] text-left select-none",
+        "group flex flex-col justify-between p-5 rounded-xl border transition-all duration-150 min-w-[160px] text-left select-none",
         isActive
           ? `${card.color.activeBg} ${card.color.activeBorder} shadow-sm ring-2 ring-offset-1 ring-indigo-200`
           : `${card.color.bg} ${card.color.border} hover:shadow-md hover:-translate-y-px`,
@@ -903,13 +903,13 @@ export default function SuperAdminDashboard() {
       <div className="shrink-0 border-b border-gray-100 bg-white/70 backdrop-blur-sm">
         <div className="overflow-x-auto no-scrollbar px-4 py-3">
           {isLoading ? (
-            <div className="flex gap-3 min-w-max animate-pulse">
+            <div className="flex gap-4 min-w-max animate-pulse">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="w-[118px] h-[86px] bg-gray-100 rounded-xl border border-gray-200" />
+                <div key={i} className="w-[160px] h-[110px] bg-gray-100 rounded-xl border border-gray-200" />
               ))}
             </div>
           ) : !error ? (
-            <div className="flex gap-3 min-w-max">
+            <div className="flex gap-4 min-w-max">
               {kpiCards.map((card) => {
                 const isActive =
                   card.filter === "clear-all"

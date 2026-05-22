@@ -559,10 +559,10 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
             </div>
 
             {/* ── Body (scrollable) ────────────────────────────────── */}
-            <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-5 scrollbar-gutter-stable">
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4 scrollbar-gutter-stable">
 
               {/* ── CARD 1: ACCOUNT PROFILE ── */}
-              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-4 flex flex-col justify-between">
+              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between pb-3 border-b border-slate-50 mb-3.5">
                     <div className="flex items-center gap-2">
@@ -685,7 +685,7 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
               </div>
 
               {/* ── CARD 2: TEAM SNAPSHOT ── */}
-              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-4 flex flex-col justify-between">
+              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between pb-3 border-b border-slate-50 mb-3.5">
                     <div className="flex items-center gap-2">
@@ -778,7 +778,7 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
               </div>
 
               {/* ── CARD 3: ACTIVITY FEED ── */}
-              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-4 flex flex-col justify-between">
+              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between pb-3 border-b border-slate-50 mb-3.5">
                     <div className="flex items-center gap-2">
@@ -851,7 +851,7 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
               </div>
 
               {/* ── CARD 4: DIAGNOSTICS & SYNC ── */}
-              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-4 flex flex-col justify-between">
+              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between pb-3 border-b border-slate-50 mb-3.5">
                     <div className="flex items-center gap-2">
@@ -954,7 +954,7 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
               </div>
 
               {/* ── CARD 5: BILLING & TIER ── */}
-              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-4 flex flex-col justify-between">
+              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between pb-3 border-b border-slate-50 mb-3.5">
                     <div className="flex items-center gap-2">
@@ -1053,7 +1053,7 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
               </div>
 
               {/* ── CARD 6: STORAGE & DB CAPACITY ── */}
-              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-4 flex flex-col justify-between">
+              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between pb-3 border-b border-slate-50 mb-3.5">
                     <div className="flex items-center gap-2">

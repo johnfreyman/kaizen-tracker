@@ -318,7 +318,7 @@ export default function AdminActionBar() {
                 <span className="text-xs">⌘</span>K
               </kbd>
             </button>
-            <div className="w-px h-5 bg-slate-200 mx-2" />
+            <div className="w-px h-5 bg-slate-200 mx-1" />
             
             {/* Top Level Quick Actions */}
             <div className="flex items-center gap-2">
