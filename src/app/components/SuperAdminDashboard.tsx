@@ -1,8 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import CoachDetailPanel from "./admin/CoachDetailPanel";
 import { CoachSummaryRow } from "./admin/CoachDetailDrawer";
-import { Sparkline } from "./admin/charts/Sparkline";
-import { DashboardCharts, type DashboardChartData } from "./admin/charts/DashboardCharts";
 import { AdminActivityFeed } from "./admin/AdminActivityFeed";
 import AdminActionBar from "./admin/AdminActionBar";
 import {
@@ -15,7 +13,6 @@ import {
   ShieldOff,
   UserX,
   AlertTriangle,
-  AlertCircle,
   Activity,
   Search,
   X,
@@ -26,12 +23,7 @@ import {
   Calendar,
   AlignJustify,
   List,
-  RefreshCw,
-  HardDrive,
   Clock,
-  TrendingUp,
-  TrendingDown,
-  Minus,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useTeamStore } from "../hooks/useTeamStore";
@@ -182,13 +174,6 @@ function matchesFilter(row: CoachSummaryRow, filter: FilterType): boolean {
   }
 }
 
-function computeTrend(current: number, prev: number): { direction: "up" | "down" | "flat"; pct: number } {
-  if (prev === 0) return current > 0 ? { direction: "up", pct: 100 } : { direction: "flat", pct: 0 };
-  const pct = Math.round(((current - prev) / prev) * 100);
-  if (Math.abs(pct) < 2) return { direction: "flat", pct: 0 };
-  return { direction: pct > 0 ? "up" : "down", pct: Math.abs(pct) };
-}
-
 // ---------------------------------------------------------------------------
 // Date helpers
 // ---------------------------------------------------------------------------
@@ -209,236 +194,37 @@ function relativeTime(iso: string | null): string {
   return `${Math.floor(diffMonths / 12)}y ago`;
 }
 
-function shortDate(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 // ---------------------------------------------------------------------------
-// Sub-components
+// KPI Tile
 // ---------------------------------------------------------------------------
 
-
-interface SortableThProps {
-  label: string;
-  sortKey: SortKey;
-  currentKey: SortKey;
-  currentDir: SortDir;
-  onSort: (key: SortKey) => void;
-  className?: string;
-}
-
-function SortableTh({
+function KpiTile({
   label,
-  sortKey,
-  currentKey,
-  currentDir,
-  onSort,
-  className = "",
-}: SortableThProps) {
-  const isActive = currentKey === sortKey;
-  return (
-    <th
-      className={`px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-[11px] cursor-pointer select-none hover:text-gray-800 transition-colors group ${className}`}
-      onClick={() => onSort(sortKey)}
-    >
-      <span className="flex items-center gap-1">
-        {label}
-        <span
-          className={`transition-opacity ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-40"}`}
-        >
-          {isActive && currentDir === "desc" ? (
-            <ChevronDown className="w-3 h-3" />
-          ) : (
-            <ChevronUp className="w-3 h-3" />
-          )}
-        </span>
-      </span>
-    </th>
-  );
-}
-
-function StatusDot({ status }: { status: SemanticStatus }) {
-  const cfg = SEMANTIC_CONFIG[status];
-  return (
-    <span
-      className={`inline-block w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`}
-      title={cfg.label}
-    />
-  );
-}
-
-interface KpiCardConfig {
-  key: string;
-  label: string;
-  value: number;
-  icon: React.ElementType;
-  filter: FilterType | "clear-all" | undefined;
-  color: {
-    bg: string;
-    activeBg: string;
-    text: string;
-    border: string;
-    activeBorder: string;
-    iconBg: string;
-  };
-  trend?: { direction: "up" | "down" | "flat"; pct: number };
-  goodUp?: boolean;
-  sparklineData?: number[];
-  sparklineColor?: string;
-  isPrimary?: boolean;
-  trendContext?: string;
-}
-
-function KpiCard({
-  card,
+  value,
   isActive,
   onClick,
 }: {
-  card: KpiCardConfig;
+  label: string;
+  value: number;
   isActive: boolean;
-  onClick: () => void;
+  onClick?: () => void;
 }) {
-  const isClickable = card.filter !== undefined;
-  const trend = card.trend;
-  const TrendIcon =
-    trend?.direction === "up"
-      ? TrendingUp
-      : trend?.direction === "down"
-      ? TrendingDown
-      : Minus;
-  const trendIsGood =
-    trend && trend.direction !== "flat"
-      ? trend.direction === "up"
-        ? card.goodUp
-        : !card.goodUp
-      : null;
-
-  if (card.isPrimary) {
-    // ── Primary (tall) variant ────────────────────────────────────────────
-    return (
-      <button
-        onClick={isClickable ? onClick : undefined}
-        title={isClickable ? (isActive ? `Remove "${card.label}" filter` : `Filter by "${card.label}"`) : card.label}
-        className={[
-          "group flex flex-col justify-between p-5 rounded-xl border transition-all duration-150 min-w-[220px] h-[148px] text-left select-none",
-          isActive
-            ? `${card.color.activeBg} ${card.color.activeBorder} shadow ring-2 ring-offset-1 ring-indigo-200`
-            : `${card.color.bg} ${card.color.border} shadow-sm hover:shadow-md hover:-translate-y-px`,
-          isClickable ? "cursor-pointer active:scale-[0.97]" : "cursor-default",
-        ].join(" ")}
-      >
-        {/* Header row: icon + label */}
-        <div className="flex items-center gap-2">
-          <div className={`p-1.5 rounded-lg shrink-0 ${card.color.iconBg}`}>
-            <card.icon className={`w-3.5 h-3.5 ${card.color.text}`} />
-          </div>
-          <span className="text-[11px] font-semibold text-gray-500 group-hover:text-gray-700 transition-colors leading-tight">
-            {card.label}
-          </span>
-        </div>
-
-        {/* Main number */}
-        <div className={`text-4xl font-bold tracking-tight leading-none ${card.color.text}`}>
-          {card.value.toLocaleString()}
-        </div>
-
-        {/* Sparkline */}
-        {card.sparklineData && (
-          <div className="opacity-60">
-            <Sparkline
-              data={card.sparklineData}
-              color={card.sparklineColor ?? "#6366f1"}
-              width={110}
-              height={20}
-            />
-          </div>
-        )}
-
-        {/* Footer: trend badge + context label */}
-        <div className="flex items-center justify-between">
-          {trend && trend.direction !== "flat" ? (
-            <div className="flex items-center gap-1.5">
-              <span
-                className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold leading-none ${
-                  trendIsGood
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                    : "bg-red-50 text-red-600 border border-red-200"
-                }`}
-              >
-                <TrendIcon className="w-2.5 h-2.5" />
-                {trend.pct}%
-              </span>
-              {card.trendContext && (
-                <span className="text-[10px] text-gray-400 font-medium">
-                  {card.trendContext}
-                </span>
-              )}
-            </div>
-          ) : (
-            card.trendContext && (
-              <span className="text-[10px] text-gray-400 font-medium">{card.trendContext}</span>
-            )
-          )}
-
-          {isActive && (
-            <div className="flex items-center gap-0.5 text-[10px] font-bold text-indigo-500 ml-auto">
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-              Active
-            </div>
-          )}
-        </div>
-      </button>
-    );
-  }
-
-  // ── Secondary (compact) variant ─────────────────────────────────────────
   return (
     <button
-      onClick={isClickable ? onClick : undefined}
-      title={isClickable ? (isActive ? `Remove "${card.label}" filter` : `Filter by "${card.label}"`) : card.label}
+      onClick={onClick}
       className={[
-        "group flex flex-col justify-between p-4 rounded-xl border transition-all duration-150 min-w-[130px] h-[96px] text-left select-none",
+        "flex flex-col gap-1.5 px-4 py-2.5 rounded-xl border transition-all duration-150 min-w-[120px] text-left select-none cursor-pointer active:scale-[0.97]",
         isActive
-          ? `${card.color.activeBg} ${card.color.activeBorder} shadow-sm ring-2 ring-offset-1 ring-indigo-200`
-          : `${card.color.bg} ${card.color.border} hover:shadow-md hover:-translate-y-px`,
-        isClickable ? "cursor-pointer active:scale-[0.97]" : "cursor-default",
+          ? "bg-slate-900 border-slate-900"
+          : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm",
       ].join(" ")}
     >
-      <div className="flex items-center justify-between">
-        <div className={`p-1.5 rounded-lg ${card.color.iconBg}`}>
-          <card.icon className={`w-3 h-3 ${card.color.text}`} />
-        </div>
-        {trend && trend.direction !== "flat" && (
-          <span
-            className={`inline-flex items-center gap-0.5 text-[9px] font-bold leading-none ${
-              trendIsGood ? "text-emerald-600" : "text-red-500"
-            }`}
-          >
-            <TrendIcon className="w-2.5 h-2.5" />
-            {trend.pct}%
-          </span>
-        )}
-      </div>
-
-      <div className={`text-2xl font-bold tracking-tight leading-none ${card.color.text}`}>
-        {card.value.toLocaleString()}
-      </div>
-
-      <div className="text-[10px] font-medium text-gray-500 group-hover:text-gray-700 transition-colors leading-tight truncate">
-        {card.label}
-      </div>
-
-      {isActive && (
-        <div className="flex items-center gap-0.5 text-[9px] font-bold text-indigo-500">
-          <span className="w-1 h-1 rounded-full bg-indigo-500" />
-          Active
-        </div>
-      )}
+      <span className={`text-[11px] font-medium leading-none ${isActive ? "text-slate-300" : "text-slate-500"}`}>
+        {label}
+      </span>
+      <span className={`text-[22px] font-semibold tabular-nums leading-none ${isActive ? "text-white" : "text-slate-900"}`}>
+        {value.toLocaleString()}
+      </span>
     </button>
   );
 }
@@ -460,10 +246,8 @@ export default function SuperAdminDashboard() {
   const [activeFilters, setActiveFilters] = useState<Set<FilterType>>(new Set());
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [density, setDensity] = useState<"standard" | "compact">("standard");
-  const [isChartsOpen, setIsChartsOpen] = useState(false);
   const [isPaneCollapsed, setIsPaneCollapsed] = useState(false);
 
-  // Ref for keyboard navigation — track focused card index within filtered list
   const listRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -522,7 +306,7 @@ export default function SuperAdminDashboard() {
   );
 
   // -------------------------------------------------------------------------
-  // Search filter (client-side, debounced via useMemo)
+  // Search filter (client-side)
   // -------------------------------------------------------------------------
   const filtered = useMemo(() => {
     let result = rows;
@@ -566,225 +350,32 @@ export default function SuperAdminDashboard() {
   const stats = useMemo(() => {
     const now = Date.now();
     const day = 86400000;
-    const week = 7 * day;
 
     const healthy = rows.filter((r) => getSemanticStatus(r) === "healthy").length;
     const warning = rows.filter((r) => getSemanticStatus(r) === "warning").length;
     const critical = rows.filter((r) => getSemanticStatus(r) === "critical").length;
     const inactive = rows.filter((r) => getSemanticStatus(r) === "inactive").length;
     const newAccts = rows.filter((r) => getSemanticStatus(r) === "new").length;
-    const unverified = rows.filter((r) => !r.email_verified).length;
-    const noTeam = rows.filter((r) => !r.team_name).length;
 
     const activeToday = rows.filter(
       (r) => r.last_active_at && now - new Date(r.last_active_at).getTime() < day
     ).length;
-    const activeTodayPrev = rows.filter((r) => {
-      if (!r.last_active_at) return false;
-      const age = now - new Date(r.last_active_at).getTime();
-      return age >= day && age < 2 * day;
-    }).length;
 
-    const sessionsThisWeek = rows.filter(
-      (r) => r.last_session_at && now - new Date(r.last_session_at).getTime() < week
-    ).length;
-    const sessionsLastWeek = rows.filter((r) => {
-      if (!r.last_session_at) return false;
-      const age = now - new Date(r.last_session_at).getTime();
-      return age >= week && age < 2 * week;
-    }).length;
-
-    return {
-      total: rows.length,
-      healthy, warning, critical, inactive, newAccts,
-      unverified, noTeam,
-      activeToday, activeTodayPrev,
-      sessionsThisWeek, sessionsLastWeek,
-    };
+    return { total: rows.length, healthy, warning, critical, inactive, newAccts, activeToday };
   }, [rows]);
 
   // -------------------------------------------------------------------------
-  // Chart data — derived from coach rows, no extra DB queries
+  // KPI tiles — single flat row, no sparklines or trend indicators
   // -------------------------------------------------------------------------
-  const chartData = useMemo((): DashboardChartData => {
-    const now = Date.now();
-    const DAY = 86400000;
-
-    const days14 = Array.from({ length: 14 }, (_, i) => {
-      const dayStart = now - (13 - i) * DAY;
-      const dayEnd = dayStart + DAY;
-      const label = new Date(dayStart).toLocaleDateString("en-US", { month: "numeric", day: "numeric" });
-      const sessions = rows.filter((r) => {
-        if (!r.last_session_at) return false;
-        const t = new Date(r.last_session_at).getTime();
-        return t >= dayStart && t < dayEnd;
-      }).length;
-      const active = rows.filter((r) => {
-        if (!r.last_active_at) return false;
-        const t = new Date(r.last_active_at).getTime();
-        return t >= dayStart && t < dayEnd;
-      }).length;
-      return { label, sessions, active };
-    });
-
-    const weeks8 = Array.from({ length: 8 }, (_, i) => {
-      const weekStart = now - (7 - i) * 7 * DAY;
-      const weekEnd = weekStart + 7 * DAY;
-      const label = new Date(weekStart).toLocaleDateString("en-US", { month: "numeric", day: "numeric" });
-      const count = rows.filter((r) => {
-        if (!r.account_created_at) return false;
-        const t = new Date(r.account_created_at).getTime();
-        return t >= weekStart && t < weekEnd;
-      }).length;
-      return { label, count };
-    });
-
-    // 84 days = 12 weeks for heatmap
-    const heatmapCells = Array.from({ length: 84 }, (_, i) => {
-      const dayStart = now - (83 - i) * DAY;
-      const dayEnd = dayStart + DAY;
-      const date = new Date(dayStart);
-      const count = rows.filter((r) => {
-        if (!r.last_active_at) return false;
-        const t = new Date(r.last_active_at).getTime();
-        return t >= dayStart && t < dayEnd;
-      }).length;
-      return { date: date.toISOString().split("T")[0], count, dow: date.getDay(), week: Math.floor(i / 7) };
-    });
-
-    return { days14, weeks8, heatmapCells };
-  }, [rows]);
-
-  // Sparkline series for the two trend KPI cards (7-day rolling)
-  const sessionSparkline = useMemo(() => {
-    const now = Date.now();
-    const DAY = 86400000;
-    return Array.from({ length: 7 }, (_, i) => {
-      const dayStart = now - (6 - i) * DAY;
-      const dayEnd = dayStart + DAY;
-      return rows.filter((r) => {
-        if (!r.last_session_at) return false;
-        const t = new Date(r.last_session_at).getTime();
-        return t >= dayStart && t < dayEnd;
-      }).length;
-    });
-  }, [rows]);
-
-  const activitySparkline = useMemo(() => {
-    const now = Date.now();
-    const DAY = 86400000;
-    return Array.from({ length: 7 }, (_, i) => {
-      const dayStart = now - (6 - i) * DAY;
-      const dayEnd = dayStart + DAY;
-      return rows.filter((r) => {
-        if (!r.last_active_at) return false;
-        const t = new Date(r.last_active_at).getTime();
-        return t >= dayStart && t < dayEnd;
-      }).length;
-    });
-  }, [rows]);
-
-  const kpiCards = useMemo((): KpiCardConfig[] => [
-    {
-      key: "total",
-      label: "Total Coaches",
-      value: stats.total,
-      icon: Users,
-      filter: "clear-all",
-      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
-    },
-    {
-      key: "active-today",
-      label: "Active Coaches",
-      value: stats.activeToday,
-      icon: Activity,
-      filter: "active-today",
-      color: { bg: "bg-white", activeBg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-100", activeBorder: "border-indigo-400", iconBg: "bg-indigo-100" },
-      trend: computeTrend(stats.activeToday, stats.activeTodayPrev),
-      goodUp: true,
-      sparklineData: activitySparkline,
-      sparklineColor: "#6366f1",
-      isPrimary: true,
-      trendContext: "vs. yesterday",
-    },
-    {
-      key: "sessions-week",
-      label: "Sessions Active Today",
-      value: stats.sessionsThisWeek,
-      icon: Calendar,
-      filter: "active-this-week",
-      color: { bg: "bg-white", activeBg: "bg-blue-50", text: "text-blue-700", border: "border-blue-100", activeBorder: "border-blue-400", iconBg: "bg-blue-100" },
-      trend: computeTrend(stats.sessionsThisWeek, stats.sessionsLastWeek),
-      goodUp: true,
-      sparklineData: sessionSparkline,
-      sparklineColor: "#3b82f6",
-      isPrimary: true,
-      trendContext: "this week",
-    },
-    {
-      key: "healthy",
-      label: "Healthy",
-      value: stats.healthy,
-      icon: CheckCircle2,
-      filter: "healthy",
-      color: { bg: "bg-white", activeBg: "bg-emerald-50", text: "text-emerald-700", border: "border-gray-200", activeBorder: "border-emerald-300", iconBg: "bg-emerald-100" },
-      goodUp: true,
-    },
-    {
-      key: "warning",
-      label: "Warning",
-      value: stats.warning,
-      icon: AlertTriangle,
-      filter: "warning",
-      color: { bg: "bg-white", activeBg: "bg-amber-50", text: "text-amber-700", border: "border-gray-200", activeBorder: "border-amber-300", iconBg: "bg-amber-100" },
-      goodUp: false,
-    },
-    {
-      key: "critical",
-      label: "Critical",
-      value: stats.critical,
-      icon: AlertTriangle,
-      filter: "critical",
-      color: { bg: "bg-white", activeBg: "bg-red-50", text: "text-red-700", border: "border-gray-200", activeBorder: "border-red-300", iconBg: "bg-red-100" },
-      goodUp: false,
-    },
-    {
-      key: "inactive",
-      label: "Inactive (>30d)",
-      value: stats.inactive,
-      icon: UserX,
-      filter: "inactive",
-      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
-      goodUp: false,
-    },
-    {
-      key: "new",
-      label: "New Accounts",
-      value: stats.newAccts,
-      icon: Zap,
-      filter: "new",
-      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
-      goodUp: true,
-    },
-    {
-      key: "unverified",
-      label: "Unverified",
-      value: stats.unverified,
-      icon: ShieldOff,
-      filter: "unverified",
-      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
-      goodUp: false,
-    },
-    {
-      key: "no-team",
-      label: "No Team Setup",
-      value: stats.noTeam,
-      icon: AlertTriangle,
-      filter: "no-team-setup",
-      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
-      goodUp: false,
-    },
-  ], [stats, activitySparkline, sessionSparkline]);
+  const kpiTiles = useMemo(() => [
+    { key: "total",       label: "Total coaches", value: stats.total,      filter: "clear-all" as const },
+    { key: "active-today",label: "Active today",  value: stats.activeToday,filter: "active-today" as FilterType },
+    { key: "healthy",     label: "Healthy",        value: stats.healthy,    filter: "healthy" as FilterType },
+    { key: "warning",     label: "Warning",        value: stats.warning,    filter: "warning" as FilterType },
+    { key: "critical",    label: "Critical",       value: stats.critical,   filter: "critical" as FilterType },
+    { key: "inactive",    label: "Inactive",       value: stats.inactive,   filter: "inactive" as FilterType },
+    { key: "new",         label: "New",            value: stats.newAccts,   filter: "new" as FilterType },
+  ], [stats]);
 
   // -------------------------------------------------------------------------
   // Keyboard navigation
@@ -866,36 +457,33 @@ export default function SuperAdminDashboard() {
       {/* ── Action Bar ──────────────────────────────────────────── */}
       <AdminActionBar />
 
-      {/* ── KPI Cards bar ───────────────────────────────────────── */}
+      {/* ── KPI Tile strip ──────────────────────────────────────── */}
       <div className="shrink-0 border-b border-gray-100 bg-white/70 backdrop-blur-sm">
         <div className="overflow-x-auto no-scrollbar px-4 py-3">
           {isLoading ? (
-            <div className="flex items-end gap-3 min-w-max animate-pulse">
-              <div className="w-[220px] h-[148px] bg-indigo-50 rounded-xl border border-indigo-100" />
-              <div className="w-[220px] h-[148px] bg-blue-50 rounded-xl border border-blue-100" />
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="w-[130px] h-[96px] bg-gray-100 rounded-xl border border-gray-200" />
+            <div className="flex items-center gap-2 min-w-max animate-pulse">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <div key={i} className="w-[120px] h-[60px] bg-gray-100 rounded-xl border border-slate-200" />
               ))}
             </div>
           ) : !error ? (
-            <div className="flex items-end gap-3 min-w-max">
-              {kpiCards.map((card) => {
+            <div className="flex items-center gap-2 min-w-max">
+              {kpiTiles.map((tile) => {
                 const isActive =
-                  card.filter === "clear-all"
+                  tile.filter === "clear-all"
                     ? activeFilters.size === 0
-                    : card.filter !== undefined
-                    ? activeFilters.has(card.filter as FilterType)
-                    : false;
+                    : activeFilters.has(tile.filter as FilterType);
                 return (
-                  <KpiCard
-                    key={card.key}
-                    card={card}
+                  <KpiTile
+                    key={tile.key}
+                    label={tile.label}
+                    value={tile.value}
                     isActive={isActive}
                     onClick={() => {
-                      if (card.filter === "clear-all") {
+                      if (tile.filter === "clear-all") {
                         setActiveFilters(new Set());
-                      } else if (card.filter) {
-                        toggleFilter(card.filter as FilterType);
+                      } else {
+                        toggleFilter(tile.filter as FilterType);
                       }
                     }}
                   />
@@ -906,16 +494,7 @@ export default function SuperAdminDashboard() {
         </div>
       </div>
 
-      {/* ── Analytics charts section ────────────────────────────── */}
-      {!isLoading && !error && (
-        <DashboardCharts
-          data={chartData}
-          isOpen={isChartsOpen}
-          onToggle={() => setIsChartsOpen((v) => !v)}
-        />
-      )}
-
-      {/* ── V2 master-detail body ───────────────────────────────── */}
+      {/* ── Master-detail body ──────────────────────────────────── */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
 
         {/* ── LEFT: Coach grid pane ─────────────────────────────── */}
@@ -1269,4 +848,3 @@ export default function SuperAdminDashboard() {
     </div>
   );
 }
-
