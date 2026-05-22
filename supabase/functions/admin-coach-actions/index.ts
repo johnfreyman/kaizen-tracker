@@ -46,11 +46,8 @@ Deno.serve(async (req) => {
       return json({ error: "Unauthorized" }, 401);
     }
 
-    // Verify the caller is a super admin
-    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-    const { data: adminRow } = await adminClient
+    // Verify the caller is a super admin using their own JWT (matches the RLS policy)
+    const { data: adminRow } = await callerClient
       .from("super_admins")
       .select("user_id")
       .eq("user_id", user.id)
@@ -58,6 +55,11 @@ Deno.serve(async (req) => {
     if (!adminRow) {
       return json({ error: "Forbidden" }, 403);
     }
+
+    // Service-role client for privileged auth admin operations
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
 
     switch (action) {
       case "resend-verification": {
