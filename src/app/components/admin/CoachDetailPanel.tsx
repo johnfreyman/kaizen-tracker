@@ -1,32 +1,18 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  Mail,
-  Calendar,
-  Clock,
-  ShieldCheck,
-  ShieldOff,
-  Users,
-  Archive,
-  Activity,
-  AlertTriangle,
-  Database,
-  Image as ImageIcon,
-  Download,
-  UserX,
-  LogOut,
   Send,
   Loader2,
-  HardDrive,
-  Zap,
-  RefreshCw,
-  CheckCircle2,
-  ServerOff,
   MousePointerClick,
-  Copy,
-  Check,
-  CreditCard,
-  Terminal,
-  ArrowUpRight
+  Users,
+  RefreshCw,
+  LogOut,
+  UserX,
+  Download,
+  AlertTriangle,
+  Calendar,
+  Clock,
+  ShieldOff,
+  ArrowUpRight,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -38,7 +24,9 @@ import {
   SEMANTIC_CONFIG,
 } from "../SuperAdminDashboard";
 import { getPurgeState } from "./getPurgeState";
+import { PurgeBadge } from "./PurgeBadge";
 import { VerificationTimeline } from "./VerificationTimeline";
+import { TeamLogo } from "./TeamLogo";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -94,78 +82,63 @@ function shortDate(iso: string | null): string {
   });
 }
 
-// (Fabricated helpers getErrorRate, hasPendingSyncs, getEstimatedStorage removed)
-
 // ---------------------------------------------------------------------------
-// Primitive sub-components
+// Sub-components
 // ---------------------------------------------------------------------------
 
-function Field({
+/** Uppercase section label */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+      {children}
+    </p>
+  );
+}
+
+/** A label/value row inside the Account section */
+function AccountRow({
   label,
   value,
-  icon: Icon,
-  className,
-  title,
+  valueClass,
 }: {
   label: string;
   value: React.ReactNode;
-  icon?: React.ElementType;
-  className?: string;
-  title?: string;
+  valueClass?: string;
 }) {
   return (
-    <div className={cn("flex items-start gap-2.5 p-3 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors border border-slate-100/50", className)}>
-      {Icon && (
-        <span className="mt-0.5 p-1.5 bg-white rounded-lg shrink-0 border border-gray-100 shadow-sm">
-          <Icon className="w-3.5 h-3.5 text-indigo-500" />
-        </span>
-      )}
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">
-          {label}
-        </p>
-        <div className="text-xs text-slate-800 font-bold truncate leading-snug" title={title}>
-          {value}
-        </div>
-      </div>
+    <div className="flex items-baseline justify-between gap-3 text-[12px]">
+      <span className="text-slate-500 shrink-0">{label}</span>
+      <span className={cn("text-slate-800 text-right truncate", valueClass)}>
+        {value}
+      </span>
     </div>
   );
 }
 
-function ActionButton({
+/** Action button — full-width text button, no border chrome */
+function TextAction({
   label,
   icon: Icon,
   onClick,
-  variant = "default",
+  danger = false,
   loading = false,
   disabled = false,
 }: {
   label: string;
   icon: React.ElementType;
   onClick: () => void;
-  variant?: "default" | "danger" | "warning" | "success";
+  danger?: boolean;
   loading?: boolean;
   disabled?: boolean;
 }) {
-  const variantClass: Record<string, string> = {
-    default:
-      "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300",
-    danger:
-      "border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-300",
-    warning:
-      "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:border-amber-300",
-    success:
-      "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300",
-  };
-
   return (
     <button
       onClick={onClick}
       disabled={disabled || loading}
       className={cn(
-        "flex items-center justify-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold",
-        "transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed w-full shadow-sm cursor-pointer",
-        variantClass[variant]
+        "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12.5px] font-medium",
+        "hover:bg-slate-100 transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer",
+        danger ? "text-red-600" : "text-slate-700"
       )}
     >
       {loading ? (
@@ -173,11 +146,12 @@ function ActionButton({
       ) : (
         <Icon className="w-3.5 h-3.5 shrink-0" />
       )}
-      <span className="truncate">{label}</span>
+      <span>{label}</span>
     </button>
   );
 }
 
+/** Inline confirm strip */
 function ConfirmBanner({
   message,
   onConfirm,
@@ -190,20 +164,20 @@ function ConfirmBanner({
   loading: boolean;
 }) {
   return (
-    <div className="mt-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 animate-in fade-in slide-in-from-top-1 duration-200">
-      <p className="mb-2 font-bold">{message}</p>
+    <div className="mx-2.5 mb-1 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-800 animate-in fade-in slide-in-from-top-1 duration-150">
+      <p className="font-semibold mb-2">{message}</p>
       <div className="flex gap-2">
         <button
           onClick={onConfirm}
           disabled={loading}
-          className="px-2.5 py-1.5 rounded-lg bg-amber-600 text-white text-[10px] font-bold hover:bg-amber-700 active:scale-95 transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+          className="px-2.5 py-1 rounded-md bg-amber-600 text-white text-[10px] font-bold hover:bg-amber-700 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
         >
           {loading ? "Working…" : "Confirm"}
         </button>
         <button
           onClick={onCancel}
           disabled={loading}
-          className="px-2.5 py-1.5 rounded-lg bg-white border border-amber-200 text-amber-700 text-[10px] font-bold hover:bg-amber-50 active:scale-95 transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+          className="px-2.5 py-1 rounded-md bg-white border border-amber-200 text-amber-700 text-[10px] font-bold hover:bg-amber-50 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
         >
           Cancel
         </button>
@@ -226,7 +200,8 @@ function EmptyState() {
       <div>
         <p className="font-bold text-gray-800 text-sm">Select a Coach Profile</p>
         <p className="text-xs text-gray-400 mt-1 max-w-[220px] leading-relaxed font-medium">
-          Click any row in the admin roster to explore their real-time activity, metrics, sync diagnostics, and account billing controls.
+          Click any row in the admin roster to explore their real-time activity,
+          metrics, and account controls.
         </p>
       </div>
     </div>
@@ -247,7 +222,6 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState(false);
 
   // Track previous coach id for animation keying
   const prevCoachId = useRef<string | null>(null);
@@ -258,7 +232,6 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
     if (coach?.coach_id !== prevCoachId.current) {
       prevCoachId.current = coach?.coach_id ?? null;
       setPendingConfirm(null);
-      setCopiedId(false);
       setAnimKey((k) => k + 1);
     }
   }, [coach?.coach_id]);
@@ -318,7 +291,8 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
             : null,
         });
       } catch (err: any) {
-        if (!cancelled) setDetailError(err.message ?? "Failed to load coach details.");
+        if (!cancelled)
+          setDetailError(err.message ?? "Failed to load coach details.");
       } finally {
         if (!cancelled) setIsLoadingDetail(false);
       }
@@ -414,136 +388,135 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
     );
   }, []);
 
-  const handleCopyId = useCallback((id: string) => {
-    navigator.clipboard.writeText(id);
-    setCopiedId(true);
-    toast.success("Coach ID copied to clipboard");
-    setTimeout(() => setCopiedId(false), 2000);
-  }, []);
-
   // ---------------------------------------------------------------------------
-  // Derived / Computed Metrics
+  // Derived values
   // ---------------------------------------------------------------------------
 
   const purge = coach ? getPurgeState(coach) : null;
   const status = coach ? getSemanticStatus(coach, !!detail?.activeSession) : "healthy";
   const cfg = SEMANTIC_CONFIG[status];
-  // Dynamic database storage calculation (non-fabricated, inline estimation)
-  const storageKb = coach
-    ? coach.player_count * 1.2 + coach.session_count * 3.5 + coach.total_archives * 15.0 + (coach.team_logo ? 450 : 0)
-    : 0;
-  const storageLabel = storageKb > 1024
-    ? `${(storageKb / 1024).toFixed(1)} MB`
-    : `${storageKb.toFixed(0)} KB`;
 
-  // Dynamic next billing invoice renewal calculation
-  const createdDate = coach?.account_created_at ? new Date(coach.account_created_at) : new Date();
-  const nextRenewal = new Date();
-  nextRenewal.setDate(createdDate.getDate());
-  if (nextRenewal.getTime() < Date.now()) {
-    nextRenewal.setMonth(nextRenewal.getMonth() + 1);
-  }
-  const renewalString = nextRenewal.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-
-  // Estimated total database rows
-  const estimatedDbRows = coach
-    ? 1 + coach.player_count + coach.session_count + coach.total_archives + 1
-    : 0;
-
-  // Sync Diagnostics Log stream simulation (optimal state)
-  const failedSyncs = 0;
-  const offlineRecoveryEvents = coach ? (coach.coach_id.charCodeAt(0) ?? 0) % 3 : 0;
-
-  const recentErrors: string[] = [
-    `[${new Date(Date.now() - 600000).toLocaleTimeString()}] SyncEngine: Roster synced (0 modifications)`,
-    `[${new Date(Date.now() - 1800000).toLocaleTimeString()}] SyncEngine: Session push succeeded (1 event)`,
-    `[${new Date(Date.now() - 3600000).toLocaleTimeString()}] AuthEngine: Token refreshed successfully`
-  ];
-
-  // Active operational flags
-  const activeBadges: { label: string; bg: string; icon: any }[] = [];
+  // Open issue badges (no Purge — that's handled by PurgeBadge)
+  const issueBadges: { label: string; bg: string; icon: React.ElementType }[] = [];
   if (coach) {
-    if (!coach.email_verified && !purge) {
-      activeBadges.push({ label: "Unverified", bg: "bg-red-50 text-red-700 border-red-200", icon: ShieldOff });
-    }
     if (!coach.team_name) {
-      activeBadges.push({ label: "No Team Setup", bg: "bg-amber-50 text-amber-700 border-amber-250", icon: AlertTriangle });
+      issueBadges.push({
+        label: "No team",
+        bg: "bg-amber-50 text-amber-700 border-amber-200",
+        icon: AlertTriangle,
+      });
     }
     if (coach.last_active_at) {
       const days = (Date.now() - new Date(coach.last_active_at).getTime()) / 86400000;
       if (days > 30) {
-        activeBadges.push({ label: "Inactive 30d", bg: "bg-gray-100 text-gray-700 border-gray-200", icon: Clock });
+        issueBadges.push({
+          label: "Inactive 30d",
+          bg: "bg-gray-100 text-gray-700 border-gray-200",
+          icon: Clock,
+        });
       }
     } else {
-      activeBadges.push({ label: "Inactive 30d", bg: "bg-gray-100 text-gray-700 border-gray-200", icon: Clock });
+      issueBadges.push({
+        label: "Inactive 30d",
+        bg: "bg-gray-100 text-gray-700 border-gray-200",
+        icon: Clock,
+      });
     }
   }
 
+  const hasOpenIssues = purge !== null || issueBadges.length > 0;
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+
   return (
-    <div className="flex flex-col h-full bg-slate-50/50 border-l border-slate-100">
+    <div className="flex flex-col h-full bg-white border-l border-slate-100">
       {!coach ? (
         <EmptyState />
       ) : (
         <div
           key={animKey}
-          className="flex flex-col h-full animate-panel-slide-in overflow-hidden"
-          style={{
-            animation: "panelSlideIn 0.2s ease-out both",
-          }}
+          className="flex flex-col h-full overflow-hidden"
+          style={{ animation: "panelSlideIn 0.2s ease-out both" }}
         >
-          {/* ── Dynamic Header ── */}
-          <div className="shrink-0 px-6 py-5 border-b border-slate-100 bg-white relative shadow-sm">
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <h2 className="text-base font-bold text-slate-800 truncate max-w-[280px] sm:max-w-[340px]" title={coach.email}>
-                  {coach.email}
-                </h2>
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${cfg.bgClass} ${cfg.textClass} ${cfg.borderClass} tracking-wide shrink-0 shadow-sm`}>
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dotClass}`} />
-                  {cfg.badgeLabel}
-                </span>
-              </div>
+          {/* ── Section 1: Header ── */}
+          <div className="shrink-0 px-4 pt-4 pb-3 border-b border-slate-100">
+            <div className="flex items-start gap-3">
+              {/* Logo */}
+              <TeamLogo team={coach.team_name} logoUrl={coach.team_logo} size={44} />
 
-              {/* Operational badging row */}
-              {activeBadges.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {activeBadges.map((badge, idx) => {
+              {/* Name + email */}
+              <div className="min-w-0 flex-1">
+                <p
+                  className="text-[14px] font-semibold text-slate-800 truncate leading-snug"
+                  title={coach.team_name ?? undefined}
+                >
+                  {coach.team_name ?? (
+                    <span className="italic text-slate-400 font-normal">No team registered</span>
+                  )}
+                </p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <div className="w-3.5 h-3.5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[8px] font-bold shrink-0 uppercase">
+                    {coach.email[0]}
+                  </div>
+                  <span
+                    className="text-[12px] text-slate-500 truncate"
+                    title={coach.email}
+                  >
+                    {coach.email}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Scrollable body ── */}
+          <div className="flex-1 overflow-y-auto overscroll-contain scrollbar-gutter-stable divide-y divide-slate-100">
+
+            {/* ── Section 2: Status row ── */}
+            <div className="px-4 py-3 flex items-center justify-between">
+              <SectionLabel>Status</SectionLabel>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border tracking-wide",
+                  cfg.bgClass,
+                  cfg.borderClass
+                )}
+              >
+                <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", cfg.dotClass)} />
+                {cfg.badgeLabel}
+              </span>
+            </div>
+
+            {/* ── Section 3: Open issues (conditional) ── */}
+            {hasOpenIssues && (
+              <div className="px-4 py-3 space-y-2">
+                <SectionLabel>Open Issues</SectionLabel>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {purge && <PurgeBadge state={purge} size="md" />}
+                  {issueBadges.map((badge, idx) => {
                     const BadgeIcon = badge.icon;
                     return (
-                      <span key={idx} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border shadow-sm ${badge.bg}`}>
-                        <BadgeIcon className="w-2.5 h-2.5 shrink-0" />
+                      <span
+                        key={idx}
+                        className={cn(
+                          "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border",
+                          badge.bg
+                        )}
+                      >
+                        <BadgeIcon className="w-3 h-3 shrink-0" />
                         {badge.label}
                       </span>
                     );
                   })}
                 </div>
-              )}
-
-              {/* Timestamp details */}
-              <div className="flex items-center justify-between text-[11px] text-gray-500 font-semibold border-t border-slate-100/60 pt-2.5 mt-0.5">
-                <div className="flex items-center gap-2 flex-wrap text-gray-400">
-                  <span>Created {shortDate(coach.account_created_at)}</span>
-                  <span>·</span>
-                  <span>System: {coach.coach_id.slice(0, 8)}...</span>
-                </div>
-                
-                <span className={`inline-flex items-center gap-1 font-bold ${
-                  status === "inactive" ? "text-gray-400" : "text-indigo-650 animate-pulse"
-                }`}>
-                  Active {relativeTime(coach.last_active_at)}
-                </span>
               </div>
-            </div>
-          </div>
+            )}
 
-          {/* ── Scrollable Cards Grid Container ── */}
-          <div className="flex-1 overflow-y-auto overscroll-contain p-6 space-y-4 scrollbar-gutter-stable">
+            {/* ── Section 4: Verification timeline (conditional) ── */}
             {purge && (
-              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-3 duration-250">
+              <div className="px-4 py-3">
                 <VerificationTimeline
                   coach={coach}
                   state={purge}
@@ -554,596 +527,201 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
               </div>
             )}
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
-
-              {/* ── CARD 1: ACCOUNT PROFILE ── */}
-              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between self-stretch">
-                <div>
-                  <div className="flex items-center justify-between gap-2 flex-wrap pb-3.5 border-b border-slate-50 mb-4">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="p-2 rounded-xl bg-indigo-50 border border-indigo-100/50 text-indigo-600 shrink-0">
-                        <Mail className="w-4 h-4" />
-                      </span>
-                      <div className="min-w-0 truncate">
-                        <h3 className="text-xs font-bold text-slate-800 tracking-tight truncate">Account Profile</h3>
-                      </div>
-                    </div>
-                    <span className={cn(
-                      "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide shrink-0",
-                      coach.email_verified 
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-150" 
-                        : "bg-red-50 text-red-700 border-red-150"
-                    )}>
-                      {coach.email_verified ? "Verified" : "Unverified"}
-                    </span>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    <div className="sm:col-span-2">
-                      <Field label="Email Address" icon={Mail} value={coach.email} title={coach.email} />
-                    </div>
-                    <Field 
-                      label="Auth Provider" 
-                      icon={ShieldCheck} 
-                      value={coach.auth_provider ? coach.auth_provider.charAt(0).toUpperCase() + coach.auth_provider.slice(1) : "—"} 
-                    />
-                    <Field 
-                      label="Created Date" 
-                      icon={Calendar} 
-                      value={shortDate(coach.account_created_at)} 
-                    />
-                    <div className="sm:col-span-2">
-                      <Field 
-                        label="Last Sign In" 
-                        icon={Clock} 
-                        value={coach.last_sign_in_at ? (
-                          <span>
-                            {relativeTime(coach.last_sign_in_at)}
-                            <span className="text-gray-400 font-normal"> · {shortDate(coach.last_sign_in_at)}</span>
-                          </span>
-                        ) : <span className="text-gray-400">Never</span>} 
-                      />
-                    </div>
-                    
-                    {/* Copyable Coach ID */}
-                    <div className="sm:col-span-2 space-y-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Coach System ID</p>
-                      <div className="flex items-center justify-between font-mono text-[11px] bg-slate-50 text-slate-500 rounded-xl p-2.5 border border-slate-100/80 font-bold select-all group/id">
-                        <span className="truncate mr-2">{coach.coach_id}</span>
-                        <button
-                          onClick={() => handleCopyId(coach.coach_id)}
-                          title="Copy Coach ID"
-                          className="p-1 rounded-md hover:bg-slate-200/50 text-slate-400 hover:text-slate-650 transition-colors cursor-pointer shrink-0"
-                        >
-                          {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-600 animate-in zoom-in duration-150" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Account Action Buttons */}
-                <div className="border-t border-slate-100 pt-4 mt-5">
-                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">Administrative Controls</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div>
-                      <ActionButton
-                        label="Reset Password"
-                        icon={RefreshCw}
-                        loading={actionLoading === "reset-password"}
-                        disabled={!!actionLoading}
-                        onClick={() => setPendingConfirm(pendingConfirm === "reset-password" ? null : "reset-password")}
-                      />
-                      {pendingConfirm === "reset-password" && (
-                        <ConfirmBanner
-                          message={`Send password reset email to ${coach.email}?`}
-                          loading={actionLoading === "reset-password"}
-                          onConfirm={handleResetPassword}
-                          onCancel={() => setPendingConfirm(null)}
-                        />
-                      )}
-                    </div>
-
-                    <ActionButton
-                      label="Resend Onboarding"
-                      icon={Send}
-                      disabled={!!actionLoading}
-                      onClick={() => handleServerSideAction("Resend Onboarding Email")}
-                    />
-
-                    <ActionButton
-                      label="Export Data"
-                      icon={Download}
-                      variant="success"
-                      loading={actionLoading === "export"}
-                      disabled={!!actionLoading}
-                      onClick={handleExportData}
-                    />
-
-                    <ActionButton
-                      label="Force Logout"
-                      icon={LogOut}
-                      variant="warning"
-                      disabled={!!actionLoading}
-                      onClick={() => handleServerSideAction("Force Logout")}
-                    />
-
-                    <div className="sm:col-span-2">
-                      <ActionButton
-                        label="Disable Account"
-                        icon={UserX}
-                        variant="danger"
-                        disabled={!!actionLoading}
-                        onClick={() => handleServerSideAction("Disable Account")}
-                      />
-                    </div>
-                  </div>
-                </div>
+            {/* ── Section 5: Stats — 2×2 hairline grid ── */}
+            <div className="py-3">
+              <div className="px-4 mb-2">
+                <SectionLabel>Stats</SectionLabel>
               </div>
-
-              {/* ── CARD 2: TEAM SNAPSHOT ── */}
-              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between self-stretch">
-                <div>
-                  <div className="flex items-center justify-between gap-2 flex-wrap pb-3.5 border-b border-slate-50 mb-4">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="p-2 rounded-xl bg-amber-50 border border-amber-100/50 text-amber-600 shrink-0">
-                        <Users className="w-4 h-4" />
-                      </span>
-                      <div className="min-w-0 truncate">
-                        <h3 className="text-xs font-bold text-slate-800 tracking-tight truncate">Team Snapshot</h3>
-                      </div>
-                    </div>
-                    {coach.raffle_enabled && (
-                      <span className="inline-flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200 shadow-sm uppercase tracking-wide shrink-0">
-                        <Zap className="w-2.5 h-2.5 animate-pulse" />
-                        Raffle Active
-                      </span>
-                    )}
+              <div className="grid grid-cols-2 gap-px bg-slate-100 border-y border-slate-100">
+                {[
+                  { label: "Players", value: coach.player_count },
+                  { label: "Sessions", value: coach.session_count },
+                  { label: "Archives", value: coach.total_archives },
+                  { label: "Raffle", value: coach.raffle_enabled ? "On" : "Off" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-white px-4 py-2.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-0.5">
+                      {label}
+                    </p>
+                    <p className="text-[18px] font-bold tabular-nums text-slate-800 leading-snug">
+                      {value}
+                    </p>
                   </div>
-
-                  {/* Team Profile Header card */}
-                  <div className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-gradient-to-br from-indigo-55/10 to-blue-55/15 border border-slate-100 shadow-sm mb-4">
-                    {coach.team_logo ? (
-                      <img
-                        src={coach.team_logo}
-                        alt={coach.team_name ?? "Team"}
-                        className="size-12 rounded-xl object-cover shadow-sm border border-slate-200/50 shrink-0 animate-in zoom-in duration-200"
-                      />
-                    ) : (
-                      <div className="size-12 rounded-xl bg-slate-100 flex items-center justify-center border border-slate-200/40 shrink-0">
-                        <Users className="w-5 h-5 text-slate-400" />
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="font-extrabold text-slate-800 truncate text-sm leading-snug">
-                        {coach.team_name ?? (
-                          <span className="italic text-gray-400 font-normal">
-                            No team name set
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-[11px] text-gray-450 font-bold mt-0.5">
-                        {coach.player_count} Roster Size
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Roster & Event metrics */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field
-                      label="Total Sessions"
-                      icon={Calendar}
-                      value={
-                        <span className="text-indigo-650 font-black text-base">
-                          {coach.session_count}
-                        </span>
-                      }
-                    />
-                    <Field
-                      label="Archives Created"
-                      icon={Archive}
-                      value={
-                        <span className="text-violet-650 font-black text-base">
-                          {coach.total_archives}
-                        </span>
-                      }
-                    />
-                    <Field
-                      label="Last Session Date"
-                      icon={Clock}
-                      value={
-                        coach.last_session_at ? (
-                          <span className="text-slate-700 font-bold text-xs leading-normal">
-                            {relativeTime(coach.last_session_at)}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 font-normal text-xs">No sessions yet</span>
-                        )
-                      }
-                    />
-                    <Field
-                      label="Raffle System"
-                      icon={Zap}
-                      value={
-                        coach.raffle_enabled ? (
-                          <span className="text-emerald-600 font-bold text-xs">Enabled</span>
-                        ) : (
-                          <span className="text-gray-400 font-normal text-xs">Disabled</span>
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-4 p-3 rounded-xl bg-amber-55/10 border border-amber-200/50 text-[11px] text-amber-800 font-semibold flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 shrink-0 text-amber-500" />
-                  Roster limits apply based on subscription capacity parameters.
-                </div>
+                ))}
               </div>
-
-              {/* ── CARD 3: ACTIVITY FEED ── */}
-              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between self-stretch xl:col-span-2">
-                <div>
-                  <div className="flex items-center justify-between gap-2 flex-wrap pb-3.5 border-b border-slate-50 mb-4">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="p-2 rounded-xl bg-violet-50 border border-violet-100/50 text-violet-650 shrink-0">
-                        <Activity className="w-4 h-4" />
-                      </span>
-                      <div className="min-w-0 truncate">
-                        <h3 className="text-xs font-bold text-slate-800 tracking-tight truncate">Activity Logs &amp; Timeline</h3>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-bold text-indigo-650 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100/60 uppercase shrink-0">
-                      Last Active: {relativeTime(coach.last_active_at)}
-                    </span>
-                  </div>
-
-                  {/* Active Training Session Pulsing Banner */}
-                  {detail?.activeSession && (
-                    <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 font-bold shadow-sm mb-4 animate-in fade-in duration-300">
-                      <span className="relative flex h-2.5 w-2.5 shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500 animate-pulse"></span>
-                      </span>
-                      <div className="truncate">
-                        Active Training Session In Progress: <span className="text-amber-900 font-extrabold">{detail.activeSession.type}</span> · {detail.activeSession.duration} min duration
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Chronological Roster Timeline */}
-                  <div>
-                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2.5">Recent Saved Sessions (Last 5)</h4>
-                    {isLoadingDetail ? (
-                      <div className="space-y-2">
-                        {[1, 2, 3].map((i) => (
-                          <Skeleton key={i} className="h-10 w-full rounded-xl bg-gray-150" />
-                        ))}
-                      </div>
-                    ) : detailError ? (
-                      <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-xs font-bold">
-                        <AlertTriangle className="w-4 h-4 shrink-0" />
-                        {detailError}
-                      </div>
-                    ) : detail?.recentSessions.length === 0 ? (
-                      <div className="text-center py-8 bg-slate-50/50 border border-dashed border-slate-200 rounded-2xl">
-                        <Calendar className="w-7 h-7 text-gray-300 mx-auto mb-1.5" />
-                        <p className="text-xs text-gray-400 italic">No saved sessions or attendance records found.</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-                        {detail?.recentSessions.map((s) => (
-                          <div
-                            key={s.id}
-                            className="flex items-center justify-between p-3 rounded-xl bg-slate-50/50 hover:bg-slate-50 border border-slate-100 text-xs transition-all duration-150 hover:-translate-y-px"
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-bold text-slate-800">{s.date}</span>
-                                <span className="text-[9px] text-indigo-700 bg-indigo-50 border border-indigo-100/50 px-1.5 py-0.5 rounded font-black uppercase tracking-wider">
-                                  {s.type}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3 text-slate-500 font-semibold shrink-0">
-                              <span>{s.duration} min</span>
-                              <span className="text-slate-350">·</span>
-                              <span>{s.player_count} players</span>
-                              <span className="text-slate-350">·</span>
-                              <span className="text-slate-400 text-[10px]">{relativeTime(s.saved_at)}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* ── CARD 4: DIAGNOSTICS & SYNC ── */}
-              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between self-stretch">
-                <div>
-                  <div className="flex items-center justify-between gap-2 flex-wrap pb-3.5 border-b border-slate-50 mb-4">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="p-2 rounded-xl bg-rose-50 border border-rose-100/50 text-rose-600 shrink-0">
-                        <AlertTriangle className="w-4 h-4" />
-                      </span>
-                      <div className="min-w-0 truncate">
-                        <h3 className="text-xs font-bold text-slate-800 tracking-tight truncate">Sync Diagnostics</h3>
-                      </div>
-                    </div>
-                    {isLoadingDetail ? (
-                      <Skeleton className="w-14 h-4 bg-gray-150 shrink-0" />
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 uppercase tracking-wide shadow-sm shrink-0">
-                        <span className="w-1 h-1 rounded-full bg-emerald-500" />
-                        Optimal
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Sync field grid */}
-                  <div className="grid grid-cols-2 gap-3.5">
-                    <Field
-                      label="Pending Changes"
-                      icon={RefreshCw}
-                      value={
-                        detail?.activeSession ? (
-                          <span className="text-amber-600 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
-                            Session Active
-                          </span>
-                        ) : (
-                          <span className="text-emerald-600 flex items-center gap-1 font-bold">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                            None
-                          </span>
-                        )
-                      }
-                    />
-                    <Field
-                      label="Last Sync Time"
-                      icon={Clock}
-                      value={
-                        detail?.recentSessions[0]?.saved_at ? (
-                          relativeTime(detail.recentSessions[0].saved_at)
-                        ) : (
-                          <span className="text-gray-400 font-normal">—</span>
-                        )
-                      }
-                    />
-                    <Field
-                      label="Failed Syncs"
-                      icon={AlertTriangle}
-                      value={
-                        failedSyncs > 0 ? (
-                          <span className="text-red-650 font-black text-xs">{failedSyncs} sync errors</span>
-                        ) : (
-                          <span className="text-emerald-600 font-bold">0</span>
-                        )
-                      }
-                    />
-                    <Field
-                      label="Offline Recovery"
-                      icon={RefreshCw}
-                      value={
-                        offlineRecoveryEvents > 0 ? (
-                          <span className="text-indigo-650 font-bold text-xs">{offlineRecoveryEvents} events</span>
-                        ) : (
-                          <span className="text-gray-400 font-normal">0</span>
-                        )
-                      }
-                    />
-                  </div>
-
-                  {/* Interactive Terminal log viewer */}
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between bg-slate-900 px-3 py-1.5 rounded-t-lg border-b border-slate-800 text-[10px] text-slate-400 font-mono select-none">
-                      <div className="flex items-center gap-1.5">
-                        <Terminal className="w-3.5 h-3.5 text-slate-400" />
-                        <span>sync_engine_diagnostics.log</span>
-                      </div>
-                      <span className="flex gap-1 shrink-0"><span className="w-1.5 h-1.5 rounded-full bg-red-500"/><span className="w-1.5 h-1.5 rounded-full bg-amber-500"/><span className="w-1.5 h-1.5 rounded-full bg-green-500"/></span>
-                    </div>
-                    <div className="bg-slate-950 p-3 rounded-b-lg font-mono text-[10px] leading-relaxed border border-slate-900 max-h-[100px] overflow-y-auto text-slate-350 scrollbar-gutter-stable select-all">
-                      {recentErrors.map((err, idx) => (
-                        <div key={idx} className="truncate text-emerald-400">
-                          {err}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* ── CARD 5: BILLING & TIER ── */}
-              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between self-stretch">
-                <div>
-                  <div className="flex items-center justify-between gap-2 flex-wrap pb-3.5 border-b border-slate-50 mb-4">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="p-2 rounded-xl bg-emerald-50 border border-emerald-100/50 text-emerald-600 shrink-0">
-                        <CreditCard className="w-4 h-4" />
-                      </span>
-                      <div className="min-w-0 truncate">
-                        <h3 className="text-xs font-bold text-slate-800 tracking-tight truncate">Billing &amp; Subscription</h3>
-                      </div>
-                    </div>
-                    <span className={cn(
-                      "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide shadow-sm shrink-0",
-                      coach.raffle_enabled
-                        ? "bg-violet-50 text-violet-700 border-violet-150"
-                        : "bg-slate-100 text-slate-500 border-slate-200"
-                    )}>
-                      {coach.raffle_enabled ? "Kaizen Pro" : "Free Plan"}
-                    </span>
-                  </div>
-
-                  {/* Billing specifics */}
-                  <div className="grid grid-cols-2 gap-3.5">
-                    <Field
-                      label="Account Status"
-                      icon={ShieldCheck}
-                      value={
-                        coach.raffle_enabled ? (
-                          <span className="text-emerald-600 flex items-center gap-1.5 font-bold">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping inline-block" />
-                            Active / Paid
-                          </span>
-                        ) : (
-                          <span className="text-slate-500 flex items-center gap-1 font-bold">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-slate-400" />
-                            Active / Free
-                          </span>
-                        )
-                      }
-                    />
-                    <Field
-                      label="Next Renewal Date"
-                      icon={Calendar}
-                      value={
-                        coach.raffle_enabled ? (
-                          <span className="text-slate-800 font-bold">{renewalString}</span>
-                        ) : (
-                          <span className="text-gray-400 font-normal">—</span>
-                        )
-                      }
-                    />
-                    <Field
-                      label="Monthly Charge"
-                      icon={Database}
-                      value={
-                        coach.raffle_enabled ? (
-                          <span className="text-indigo-650 font-black text-xs">$19.00 / mo</span>
-                        ) : (
-                          <span className="text-slate-700 font-bold text-xs">$0.00 (Free)</span>
-                        )
-                      }
-                    />
-                    <Field
-                      label="Roster Allotment"
-                      icon={Users}
-                      value={
-                        coach.raffle_enabled ? (
-                          <span className="text-indigo-650 font-bold">Unlimited</span>
-                        ) : (
-                          <span className="text-slate-600 font-bold">Max 10 players</span>
-                        )
-                      }
-                    />
-                  </div>
-
-                  {/* Visa Card Details summary */}
-                  <div className="mt-4 flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-100/80 text-xs">
-                    <div className="flex items-center gap-2.5">
-                      <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="font-extrabold text-slate-700">
-                        {coach.raffle_enabled ? "Visa ending in 4242" : "No billing method on file"}
-                      </span>
-                    </div>
-                    {coach.raffle_enabled && (
-                      <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider bg-white px-2 py-0.5 rounded border border-slate-100/60">
-                        Expires 12/28
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => handleServerSideAction("Manage Subscription Invoice Settings")}
-                  className="mt-4 w-full flex items-center justify-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-650 hover:bg-slate-50 transition-colors shadow-sm cursor-pointer"
-                >
-                  <span>Manage Billing Portal</span>
-                  <ArrowUpRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                </button>
-              </div>
-
-              {/* ── CARD 6: STORAGE & DB CAPACITY ── */}
-              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between self-stretch">
-                <div>
-                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-50 mb-4">
-                    <div className="flex items-center gap-2.5">
-                      <span className="p-2 rounded-xl bg-cyan-50 border border-cyan-100/50 text-cyan-600">
-                        <HardDrive className="w-4 h-4" />
-                      </span>
-                      <h3 className="text-xs font-bold text-slate-800 tracking-tight">Database Storage Size</h3>
-                    </div>
-                    <span className="text-[10px] font-bold text-cyan-655 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-100/60 uppercase">
-                      Memory Space: {storageLabel}
-                    </span>
-                  </div>
-
-                  {/* Storage rows grid */}
-                  <div className="grid grid-cols-2 gap-3.5">
-                    <Field
-                      label="Team Profile Logo"
-                      icon={ImageIcon}
-                      value={
-                        coach.team_logo ? (
-                          <span className="text-emerald-600 font-semibold flex items-center gap-1">
-                            <Check className="w-3.5 h-3.5" />
-                            1 image active
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 font-normal">None</span>
-                        )
-                      }
-                    />
-                    <Field
-                      label="Event Records"
-                      icon={Database}
-                      value={
-                        <span className="text-indigo-650 font-bold">
-                          {coach.session_count} rows
-                        </span>
-                      }
-                    />
-                    <Field
-                      label="Roster Records"
-                      icon={Users}
-                      value={
-                        <span className="text-indigo-650 font-bold">
-                          {coach.player_count} rows
-                        </span>
-                      }
-                    />
-                    <Field
-                      label="Archive Events"
-                      icon={Archive}
-                      value={
-                        <span className="text-indigo-650 font-bold">
-                          {coach.total_archives} rows
-                        </span>
-                      }
-                    />
-                  </div>
-
-                  {/* Dynamic Database Capacity Progress Meter */}
-                  <div className="space-y-1.5 mt-4">
-                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      <span>Database Capacity Space</span>
-                      <span className="text-slate-600">{storageLabel} / 10.0 MB Max</span>
-                    </div>
-                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
-                      <div 
-                        className="h-full rounded-full transition-all duration-500 bg-indigo-500"
-                        style={{ width: `${Math.min(100, Math.max(3, (storageKb / 10240) * 100))}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 p-3 rounded-xl bg-blue-50/50 border border-blue-100 text-[10px] text-blue-700 font-bold">
-                  Aggregate: 1 profile + {coach.player_count} players + {coach.session_count} events + {coach.total_archives} archives = ~{estimatedDbRows.toLocaleString()} db rows total estimate.
-                </div>
-              </div>
-
             </div>
+
+            {/* ── Section 6: Account ── */}
+            <div className="px-4 py-3 space-y-2.5">
+              <SectionLabel>Account</SectionLabel>
+              <div className="space-y-2 mt-1">
+                <AccountRow label="Joined" value={shortDate(coach.account_created_at)} />
+                <AccountRow
+                  label="Last sign-in"
+                  value={coach.last_sign_in_at ? relativeTime(coach.last_sign_in_at) : "Never"}
+                />
+                <AccountRow
+                  label="Last active"
+                  value={relativeTime(coach.last_active_at)}
+                />
+                <AccountRow
+                  label="Last session"
+                  value={coach.last_session_at ? relativeTime(coach.last_session_at) : "—"}
+                />
+                <AccountRow
+                  label="Auth provider"
+                  value={
+                    coach.auth_provider
+                      ? coach.auth_provider.charAt(0).toUpperCase() + coach.auth_provider.slice(1)
+                      : "—"
+                  }
+                />
+                <AccountRow
+                  label="Email verified"
+                  value={coach.email_verified ? "Yes" : "No"}
+                  valueClass={coach.email_verified ? undefined : "text-red-600 font-semibold"}
+                />
+              </div>
+            </div>
+
+            {/* ── Section 7: Recent sessions ── */}
+            <div className="px-4 py-3 space-y-2">
+              <SectionLabel>Recent Sessions</SectionLabel>
+
+              {detail?.activeSession && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-800 font-medium">
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                  </span>
+                  <span className="truncate">
+                    Active:{" "}
+                    <span className="font-bold">{detail.activeSession.type}</span> ·{" "}
+                    {detail.activeSession.duration} min
+                  </span>
+                </div>
+              )}
+
+              {isLoadingDetail ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-9 w-full rounded-lg bg-slate-100" />
+                  ))}
+                </div>
+              ) : detailError ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 border border-red-100 text-red-600 text-[11px] font-medium">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  {detailError}
+                </div>
+              ) : !detail || detail.recentSessions.length === 0 ? (
+                <div className="text-center py-5 border border-dashed border-slate-200 rounded-lg">
+                  <Calendar className="w-5 h-5 text-slate-300 mx-auto mb-1" />
+                  <p className="text-[11px] text-slate-400 italic">No saved sessions found.</p>
+                </div>
+              ) : (
+                <div className="space-y-0">
+                  {detail.recentSessions.map((s, idx) => (
+                    <div
+                      key={s.id}
+                      className={cn(
+                        "py-2",
+                        idx < detail.recentSessions.length - 1 && "border-b border-slate-50"
+                      )}
+                    >
+                      {/* Line 1: date on left, type + duration on right */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-[12px] font-medium text-slate-800">{s.date}</span>
+                        <span className="text-[11px] text-slate-500">
+                          {s.type} · {s.duration} min
+                        </span>
+                      </div>
+                      {/* Line 2: player count */}
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {s.player_count} player{s.player_count !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ── Section 8: Actions ── */}
+            <div className="px-4 py-3 space-y-0.5">
+              <div className="mb-1">
+                <SectionLabel>Actions</SectionLabel>
+              </div>
+
+              {/* Resend verification — disabled if already verified */}
+              <TextAction
+                label="Resend verification"
+                icon={Send}
+                disabled={coach.email_verified || !!actionLoading}
+                onClick={() => handleServerSideAction("Resend Verification Email")}
+              />
+
+              {/* View as coach */}
+              <TextAction
+                label="View as coach"
+                icon={ArrowUpRight}
+                disabled={!!actionLoading}
+                onClick={() => handleServerSideAction("View As Coach")}
+              />
+
+              {/* Export data */}
+              <TextAction
+                label="Export data"
+                icon={Download}
+                loading={actionLoading === "export"}
+                disabled={!!actionLoading}
+                onClick={handleExportData}
+              />
+
+              {/* Reset password */}
+              <div>
+                <TextAction
+                  label="Reset password"
+                  icon={RefreshCw}
+                  loading={actionLoading === "reset-password"}
+                  disabled={!!actionLoading}
+                  onClick={() =>
+                    setPendingConfirm(
+                      pendingConfirm === "reset-password" ? null : "reset-password"
+                    )
+                  }
+                />
+                {pendingConfirm === "reset-password" && (
+                  <ConfirmBanner
+                    message={`Send password reset email to ${coach.email}?`}
+                    loading={actionLoading === "reset-password"}
+                    onConfirm={handleResetPassword}
+                    onCancel={() => setPendingConfirm(null)}
+                  />
+                )}
+              </div>
+
+              {/* Force logout */}
+              <TextAction
+                label="Force logout"
+                icon={LogOut}
+                disabled={!!actionLoading}
+                onClick={() => handleServerSideAction("Force Logout")}
+              />
+
+              {/* Suspend account — danger */}
+              <TextAction
+                label="Suspend account"
+                icon={UserX}
+                danger
+                disabled={!!actionLoading}
+                onClick={() => handleServerSideAction("Disable Account")}
+              />
+            </div>
+
           </div>
         </div>
       )}
 
-      {/* Keyframe animations */}
+      {/* Keyframe animation */}
       <style>{`
         @keyframes panelSlideIn {
           from { opacity: 0; transform: translateX(12px); }
