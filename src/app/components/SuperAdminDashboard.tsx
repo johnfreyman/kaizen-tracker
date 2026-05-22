@@ -10,6 +10,7 @@ import {
   ShieldOff,
   UserX,
   AlertTriangle,
+  AlertCircle,
   Activity,
   Search,
   X,
@@ -20,6 +21,13 @@ import {
   Calendar,
   AlignJustify,
   List,
+  RefreshCw,
+  HardDrive,
+  Clock,
+  MessageSquare,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useTeamStore } from "../hooks/useTeamStore";
@@ -148,17 +156,19 @@ export const SEMANTIC_CONFIG: Record<
 // Filtering logic
 // ---------------------------------------------------------------------------
 
-export type FilterType = 
-  | "healthy" 
-  | "warning" 
-  | "critical" 
-  | "inactive" 
+export type FilterType =
+  | "healthy"
+  | "warning"
+  | "critical"
+  | "inactive"
   | "new"
   | "high-error"
   | "pending-sync"
   | "large-storage"
   | "unverified"
-  | "no-team-setup";
+  | "no-team-setup"
+  | "active-today"
+  | "active-this-week";
 
 const FILTER_OPTIONS: { id: FilterType; label: string; icon: React.ElementType }[] = [
   { id: "healthy", label: "Healthy", icon: CheckCircle2 },
@@ -166,7 +176,11 @@ const FILTER_OPTIONS: { id: FilterType; label: string; icon: React.ElementType }
   { id: "critical", label: "Critical", icon: AlertTriangle },
   { id: "inactive", label: "Inactive (>30d)", icon: UserX },
   { id: "new", label: "New Account", icon: Zap },
-  { id: "high-error", label: "High Error Rate", icon: AlertTriangle },
+  { id: "active-today", label: "Active Today", icon: Activity },
+  { id: "active-this-week", label: "Active This Week", icon: Calendar },
+  { id: "unverified", label: "Unverified", icon: ShieldOff },
+  { id: "no-team-setup", label: "No Team Setup", icon: AlertTriangle },
+  { id: "high-error", label: "High Error Rate", icon: AlertCircle },
   { id: "pending-sync", label: "Pending Syncs", icon: RefreshCw },
   { id: "large-storage", label: "Large Storage", icon: HardDrive },
 ];
@@ -199,9 +213,24 @@ function matchesFilter(row: CoachSummaryRow, filter: FilterType): boolean {
       return !row.email_verified;
     case "no-team-setup":
       return !row.team_name;
+    case "active-today":
+      return row.last_active_at
+        ? Date.now() - new Date(row.last_active_at).getTime() < 86400000
+        : false;
+    case "active-this-week":
+      return row.last_session_at
+        ? Date.now() - new Date(row.last_session_at).getTime() < 7 * 86400000
+        : false;
     default:
       return true;
   }
+}
+
+function computeTrend(current: number, prev: number): { direction: "up" | "down" | "flat"; pct: number } {
+  if (prev === 0) return current > 0 ? { direction: "up", pct: 100 } : { direction: "flat", pct: 0 };
+  const pct = Math.round(((current - prev) / prev) * 100);
+  if (Math.abs(pct) < 2) return { direction: "flat", pct: 0 };
+  return { direction: pct > 0 ? "up" : "down", pct: Math.abs(pct) };
 }
 
 // ---------------------------------------------------------------------------
@@ -310,6 +339,94 @@ function StatusDot({ status }: { status: SemanticStatus }) {
       className={`inline-block w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`}
       title={cfg.label}
     />
+  );
+}
+
+interface KpiCardConfig {
+  key: string;
+  label: string;
+  value: number;
+  icon: React.ElementType;
+  filter: FilterType | "clear-all" | undefined;
+  color: {
+    bg: string;
+    activeBg: string;
+    text: string;
+    border: string;
+    activeBorder: string;
+    iconBg: string;
+  };
+  trend?: { direction: "up" | "down" | "flat"; pct: number };
+  goodUp?: boolean;
+}
+
+function KpiCard({
+  card,
+  isActive,
+  onClick,
+}: {
+  card: KpiCardConfig;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  const isClickable = card.filter !== undefined;
+  const trend = card.trend;
+  const TrendIcon =
+    trend?.direction === "up"
+      ? TrendingUp
+      : trend?.direction === "down"
+      ? TrendingDown
+      : Minus;
+  const trendIsGood =
+    trend && trend.direction !== "flat"
+      ? trend.direction === "up"
+        ? card.goodUp
+        : !card.goodUp
+      : null;
+
+  return (
+    <button
+      onClick={isClickable ? onClick : undefined}
+      title={isClickable ? (isActive ? `Remove "${card.label}" filter` : `Filter by "${card.label}"`) : card.label}
+      className={[
+        "group flex flex-col justify-between p-3 rounded-xl border transition-all duration-150 min-w-[118px] text-left select-none",
+        isActive
+          ? `${card.color.activeBg} ${card.color.activeBorder} shadow-sm ring-2 ring-offset-1 ring-indigo-200`
+          : `${card.color.bg} ${card.color.border} hover:shadow-md hover:-translate-y-px`,
+        isClickable ? "cursor-pointer active:scale-[0.97]" : "cursor-default",
+      ].join(" ")}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className={`p-1.5 rounded-lg ${card.color.iconBg}`}>
+          <card.icon className={`w-3.5 h-3.5 ${card.color.text}`} />
+        </div>
+        {trend && trend.direction !== "flat" && (
+          <div
+            className={`flex items-center gap-0.5 text-[10px] font-bold leading-none ${
+              trendIsGood ? "text-emerald-600" : "text-red-500"
+            }`}
+          >
+            <TrendIcon className="w-3 h-3" />
+            <span>{trend.pct}%</span>
+          </div>
+        )}
+      </div>
+
+      <div className={`text-xl font-bold leading-none mb-1 ${card.color.text}`}>
+        {card.value.toLocaleString()}
+      </div>
+
+      <div className="text-[11px] font-medium text-gray-500 group-hover:text-gray-700 transition-colors leading-tight">
+        {card.label}
+      </div>
+
+      {isActive && (
+        <div className="mt-1.5 flex items-center gap-0.5 text-[10px] font-bold text-indigo-500">
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+          Active
+        </div>
+      )}
+    </button>
   );
 }
 
@@ -428,16 +545,173 @@ export default function SuperAdminDashboard() {
   }, [filtered, sortKey, sortDir]);
 
   // -------------------------------------------------------------------------
-  // Stats summary using new semantic categories
+  // Stats summary
   // -------------------------------------------------------------------------
   const stats = useMemo(() => {
+    const now = Date.now();
+    const day = 86400000;
+    const week = 7 * day;
+
     const healthy = rows.filter((r) => getSemanticStatus(r) === "healthy").length;
     const warning = rows.filter((r) => getSemanticStatus(r) === "warning").length;
     const critical = rows.filter((r) => getSemanticStatus(r) === "critical").length;
     const inactive = rows.filter((r) => getSemanticStatus(r) === "inactive").length;
     const newAccts = rows.filter((r) => getSemanticStatus(r) === "new").length;
-    return { total: rows.length, healthy, warning, critical, inactive, newAccts };
+    const unverified = rows.filter((r) => !r.email_verified).length;
+    const noTeam = rows.filter((r) => !r.team_name).length;
+    const pendingErrors = rows.filter((r) => getErrorRate(r) >= 5.0).length;
+    const failedSyncs = rows.filter((r) => hasPendingSyncs(r, false)).length;
+
+    const activeToday = rows.filter(
+      (r) => r.last_active_at && now - new Date(r.last_active_at).getTime() < day
+    ).length;
+    const activeTodayPrev = rows.filter((r) => {
+      if (!r.last_active_at) return false;
+      const age = now - new Date(r.last_active_at).getTime();
+      return age >= day && age < 2 * day;
+    }).length;
+
+    const sessionsThisWeek = rows.filter(
+      (r) => r.last_session_at && now - new Date(r.last_session_at).getTime() < week
+    ).length;
+    const sessionsLastWeek = rows.filter((r) => {
+      if (!r.last_session_at) return false;
+      const age = now - new Date(r.last_session_at).getTime();
+      return age >= week && age < 2 * week;
+    }).length;
+
+    const smsSent = rows.reduce((acc, r) => acc + r.session_count, 0);
+
+    return {
+      total: rows.length,
+      healthy, warning, critical, inactive, newAccts,
+      unverified, noTeam, pendingErrors, failedSyncs,
+      activeToday, activeTodayPrev,
+      sessionsThisWeek, sessionsLastWeek,
+      smsSent,
+    };
   }, [rows]);
+
+  const kpiCards = useMemo((): KpiCardConfig[] => [
+    {
+      key: "total",
+      label: "Total Coaches",
+      value: stats.total,
+      icon: Users,
+      filter: "clear-all",
+      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-gray-800", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
+    },
+    {
+      key: "active-today",
+      label: "Coaches Active Today",
+      value: stats.activeToday,
+      icon: Activity,
+      filter: "active-today",
+      color: { bg: "bg-white", activeBg: "bg-emerald-50", text: "text-emerald-700", border: "border-gray-200", activeBorder: "border-emerald-300", iconBg: "bg-emerald-100" },
+      trend: computeTrend(stats.activeToday, stats.activeTodayPrev),
+      goodUp: true,
+    },
+    {
+      key: "sessions-week",
+      label: "Sessions This Week",
+      value: stats.sessionsThisWeek,
+      icon: Calendar,
+      filter: "active-this-week",
+      color: { bg: "bg-white", activeBg: "bg-blue-50", text: "text-blue-700", border: "border-gray-200", activeBorder: "border-blue-300", iconBg: "bg-blue-100" },
+      trend: computeTrend(stats.sessionsThisWeek, stats.sessionsLastWeek),
+      goodUp: true,
+    },
+    {
+      key: "healthy",
+      label: "Healthy",
+      value: stats.healthy,
+      icon: CheckCircle2,
+      filter: "healthy",
+      color: { bg: "bg-white", activeBg: "bg-emerald-50", text: "text-emerald-700", border: "border-gray-200", activeBorder: "border-emerald-300", iconBg: "bg-emerald-100" },
+      goodUp: true,
+    },
+    {
+      key: "warning",
+      label: "Warning",
+      value: stats.warning,
+      icon: AlertTriangle,
+      filter: "warning",
+      color: { bg: "bg-white", activeBg: "bg-amber-50", text: "text-amber-700", border: "border-gray-200", activeBorder: "border-amber-300", iconBg: "bg-amber-100" },
+      goodUp: false,
+    },
+    {
+      key: "critical",
+      label: "Critical",
+      value: stats.critical,
+      icon: AlertTriangle,
+      filter: "critical",
+      color: { bg: "bg-white", activeBg: "bg-red-50", text: "text-red-700", border: "border-gray-200", activeBorder: "border-red-300", iconBg: "bg-red-100" },
+      goodUp: false,
+    },
+    {
+      key: "inactive",
+      label: "Inactive (>30d)",
+      value: stats.inactive,
+      icon: UserX,
+      filter: "inactive",
+      color: { bg: "bg-white", activeBg: "bg-gray-100", text: "text-gray-600", border: "border-gray-200", activeBorder: "border-gray-400", iconBg: "bg-gray-100" },
+      goodUp: false,
+    },
+    {
+      key: "new",
+      label: "New Accounts",
+      value: stats.newAccts,
+      icon: Zap,
+      filter: "new",
+      color: { bg: "bg-white", activeBg: "bg-blue-50", text: "text-blue-700", border: "border-gray-200", activeBorder: "border-blue-300", iconBg: "bg-blue-100" },
+      goodUp: true,
+    },
+    {
+      key: "unverified",
+      label: "Unverified",
+      value: stats.unverified,
+      icon: ShieldOff,
+      filter: "unverified",
+      color: { bg: "bg-white", activeBg: "bg-red-50", text: "text-red-700", border: "border-gray-200", activeBorder: "border-red-300", iconBg: "bg-red-100" },
+      goodUp: false,
+    },
+    {
+      key: "no-team",
+      label: "No Team Setup",
+      value: stats.noTeam,
+      icon: AlertTriangle,
+      filter: "no-team-setup",
+      color: { bg: "bg-white", activeBg: "bg-amber-50", text: "text-amber-700", border: "border-gray-200", activeBorder: "border-amber-300", iconBg: "bg-amber-100" },
+      goodUp: false,
+    },
+    {
+      key: "pending-errors",
+      label: "Pending Errors",
+      value: stats.pendingErrors,
+      icon: AlertCircle,
+      filter: "high-error",
+      color: { bg: "bg-white", activeBg: "bg-red-50", text: "text-red-700", border: "border-gray-200", activeBorder: "border-red-300", iconBg: "bg-red-100" },
+      goodUp: false,
+    },
+    {
+      key: "failed-syncs",
+      label: "Failed Syncs",
+      value: stats.failedSyncs,
+      icon: RefreshCw,
+      filter: "pending-sync",
+      color: { bg: "bg-white", activeBg: "bg-amber-50", text: "text-amber-700", border: "border-gray-200", activeBorder: "border-amber-300", iconBg: "bg-amber-100" },
+      goodUp: false,
+    },
+    {
+      key: "sms",
+      label: "SMS Messages Sent",
+      value: stats.smsSent,
+      icon: MessageSquare,
+      filter: undefined,
+      color: { bg: "bg-white", activeBg: "bg-violet-50", text: "text-violet-700", border: "border-gray-200", activeBorder: "border-violet-300", iconBg: "bg-violet-100" },
+      goodUp: true,
+    },
+  ], [stats]);
 
   // -------------------------------------------------------------------------
   // Keyboard navigation
@@ -504,51 +778,9 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
 
-        {/* Summary chips */}
-        {!isLoading && !error && (
-          <div className="hidden lg:flex items-center gap-2">
-            {[
-              {
-                label: "Total Coaches",
-                value: stats.total,
-                color: "bg-slate-50 text-slate-700 border-slate-200",
-              },
-              {
-                label: "Healthy",
-                value: stats.healthy,
-                color: "bg-emerald-50 text-emerald-700 border-emerald-100",
-              },
-              {
-                label: "Warning",
-                value: stats.warning,
-                color: "bg-amber-50 text-amber-700 border-amber-100",
-              },
-              {
-                label: "Critical",
-                value: stats.critical,
-                color: "bg-red-50 text-red-700 border-red-100",
-              },
-              {
-                label: "New",
-                value: stats.newAccts,
-                color: "bg-blue-50 text-blue-700 border-blue-100",
-              },
-              {
-                label: "Inactive",
-                value: stats.inactive,
-                color: "bg-gray-100 text-gray-600 border-gray-200",
-              },
-            ].map(({ label, value, color }) => (
-              <span
-                key={label}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold ${color}`}
-              >
-                <span className="text-base font-bold leading-none">{value}</span>
-                {label}
-              </span>
-            ))}
-          </div>
-        )}
+        <p className="hidden lg:block text-xs text-gray-400 font-medium">
+          {isLoading ? "Loading…" : `${rows.length} coaches`}
+        </p>
 
         <button
           onClick={logout}
@@ -559,6 +791,44 @@ export default function SuperAdminDashboard() {
           <span className="hidden sm:inline">Log out</span>
         </button>
       </header>
+
+      {/* ── KPI Cards bar ───────────────────────────────────────── */}
+      <div className="shrink-0 border-b border-gray-100 bg-white/70 backdrop-blur-sm">
+        <div className="overflow-x-auto no-scrollbar px-4 py-3">
+          {isLoading ? (
+            <div className="flex gap-3 min-w-max animate-pulse">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="w-[118px] h-[86px] bg-gray-100 rounded-xl border border-gray-200" />
+              ))}
+            </div>
+          ) : !error ? (
+            <div className="flex gap-3 min-w-max">
+              {kpiCards.map((card) => {
+                const isActive =
+                  card.filter === "clear-all"
+                    ? activeFilters.size === 0
+                    : card.filter !== undefined
+                    ? activeFilters.has(card.filter as FilterType)
+                    : false;
+                return (
+                  <KpiCard
+                    key={card.key}
+                    card={card}
+                    isActive={isActive}
+                    onClick={() => {
+                      if (card.filter === "clear-all") {
+                        setActiveFilters(new Set());
+                      } else if (card.filter) {
+                        toggleFilter(card.filter as FilterType);
+                      }
+                    }}
+                  />
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      </div>
 
       {/* ── Two-column master-detail body ───────────────────────── */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
