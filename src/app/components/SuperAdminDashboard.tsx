@@ -3,6 +3,7 @@ import CoachDetailPanel from "./admin/CoachDetailPanel";
 import { CoachSummaryRow } from "./admin/CoachDetailDrawer";
 import { Sparkline } from "./admin/charts/Sparkline";
 import { DashboardCharts, type DashboardChartData } from "./admin/charts/DashboardCharts";
+import { AdminActivityFeed } from "./admin/AdminActivityFeed";
 import {
   LogOut,
   ChevronDown,
@@ -26,7 +27,6 @@ import {
   RefreshCw,
   HardDrive,
   Clock,
-  MessageSquare,
   TrendingUp,
   TrendingDown,
   Minus,
@@ -596,15 +596,12 @@ export default function SuperAdminDashboard() {
       return age >= week && age < 2 * week;
     }).length;
 
-    const smsSent = rows.reduce((acc, r) => acc + r.session_count, 0);
-
     return {
       total: rows.length,
       healthy, warning, critical, inactive, newAccts,
       unverified, noTeam, pendingErrors, failedSyncs,
       activeToday, activeTodayPrev,
       sessionsThisWeek, sessionsLastWeek,
-      smsSent,
     };
   }, [rows]);
 
@@ -817,16 +814,7 @@ export default function SuperAdminDashboard() {
       color: { bg: "bg-white", activeBg: "bg-amber-50", text: "text-amber-700", border: "border-gray-200", activeBorder: "border-amber-300", iconBg: "bg-amber-100" },
       goodUp: false,
     },
-    {
-      key: "sms",
-      label: "SMS Messages Sent",
-      value: stats.smsSent,
-      icon: MessageSquare,
-      filter: undefined,
-      color: { bg: "bg-white", activeBg: "bg-violet-50", text: "text-violet-700", border: "border-gray-200", activeBorder: "border-violet-300", iconBg: "bg-violet-100" },
-      goodUp: true,
-    },
-  ], [stats]);
+  ], [stats, activitySparkline, sessionSparkline]);
 
   // -------------------------------------------------------------------------
   // Keyboard navigation
@@ -1285,9 +1273,12 @@ export default function SuperAdminDashboard() {
           )}
         </div>
 
-        {/* ── RIGHT: Detail Panel ───────────────────────────────── */}
+        {/* ── RIGHT: Activity Feed (default) or Coach Detail ───── */}
         <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
-          <CoachDetailPanel coach={selectedCoach} />
+          {selectedCoach
+            ? <CoachDetailPanel coach={selectedCoach} />
+            : <AdminActivityFeed />
+          }
         </div>
       </div>
     </div>
