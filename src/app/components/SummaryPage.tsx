@@ -12,6 +12,7 @@ import {
   ChevronsUpDown,
   Users,
   Info,
+  Search,
 } from "lucide-react";
 import {
   PieChart,
@@ -44,6 +45,7 @@ import {
 } from "./ui/tooltip";
 
 type Trend = "up" | "down" | "stable";
+type PlayerFilter = "all" | "active" | "attention";
 type SortColumn =
   | "player"
   | "practice"
@@ -175,10 +177,59 @@ const DARK_TOOLTIP = {
   color: "rgba(255,255,255,0.75)",
 };
 
+// ── Skeleton loaders ─────────────────────────────────────────────────────────
+
+function Skeleton({ className }: { className?: string }) {
+  return (
+    <div className={`rounded-lg bg-white/[0.06] animate-pulse ${className ?? ""}`} />
+  );
+}
+
+function SummaryPageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-56" />
+          <Skeleton className="h-4 w-80 max-w-full" />
+        </div>
+        <Skeleton className="h-9 w-64 max-w-full" />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="rounded-2xl p-5 border border-white/[0.08]"
+            style={{ backgroundColor: "var(--mc-surface)" }}
+          >
+            <Skeleton className="h-4 w-28 mb-3" />
+            <Skeleton className="h-9 w-20" />
+          </div>
+        ))}
+      </div>
+      <div
+        className="rounded-2xl border border-white/[0.08] overflow-hidden"
+        style={{ backgroundColor: "var(--mc-surface)" }}
+      >
+        <div className="px-5 py-4 border-b border-white/[0.08]">
+          <Skeleton className="h-4 w-28" />
+        </div>
+        <div className="p-4 space-y-2">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} style={{ opacity: 1 - i * 0.15 }}>
+              <Skeleton className="h-12 w-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function SummaryPage() {
-  const { state, archiveEvents } = useTeamStore();
+  const { state, archiveEvents, isLoading } = useTeamStore();
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [sortCol, setSortCol] = useState<SortColumn>("player");
@@ -186,6 +237,8 @@ export default function SummaryPage() {
   const [dateRange, setDateRange] = useState<DateRange>("season");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+  const [playerSearch, setPlayerSearch] = useState("");
+  const [playerFilter, setPlayerFilter] = useState<PlayerFilter>("all");
 
   // ── Date filtering ─────────────────────────────────────────────────────────
   const filteredEvents = useMemo(() => {
@@ -281,6 +334,32 @@ export default function SummaryPage() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [players.join(","), sortCol, sortDir, totalPracticePossible, totalTrainingPossible, lastAttended]);
+
+  // ── Player filter (search + chips) ────────────────────────────────────────
+  const filteredPlayers = useMemo(() => {
+    const today = new Date();
+    const cutoffStr = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0];
+    return sortedPlayers.filter((player) => {
+      if (playerSearch && !player.toLowerCase().includes(playerSearch.toLowerCase()))
+        return false;
+      if (playerFilter === "active") {
+        const last = lastAttended[player];
+        return !!last && last >= cutoffStr;
+      }
+      if (playerFilter === "attention") {
+        const pt = totals[player] ?? { practice: 0 };
+        const pct =
+          totalPracticePossible > 0
+            ? Math.round((pt.practice / totalPracticePossible) * 100)
+            : 0;
+        return pct < 80;
+      }
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortedPlayers, playerSearch, playerFilter, lastAttended, totalPracticePossible]);
 
   // ── Chart data ─────────────────────────────────────────────────────────────
   const barChartData = useMemo(() => {
@@ -431,6 +510,8 @@ export default function SummaryPage() {
 
   const showCharts = players.length > 0 && totalPracticePossible > 0;
 
+  if (isLoading) return <SummaryPageSkeleton />;
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -487,7 +568,7 @@ export default function SummaryPage() {
       </div>
 
       {/* Stats Grid — 3 cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div
           className="rounded-2xl p-5 border border-white/[0.08]"
           style={{ backgroundColor: "var(--mc-surface)" }}
@@ -527,7 +608,7 @@ export default function SummaryPage() {
         </div>
 
         <div
-          className="col-span-2 md:col-span-1 rounded-2xl p-5 border border-white/[0.08]"
+          className="rounded-2xl p-5 border border-white/[0.08]"
           style={{ backgroundColor: "var(--mc-surface)" }}
         >
           <div className="flex items-center gap-2 mb-3">
@@ -683,25 +764,71 @@ export default function SummaryPage() {
         className="rounded-2xl border border-white/[0.08] overflow-hidden"
         style={{ backgroundColor: "var(--mc-surface)" }}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.08]">
-          <h3 className="text-xs font-bold text-white/60 uppercase tracking-widest">
-            Player Totals
-          </h3>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/35 hover:text-white/65 hover:bg-white/[0.06] border border-white/[0.08] transition-all"
-            >
-              <Download className="size-3.5" />
-              Export CSV
-            </button>
-            <button
-              onClick={handleArchiveEvents}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/35 hover:text-white/65 hover:bg-white/[0.06] border border-white/[0.08] transition-all"
-            >
-              <Archive className="size-3.5" />
-              Archive Events
-            </button>
+        <div className="px-5 py-4 border-b border-white/[0.08] space-y-3">
+          {/* Row 1: title + action buttons */}
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-xs font-bold text-white/60 uppercase tracking-widest">
+              Player Totals
+            </h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleExport}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/35 hover:text-white/65 hover:bg-white/[0.06] border border-white/[0.08] transition-all"
+              >
+                <Download className="size-3.5" />
+                Export CSV
+              </button>
+              <button
+                onClick={handleArchiveEvents}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/35 hover:text-white/65 hover:bg-white/[0.06] border border-white/[0.08] transition-all"
+              >
+                <Archive className="size-3.5" />
+                Archive Events
+              </button>
+            </div>
+          </div>
+
+          {/* Row 2: search + filter chips + count */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-white/25 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search players…"
+                value={playerSearch}
+                onChange={(e) => setPlayerSearch(e.target.value)}
+                className="pl-8 pr-3 py-1.5 rounded-lg text-xs text-white/70 placeholder-white/25 border border-white/[0.08] bg-white/[0.04] focus:outline-none focus:border-purple-500/50 w-36 sm:w-44"
+              />
+            </div>
+
+            {/* Filter chips */}
+            {(
+              [
+                { value: "all"       as PlayerFilter, label: "All"             },
+                { value: "active"    as PlayerFilter, label: "Active"          },
+                { value: "attention" as PlayerFilter, label: "Needs attention" },
+              ] as const
+            ).map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setPlayerFilter(value)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                  playerFilter === value
+                    ? "bg-purple-600/30 text-purple-300 border-purple-500/30"
+                    : "text-white/40 hover:text-white/60 border-white/[0.08] hover:bg-white/[0.04]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+
+            {/* Count */}
+            <span className="ml-auto text-[11px] text-white/25 tabular-nums">
+              {filteredPlayers.length === sortedPlayers.length
+                ? `${sortedPlayers.length} player${sortedPlayers.length !== 1 ? "s" : ""}`
+                : `Showing ${filteredPlayers.length} of ${sortedPlayers.length} players`}
+            </span>
           </div>
         </div>
 
@@ -722,18 +849,37 @@ export default function SummaryPage() {
                 ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody key={`${sortCol}:${sortDir}:${playerSearch}:${playerFilter}`} className="animate-fade-in">
               {sortedPlayers.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={6}
-                    className="px-5 py-10 text-center text-white/25 text-sm"
-                  >
-                    No roster or event data yet.
+                  <td colSpan={6} className="px-5 py-14 text-center">
+                    <div className="flex flex-col items-center gap-2.5">
+                      <Users className="size-8 text-white/10" />
+                      <p className="text-white/50 text-sm font-medium">
+                        {state.roster.length === 0 ? "No players added yet" : "No sessions logged yet"}
+                      </p>
+                      <p className="text-white/30 text-xs max-w-xs leading-relaxed">
+                        {state.roster.length === 0
+                          ? "Add players in Settings, then log a session to see participation data."
+                          : "Start a session in Session Setup to begin tracking attendance."}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredPlayers.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-14 text-center">
+                    <div className="flex flex-col items-center gap-2.5">
+                      <Search className="size-8 text-white/10" />
+                      <p className="text-white/50 text-sm font-medium">No players match your filters</p>
+                      <p className="text-white/30 text-xs">
+                        Try adjusting your search or filter selection.
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : (
-                sortedPlayers.map((player, idx) => {
+                filteredPlayers.map((player, idx) => {
                   const playerTotals = totals[player] ?? { practice: 0, training: 0 };
                   return (
                     <tr
@@ -777,7 +923,7 @@ export default function SummaryPage() {
             {sortedPlayers.length > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-white/[0.08] bg-white/[0.03]">
-                  <td className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-white/35">
+                  <td className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-white/45">
                     Team Avg
                   </td>
                   <td className="px-5 py-3 text-white/40 text-sm tabular-nums">
@@ -816,7 +962,7 @@ export default function SummaryPage() {
         </div>
 
         {filteredEvents.length === 0 ? (
-          <div className="px-5 py-10 text-center text-white/25 text-sm">
+          <div className="px-5 py-10 text-center text-white/40 text-sm">
             No events in this date range.
           </div>
         ) : (
@@ -830,13 +976,13 @@ export default function SummaryPage() {
                   <div className="font-semibold text-white/75 text-sm">
                     {event.type} • {formatDate(event.date)}
                   </div>
-                  <div className="text-xs text-white/30 mt-0.5">
+                  <div className="text-xs text-white/40 mt-0.5">
                     {event.duration}{" "}
                     {event.duration === 1 ? "hour" : "hours"} •{" "}
                     {event.players.length} present
                   </div>
                 </div>
-                <div className="text-xs text-white/20 text-right truncate max-w-xs">
+                <div className="text-xs text-white/35 text-right truncate max-w-xs hidden sm:block">
                   {event.players.join(", ") || "No players"}
                 </div>
               </div>

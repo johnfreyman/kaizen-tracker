@@ -120,10 +120,10 @@ function AppContent() {
       <div className="flex h-screen overflow-hidden" style={{ backgroundColor: "var(--mc-bg)" }}>
 
         {/* ── Sidebar (desktop only) ─────────────────────────────── */}
-        <aside className="hidden md:flex flex-col w-56 flex-shrink-0 border-r border-white/[0.07]" style={{ backgroundColor: "var(--mc-surface)" }}>
+        <aside className="hidden md:flex flex-col md:w-14 lg:w-56 flex-shrink-0 border-r border-white/[0.07]" style={{ backgroundColor: "var(--mc-surface)" }}>
 
           {/* Logo + team */}
-          <div className="flex items-center gap-3 px-4 h-14 border-b border-white/[0.07] flex-shrink-0">
+          <div className="flex items-center md:justify-center lg:justify-start md:gap-0 lg:gap-3 md:px-0 lg:px-4 h-14 border-b border-white/[0.07] flex-shrink-0">
             <div className="size-8 rounded-lg overflow-hidden flex items-center justify-center bg-blue-600/20 flex-shrink-0">
               {state.teamLogo ? (
                 <img src={state.teamLogo} alt="Team logo" className="size-full object-cover" />
@@ -131,7 +131,7 @@ function AppContent() {
                 <Trophy className="size-4 text-blue-400" />
               )}
             </div>
-            <div className="min-w-0">
+            <div className="hidden lg:block min-w-0">
               <div className="text-white/85 text-sm font-semibold truncate leading-tight">
                 {state.teamName || "My Team"}
               </div>
@@ -148,7 +148,8 @@ function AppContent() {
                 <button
                   key={id}
                   onClick={() => setActivePage(id)}
-                  className={`group relative w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  title={label}
+                  className={`group relative w-full flex items-center md:justify-center lg:justify-start gap-3 md:px-2 lg:px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                     isActive
                       ? "bg-blue-600/12 text-blue-300"
                       : "text-white/45 hover:text-white/75 hover:bg-white/[0.05]"
@@ -157,24 +158,32 @@ function AppContent() {
                   {isActive && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 bg-blue-400 rounded-r-full" />
                   )}
-                  <Icon className={`size-4 flex-shrink-0 ${isActive ? "text-blue-400" : ""}`} />
-                  <span>{label}</span>
+                  <div className="relative flex-shrink-0">
+                    <Icon className={`size-4 ${isActive ? "text-blue-400" : ""}`} />
+                    {showBadge && (
+                      <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-emerald-400 animate-session-pulse lg:hidden" />
+                    )}
+                  </div>
+                  <span className="hidden lg:block">{label}</span>
                   {showBadge && (
-                    <span className="ml-auto size-1.5 rounded-full bg-emerald-400 animate-session-pulse" />
+                    <span className="hidden lg:block ml-auto size-1.5 rounded-full bg-emerald-400 animate-session-pulse" />
                   )}
                 </button>
               );
             })}
           </nav>
 
-          {/* Leaderboard — always visible in sidebar */}
-          <SidebarLeaderboard onNavigate={navigate} />
+          {/* Leaderboard — full sidebar only */}
+          <div className="hidden lg:block">
+            <SidebarLeaderboard onNavigate={navigate} />
+          </div>
 
           {/* Footer: Settings + Logout */}
           <div className="flex-shrink-0 px-2.5 py-3 border-t border-white/[0.07] space-y-0.5">
             <button
               onClick={() => setActivePage("settings")}
-              className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              title="Settings"
+              className={`relative w-full flex items-center md:justify-center lg:justify-start gap-3 md:px-2 lg:px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                 activePage === "settings"
                   ? "bg-blue-600/12 text-blue-300"
                   : isNewAccount
@@ -186,15 +195,16 @@ function AppContent() {
                 <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 bg-blue-400 rounded-r-full" />
               )}
               <SettingsIcon className="size-4 flex-shrink-0" />
-              <span>Settings</span>
+              <span className="hidden lg:block">Settings</span>
             </button>
 
             <button
               onClick={logout}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-white/30 hover:text-red-400 hover:bg-red-500/8 transition-all"
+              title="Log out"
+              className="w-full flex items-center md:justify-center lg:justify-start gap-3 md:px-2 lg:px-3 py-2 rounded-lg text-sm font-medium text-white/30 hover:text-red-400 hover:bg-red-500/8 transition-all"
             >
               <LogOut className="size-4 flex-shrink-0" />
-              <span>Log out</span>
+              <span className="hidden lg:block">Log out</span>
             </button>
           </div>
         </aside>
