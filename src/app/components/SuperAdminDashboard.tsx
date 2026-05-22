@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronRight,
+  ChevronLeft,
   Users,
   ShieldOff,
   UserX,
@@ -34,6 +35,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useTeamStore } from "../hooks/useTeamStore";
+import { TeamLogo } from "./admin/TeamLogo";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -220,32 +222,6 @@ function shortDate(iso: string | null): string {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function SkeletonCard({ isCompact }: { isCompact: boolean }) {
-  return (
-    <div className={`px-4 ${isCompact ? "py-2.5" : "py-4"} animate-pulse space-y-2.5 border-b border-gray-100 bg-white`}>
-      <div className="flex items-center justify-between">
-        <div className="h-4 bg-gray-200 rounded-md w-40" />
-        <div className="h-4 bg-gray-200 rounded-full w-20" />
-      </div>
-      {!isCompact && (
-        <>
-          <div className="h-3 bg-gray-200 rounded-md w-32" />
-          <div className="flex gap-1.5">
-            <div className="h-4 bg-gray-200 rounded-md w-16" />
-            <div className="h-4 bg-gray-200 rounded-md w-24" />
-          </div>
-        </>
-      )}
-      <div className="flex items-center justify-between pt-1">
-        <div className="flex gap-2">
-          <div className="h-4 bg-gray-200 rounded-md w-12" />
-          <div className="h-4 bg-gray-200 rounded-md w-12" />
-        </div>
-        <div className="h-3 bg-gray-200 rounded-md w-16" />
-      </div>
-    </div>
-  );
-}
 
 interface SortableThProps {
   label: string;
@@ -485,9 +461,11 @@ export default function SuperAdminDashboard() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [density, setDensity] = useState<"standard" | "compact">("standard");
   const [isChartsOpen, setIsChartsOpen] = useState(true);
+  const [isPaneCollapsed, setIsPaneCollapsed] = useState(false);
 
   // Ref for keyboard navigation — track focused card index within filtered list
   const listRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -823,14 +801,12 @@ export default function SuperAdminDashboard() {
         e.preventDefault();
         const next = currentIdx < sorted.length - 1 ? currentIdx + 1 : 0;
         setSelectedCoach(sorted[next]);
-        const card = listRef.current?.children[next + 1] as HTMLElement | undefined; // +1 to skip sort bar
-        card?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        (gridRef.current?.children[next] as HTMLElement | undefined)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         const prev = currentIdx > 0 ? currentIdx - 1 : sorted.length - 1;
         setSelectedCoach(sorted[prev]);
-        const card = listRef.current?.children[prev + 1] as HTMLElement | undefined; // +1 to skip sort bar
-        card?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        (gridRef.current?.children[prev] as HTMLElement | undefined)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
       } else if (e.key === "Escape") {
         setSelectedCoach(null);
       } else if (e.key === "Enter" && currentIdx >= 0) {
@@ -939,11 +915,11 @@ export default function SuperAdminDashboard() {
         />
       )}
 
-      {/* ── Two-column master-detail body ───────────────────────── */}
+      {/* ── V2 master-detail body ───────────────────────────────── */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
 
-        {/* ── LEFT: Coach List ──────────────────────────────────── */}
-        <div className="flex flex-col w-full md:w-[400px] lg:w-[440px] shrink-0 border-r border-gray-100 bg-white/70 min-h-0">
+        {/* ── LEFT: Coach grid pane ─────────────────────────────── */}
+        <div className="flex-1 min-w-0 flex flex-col border-r border-gray-100 bg-white/70 min-h-0">
 
           {/* Search, Filters, and Density controls */}
           <div className="shrink-0 px-3 py-2.5 border-b border-gray-100 bg-white/90 space-y-2.5">
@@ -991,7 +967,7 @@ export default function SuperAdminDashboard() {
                     </span>
                   )}
                 </button>
-                
+
                 {isFilterOpen && (
                   <div className="absolute right-0 sm:left-0 sm:right-auto top-full mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1.5 animate-in fade-in slide-in-from-top-2 duration-100">
                     <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
@@ -1007,7 +983,7 @@ export default function SuperAdminDashboard() {
                           role="option"
                           aria-selected={isActive}
                         >
-                          <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isActive ? 'bg-indigo-500 border-indigo-500' : 'border-gray-300'}`}>
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isActive ? "bg-indigo-500 border-indigo-500" : "border-gray-300"}`}>
                             {isActive && <Check className="w-3 h-3 text-white" />}
                           </div>
                           <opt.icon className="w-4 h-4 text-gray-400 shrink-0" />
@@ -1027,6 +1003,17 @@ export default function SuperAdminDashboard() {
               >
                 {density === "standard" ? <AlignJustify className="w-4 h-4" /> : <List className="w-4 h-4" />}
               </button>
+
+              {/* Expand detail pane (shown when pane is collapsed) */}
+              {isPaneCollapsed && (
+                <button
+                  onClick={() => setIsPaneCollapsed(false)}
+                  title="Expand detail panel"
+                  className="flex items-center justify-center w-[38px] h-[38px] rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors shrink-0"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
             {/* Active filter chips */}
@@ -1039,8 +1026,8 @@ export default function SuperAdminDashboard() {
                     <span key={fId} className="inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-xs font-medium text-indigo-700 animate-in fade-in zoom-in duration-150">
                       <opt.icon className="w-3 h-3" />
                       {opt.label}
-                      <button 
-                        onClick={() => toggleFilter(fId)} 
+                      <button
+                        onClick={() => toggleFilter(fId)}
                         className="p-0.5 rounded-md hover:bg-indigo-200 transition-colors text-indigo-500 hover:text-indigo-800"
                         aria-label={`Remove ${opt.label} filter`}
                       >
@@ -1067,13 +1054,13 @@ export default function SuperAdminDashboard() {
             </div>
           )}
 
-          {/* Scrollable card list container */}
-          <div 
+          {/* Scrollable card grid container */}
+          <div
             ref={listRef}
             onKeyDown={handleKeyDown}
             tabIndex={0}
             aria-label="Coach accounts list — use arrow keys to navigate"
-            className="flex-1 overflow-y-auto overscroll-contain min-h-0 outline-none select-none divide-y divide-gray-100 focus-visible:ring-2 focus-visible:ring-indigo-500/20"
+            className="flex-1 overflow-y-auto overscroll-contain min-h-0 outline-none select-none focus-visible:ring-2 focus-visible:ring-indigo-500/20"
           >
             {/* Sticky Sort Header */}
             <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm px-4 py-2 border-b border-gray-100 flex items-center justify-between text-xs text-gray-500 font-medium shrink-0">
@@ -1105,33 +1092,47 @@ export default function SuperAdminDashboard() {
               </div>
             </div>
 
-            {/* Skeleton rows */}
-            {isLoading &&
-              Array.from({ length: 8 }).map((_, i) => (
-                <SkeletonCard key={i} isCompact={isCompact} />
+            {/* Card grid */}
+            <div
+              ref={gridRef}
+              className={`p-3 grid gap-2.5 ${isPaneCollapsed ? "grid-cols-3" : "grid-cols-2"}`}
+            >
+              {/* Skeleton cards */}
+              {isLoading && Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="rounded-xl border border-gray-200 bg-white p-3 animate-pulse space-y-2.5">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-11 h-11 rounded-lg bg-gray-200 shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-3.5 bg-gray-200 rounded w-4/5" />
+                      <div className="h-3 bg-gray-200 rounded w-3/5" />
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <div className="h-4 bg-gray-200 rounded w-16" />
+                    <div className="h-4 bg-gray-200 rounded w-20" />
+                  </div>
+                  <div className="flex justify-between">
+                    <div className="h-3 bg-gray-200 rounded w-24" />
+                    <div className="h-3 bg-gray-200 rounded w-12" />
+                  </div>
+                </div>
               ))}
 
-            {/* Data rows */}
-            {!isLoading &&
-              sorted.map((row) => {
+              {/* Data cards */}
+              {!isLoading && sorted.map((row) => {
                 const isSelected = selectedCoach?.coach_id === row.coach_id;
                 const status = getSemanticStatus(row, false);
-                const cfg = SEMANTIC_CONFIG[status];
-                const pyClass = isCompact ? "py-2" : "py-3.5";
 
-                // Generate scannable operational badges
-                const activeBadges: { label: string; bg: string; icon: any }[] = [];
+                const activeBadges: { label: string; bg: string; icon: React.ElementType }[] = [];
                 if (!row.email_verified) {
                   activeBadges.push({ label: "Unverified", bg: "bg-red-50 text-red-700 border-red-200", icon: ShieldOff });
                 }
                 if (!row.team_name) {
-                  activeBadges.push({ label: "No Team Setup", bg: "bg-amber-50 text-amber-700 border-amber-250", icon: AlertTriangle });
+                  activeBadges.push({ label: "No Team Setup", bg: "bg-amber-50 text-amber-700 border-amber-200", icon: AlertTriangle });
                 }
                 if (row.last_active_at) {
                   const days = (Date.now() - new Date(row.last_active_at).getTime()) / 86400000;
-                  if (days > 30) {
-                    activeBadges.push({ label: "Inactive 30d", bg: "bg-gray-100 text-gray-700 border-gray-200", icon: Clock });
-                  }
+                  if (days > 30) activeBadges.push({ label: "Inactive 30d", bg: "bg-gray-100 text-gray-700 border-gray-200", icon: Clock });
                 } else {
                   activeBadges.push({ label: "Inactive 30d", bg: "bg-gray-100 text-gray-700 border-gray-200", icon: Clock });
                 }
@@ -1140,63 +1141,49 @@ export default function SuperAdminDashboard() {
                   <div
                     key={row.coach_id}
                     onClick={() => setSelectedCoach(row)}
-                    className={`px-4 ${pyClass} cursor-pointer transition-all duration-150 relative border-l-4 ${
+                    className={`p-3 rounded-xl border cursor-pointer select-none transition-all duration-150 flex flex-col gap-2 ${
                       isSelected
-                        ? "bg-indigo-50/70 border-l-indigo-600 shadow-sm"
-                        : "hover:bg-slate-50 border-l-transparent active:bg-slate-100"
+                        ? "border-indigo-400 ring-2 ring-indigo-100 bg-indigo-50/40 shadow-sm"
+                        : "border-slate-200 bg-white hover:shadow-sm hover:border-slate-300 active:scale-[0.98]"
                     }`}
-                    style={{ contentVisibility: "auto" }}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={`font-semibold text-sm truncate max-w-[240px] ${
-                        isSelected ? "text-indigo-800" : "text-gray-900"
-                      }`}>
-                        {row.email}
-                      </span>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${cfg.bgClass} ${cfg.textClass} ${cfg.borderClass} tracking-wide shrink-0`}>
-                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dotClass}`} />
-                        {cfg.badgeLabel}
-                      </span>
+                    {/* Top row: logo + team name / email */}
+                    <div className="flex items-start gap-2.5">
+                      <TeamLogo team={row.team_name} logoUrl={row.team_logo} size={44} />
+                      <div className="min-w-0 flex-1">
+                        <div className={`font-semibold text-sm truncate leading-snug ${isSelected ? "text-indigo-800" : "text-gray-900"}`}>
+                          {row.team_name ?? <span className="italic text-gray-400 font-normal text-xs">No team</span>}
+                        </div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <div className="w-4 h-4 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[8px] font-bold shrink-0 uppercase">
+                            {row.email[0]}
+                          </div>
+                          <span className="text-[11px] text-gray-500 truncate">{row.email}</span>
+                        </div>
+                      </div>
                     </div>
 
-                    {!isCompact && (
-                      <>
-                        {/* Sub-text: Team Name */}
-                        <div className="text-xs text-gray-500 mt-1 mb-2 truncate max-w-[340px]">
-                          {row.team_name ? (
-                            <span className="font-medium text-gray-700">Team: {row.team_name}</span>
-                          ) : (
-                            <span className="italic text-gray-400">No team registered</span>
-                          )}
-                        </div>
-
-                        {/* Operational Badges */}
-                        {activeBadges.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mb-2">
-                            {activeBadges.map((badge, idx) => {
-                              const BadgeIcon = badge.icon;
-                              return (
-                                <span key={idx} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] border ${badge.bg}`}>
-                                  <BadgeIcon className="w-2.5 h-2.5 shrink-0" />
-                                  {badge.label}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </>
+                    {/* Issue badges */}
+                    {!isCompact && activeBadges.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {activeBadges.map((badge, idx) => {
+                          const BadgeIcon = badge.icon;
+                          return (
+                            <span key={idx} className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] border ${badge.bg}`}>
+                              <BadgeIcon className="w-2.5 h-2.5 shrink-0" />
+                              {badge.label}
+                            </span>
+                          );
+                        })}
+                      </div>
                     )}
 
-                    {/* Bottom Row */}
-                    <div className={`flex items-center justify-between text-xs text-gray-500 font-medium ${!isCompact ? "mt-1" : "mt-1.5"}`}>
+                    {/* Footer */}
+                    <div className="flex items-center justify-between text-[11px] text-gray-500 font-medium">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-gray-700">
-                          {row.session_count} {row.session_count === 1 ? "session" : "sessions"}
-                        </span>
+                        <span>{row.session_count} sessions</span>
                         <span className="text-gray-300">·</span>
-                        <span className="font-semibold text-gray-700">
-                          {row.player_count} {row.player_count === 1 ? "player" : "players"}
-                        </span>
+                        <span>{row.player_count} players</span>
                         {isCompact && activeBadges.length > 0 && (
                           <>
                             <span className="text-gray-300">·</span>
@@ -1207,16 +1194,14 @@ export default function SuperAdminDashboard() {
                           </>
                         )}
                       </div>
-                      
-                      <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${
-                        status === "inactive" ? "text-gray-400" : "text-slate-600"
-                      }`}>
-                        Active {relativeTime(row.last_active_at)}
+                      <span className={status === "inactive" ? "text-gray-400" : "text-slate-600"}>
+                        {relativeTime(row.last_active_at)}
                       </span>
                     </div>
                   </div>
                 );
               })}
+            </div>
 
             {/* Empty state */}
             {!isLoading && !error && sorted.length === 0 && (
@@ -1250,20 +1235,36 @@ export default function SuperAdminDashboard() {
                   ? `${sorted.length} of ${rows.length} coaches`
                   : `${rows.length} coach${rows.length !== 1 ? "es" : ""}`}
               </span>
-              <span>
-                ↑↓ keys to select · Esc to clear
-              </span>
+              <span>↑↓ keys to select · Esc to clear</span>
             </div>
           )}
         </div>
 
-        {/* ── RIGHT: Activity Feed (default) or Coach Detail ───── */}
-        <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
-          {selectedCoach
-            ? <CoachDetailPanel coach={selectedCoach} />
-            : <AdminActivityFeed />
-          }
-        </div>
+        {/* ── RIGHT: 420 px detail pane ────────────────────────────── */}
+        {!isPaneCollapsed && (
+          <div className="w-[420px] shrink-0 flex flex-col border-l border-gray-100 min-h-0">
+            {/* Pane header with collapse button */}
+            <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-gray-100 bg-white/80 backdrop-blur-sm">
+              <span className="text-xs font-semibold text-gray-500 truncate">
+                {selectedCoach ? selectedCoach.email : "Activity Feed"}
+              </span>
+              <button
+                onClick={() => setIsPaneCollapsed(true)}
+                title="Collapse panel"
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0 ml-2"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+            {/* Content */}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              {selectedCoach
+                ? <CoachDetailPanel coach={selectedCoach} />
+                : <AdminActivityFeed />
+              }
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
