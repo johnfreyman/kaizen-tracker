@@ -68,7 +68,7 @@ BEGIN
       'session_type', NEW.type,
       'duration',     NEW.duration
     ),
-    COALESCE(NEW.saved_at, NOW())
+    COALESCE(NEW.saved_at::TIMESTAMPTZ, NOW())
   );
   RETURN NEW;
 END;
@@ -117,7 +117,7 @@ BEGIN
     NEW.coach_id,
     v_email,
     jsonb_build_object('archive_id', NEW.id),
-    COALESCE(NEW.archived_at, NOW())
+    COALESCE(NEW.archived_at::TIMESTAMPTZ, NOW())
   );
   RETURN NEW;
 END;
@@ -208,7 +208,7 @@ SELECT
     'session_type', e.type,
     'duration',     e.duration
   ),
-  COALESCE(e.saved_at, NOW())
+  COALESCE(e.saved_at::TIMESTAMPTZ, NOW())
 FROM (
   SELECT * FROM public.events ORDER BY saved_at DESC LIMIT 100
 ) e
@@ -222,6 +222,6 @@ SELECT
   ae.coach_id,
   p.email,
   jsonb_build_object('archive_id', ae.id),
-  COALESCE(ae.archived_at, NOW())
+  COALESCE(ae.archived_at::TIMESTAMPTZ, NOW())
 FROM public.archived_event_sets ae
 JOIN public.profiles p ON p.id = ae.coach_id;
