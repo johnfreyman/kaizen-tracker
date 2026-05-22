@@ -5,6 +5,10 @@ import { formatDate } from "@/lib/dates";
 import LeaderboardTicker from "./LeaderboardTicker";
 import AlertSurface from "./AlertSurface";
 import WorkflowChecklist from "./WorkflowChecklist";
+import TrainingSummaryCard from "./TrainingSummaryCard";
+import LeaderboardStrip from "./LeaderboardStrip";
+import RecentActivityFeed from "./RecentActivityFeed";
+import RewardsCard from "./RewardsCard";
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -109,41 +113,23 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
         )}
       </div>
 
-      {/* ── Recent Sessions ────────────────────────────────────── */}
-      <div>
-        {/* Recent Sessions */}
-        <SectionCard
-          title="Recent Sessions"
-          action={state.events.length > 6 ? { label: "View all →", onClick: () => onNavigate("summary") } : undefined}
-          empty={state.events.length === 0}
-          emptyMessage="No sessions logged yet. Start your first session above."
-        >
-          <div className="divide-y divide-white/[0.05]">
-            {state.events.slice(0, 6).map((event) => (
-              <div key={event.id} className="flex items-center justify-between px-5 py-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <span
-                    className={`size-2 rounded-full flex-shrink-0 ${
-                      event.type === EVENT_TYPES.PRACTICE ? "bg-blue-400" : "bg-violet-400"
-                    }`}
-                  />
-                  <div className="min-w-0">
-                    <div className="text-white/80 text-sm font-medium truncate">{event.type}</div>
-                    <div className="text-white/30 text-xs">{formatDate(event.date)}</div>
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0 ml-4">
-                  <div className="text-white/60 text-sm">{event.players.length} players</div>
-                  <div className="text-white/30 text-xs">
-                    {event.duration}h
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-
+      {/* ── Intelligence Row: Training Summary + Rewards ───────── */}
+      <div className={`grid gap-4 ${state.raffleEnabled ? "md:grid-cols-2" : "grid-cols-1"}`}>
+        <TrainingSummaryCard />
+        <RewardsCard onNavigate={onNavigate} />
       </div>
+
+      {/* ── Leaderboard Strip ──────────────────────────────────── */}
+      <LeaderboardStrip onNavigate={onNavigate} />
+
+      {/* ── Recent Activity Feed ───────────────────────────────── */}
+      {state.events.length > 0 ? (
+        <RecentActivityFeed onNavigate={onNavigate} />
+      ) : (
+        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-8 text-white/25 text-sm text-center">
+          No sessions logged yet. Start your first session above.
+        </div>
+      )}
     </div>
   );
 }
