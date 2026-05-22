@@ -417,7 +417,7 @@ function KpiCard({
         )}
       </div>
 
-      <div className={`text-xl font-bold leading-none mb-1 ${card.color.text}`}>
+      <div className={`text-3xl font-extrabold tracking-tight leading-none mb-1.5 ${card.color.text}`}>
         {card.value.toLocaleString()}
       </div>
 
