@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   Home,
   Calendar,
@@ -24,8 +24,12 @@ import ResetPasswordPage from "./components/ResetPasswordPage";
 import { TeamStoreProvider, useTeamStore } from "./hooks/useTeamStore";
 import SuperAdminDashboard from "./components/SuperAdminDashboard";
 import OnboardingPage from "./components/OnboardingPage";
+import CommandPalette from "./components/CommandPalette";
 import { Toaster } from "./components/ui/sonner";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import { useSwipeNavigation } from "./hooks/useSwipeNavigation";
+import { useTheme } from "./hooks/useTheme";
 
 type Page = "dashboard" | "launch" | "attendance" | "summary" | "charts" | "settings" | "raffle";
 
@@ -41,10 +45,32 @@ const PAGE_TITLES: Record<Page, string> = {
 
 function AppContent() {
   const [activePage, setActivePage] = useState<Page>("dashboard");
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const { state, isLoading, isAuthenticated, isPasswordRecovery, isSuperAdmin, isNewCoach, logout } =
     useTeamStore();
+  const { resolved: theme } = useTheme();
+  const isLight = theme === "light";
   const isNewAccount = state.teamName === "Team Name" && !state.teamLogo;
-  const navigate = (page: string) => setActivePage(page as Page);
+  const mainRef = useRef<HTMLDivElement>(null);
+
+  const navigate = useCallback((page: string) => setActivePage(page as Page), []);
+  const openPalette = useCallback(() => setPaletteOpen(true), []);
+
+  useKeyboardShortcuts({ onNavigate: navigate, onOpenPalette: openPalette });
+
+  // Mobile swipe — left advances, right goes back through the main nav order
+  const NAV_ORDER: Page[] = ["dashboard", "launch", "attendance", "summary", "charts"];
+  useSwipeNavigation({
+    targetRef: mainRef,
+    onSwipeLeft: () => {
+      const idx = NAV_ORDER.indexOf(activePage);
+      if (idx < NAV_ORDER.length - 1) navigate(NAV_ORDER[idx + 1]);
+    },
+    onSwipeRight: () => {
+      const idx = NAV_ORDER.indexOf(activePage);
+      if (idx > 0) navigate(NAV_ORDER[idx - 1]);
+    },
+  });
 
   /* ── Loading ─────────────────────────────────────────────────── */
   if (isLoading) {
@@ -85,11 +111,16 @@ function AppContent() {
 
   return (
     /* ── Root shell ─────────────────────────────────────────────── */
-    <div className="dark">
-      <div className="flex h-screen overflow-hidden bg-[#0d1117]">
+    <div className={isLight ? "mc-light" : "dark"}>
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onNavigate={navigate}
+      />
+      <div className="flex h-screen overflow-hidden" style={{ backgroundColor: "var(--mc-bg)" }}>
 
         {/* ── Sidebar (desktop only) ─────────────────────────────── */}
-        <aside className="hidden md:flex flex-col w-56 flex-shrink-0 bg-[#090e16] border-r border-white/[0.07]">
+        <aside className="hidden md:flex flex-col w-56 flex-shrink-0 border-r border-white/[0.07]" style={{ backgroundColor: "var(--mc-surface)" }}>
 
           {/* Logo + team */}
           <div className="flex items-center gap-3 px-4 h-14 border-b border-white/[0.07] flex-shrink-0">
@@ -172,7 +203,7 @@ function AppContent() {
         <div className="flex-1 flex flex-col min-h-0">
 
           {/* TopBar */}
-          <header className="flex-shrink-0 flex items-center justify-between h-14 px-4 md:px-6 bg-[#0d1117]/90 backdrop-blur-sm border-b border-white/[0.07] z-40">
+          <header className="flex-shrink-0 flex items-center justify-between h-14 px-4 md:px-6 backdrop-blur-sm border-b border-white/[0.07] z-40" style={{ backgroundColor: "color-mix(in srgb, var(--mc-bg) 90%, transparent)" }}>
             {/* Mobile: team logo + name | Desktop: page title */}
             <div className="flex items-center gap-3">
               {/* Mobile logo */}
@@ -219,7 +250,7 @@ function AppContent() {
           <SessionStatusBar onNavigate={navigate} />
 
           {/* Scrollable page content */}
-          <main className="flex-1 overflow-y-auto">
+          <main ref={mainRef} className="flex-1 overflow-y-auto">
             <div className="max-w-5xl mx-auto p-4 md:p-6 pb-24 md:pb-8 animate-fade-in">
               <ErrorBoundary key={activePage}>
                 {activePage === "dashboard"  && <MissionControlDashboard onNavigate={navigate} />}
@@ -236,7 +267,7 @@ function AppContent() {
       </div>
 
       {/* ── Mobile bottom nav ──────────────────────────────────── */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 h-16 bg-[#090e16]/96 backdrop-blur-md border-t border-white/[0.07]">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 h-16 backdrop-blur-md border-t border-white/[0.07]" style={{ backgroundColor: "color-mix(in srgb, var(--mc-surface) 96%, transparent)" }}>
         <div className="flex items-center justify-around h-full px-1">
           {bottomNavItems.map(({ id, label, icon: Icon }) => {
             const isActive = activePage === id;

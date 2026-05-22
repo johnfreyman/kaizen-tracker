@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Save, UserPlus, X, Upload, Gift, FileText, Archive, RotateCcw, Trash2, Trophy } from "lucide-react";
+import { Save, UserPlus, X, Upload, Gift, FileText, Archive, RotateCcw, Trash2, Trophy, Sun, Moon, Monitor } from "lucide-react";
 import { useTeamStore, EVENT_TYPES, ConflictResolutionStrategy } from "../hooks/useTeamStore";
+import { useTheme, type Theme } from "../hooks/useTheme";
 import PlayerTypeDialog from "./PlayerTypeDialog";
 import { formatDate } from "@/lib/dates";
 import { toast } from "sonner";
@@ -29,6 +30,7 @@ import { Alert, AlertTitle, AlertDescription } from "./ui/alert";
 
 export default function SettingsPage() {
   const { state, updateSettings, addPlayer, removePlayer, restoreArchive, deleteArchive, isGuest, uploadLogo } = useTeamStore();
+  const { theme, setTheme } = useTheme();
   const [teamName, setTeamName] = useState(state.teamName);
   const [raffleEnabled, setRaffleEnabled] = useState(state.raffleEnabled);
   const [pendingPlayerName, setPendingPlayerName] = useState("");
@@ -608,6 +610,37 @@ export default function SettingsPage() {
                 </p>
               </div>
             </label>
+          </div>
+
+          {/* Appearance */}
+          <div>
+            <div className="font-semibold text-gray-900 flex items-center gap-2 mb-3">
+              <Sun className="size-4 text-amber-500" />
+              Appearance
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  { value: "dark",   label: "Dark",   icon: <Moon   className="size-4" /> },
+                  { value: "light",  label: "Light",  icon: <Sun    className="size-4" /> },
+                  { value: "system", label: "System", icon: <Monitor className="size-4" /> },
+                ] as { value: Theme; label: string; icon: React.ReactNode }[]
+              ).map(({ value, label, icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setTheme(value)}
+                  className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border text-sm font-medium transition-all ${
+                    theme === value
+                      ? "border-blue-500 bg-blue-50 text-blue-700"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  {icon}
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <button

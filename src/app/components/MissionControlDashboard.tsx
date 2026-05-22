@@ -56,38 +56,48 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
     year: "numeric",
   });
 
+  const heroKey = state.activeSession ? "active" : "idle";
+
   return (
     <div className="space-y-4 animate-hero-enter">
       {/* ── Leaderboard Ticker ─────────────────────────────────── */}
-      <LeaderboardTicker onNavigate={onNavigate} />
+      <div className="stagger-1">
+        <LeaderboardTicker onNavigate={onNavigate} />
+      </div>
 
-      {/* ── Hero Panel ─────────────────────────────────────────── */}
-      {state.activeSession ? (
-        <ActiveSessionHero
-          session={state.activeSession}
-          elapsed={elapsed}
-          rosterSize={state.roster.length}
-          onAttendance={() => onNavigate("attendance")}
-        />
-      ) : (
-        <IdleHero
-          today={today}
-          rosterSize={state.roster.length}
-          lastEventDate={state.events[0]?.date ?? null}
-          hasEvents={state.events.length > 0}
-          onStart={handleSmartStart}
-          onConfigure={() => onNavigate("launch")}
-        />
-      )}
+      {/* ── Hero Panel — key forces re-animation on state change ── */}
+      <div key={heroKey} className="stagger-2 animate-hero-state">
+        {state.activeSession ? (
+          <ActiveSessionHero
+            session={state.activeSession}
+            elapsed={elapsed}
+            rosterSize={state.roster.length}
+            onAttendance={() => onNavigate("attendance")}
+          />
+        ) : (
+          <IdleHero
+            today={today}
+            rosterSize={state.roster.length}
+            lastEventDate={state.events[0]?.date ?? null}
+            hasEvents={state.events.length > 0}
+            onStart={handleSmartStart}
+            onConfigure={() => onNavigate("launch")}
+          />
+        )}
+      </div>
 
       {/* ── Alert Surface ──────────────────────────────────────── */}
-      <AlertSurface onNavigate={onNavigate} />
+      <div className="stagger-3">
+        <AlertSurface onNavigate={onNavigate} />
+      </div>
 
       {/* ── Workflow Checklist ─────────────────────────────────── */}
-      <WorkflowChecklist onNavigate={onNavigate} />
+      <div className="stagger-4">
+        <WorkflowChecklist onNavigate={onNavigate} />
+      </div>
 
       {/* ── Stats Tiles ────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="stagger-5 grid grid-cols-3 gap-3">
         {state.activeSession ? (
           <>
             <StatTile label="On Roster" value={String(state.roster.length)} icon={<Users className="size-4" />} color="blue" />
@@ -114,13 +124,15 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
       </div>
 
       {/* ── Intelligence Row: Training Summary + Rewards ───────── */}
-      <div className={`grid gap-4 ${state.raffleEnabled ? "md:grid-cols-2" : "grid-cols-1"}`}>
+      <div className={`stagger-6 grid gap-4 ${state.raffleEnabled ? "md:grid-cols-2" : "grid-cols-1"}`}>
         <TrainingSummaryCard />
         <RewardsCard onNavigate={onNavigate} />
       </div>
 
       {/* ── Leaderboard Strip ──────────────────────────────────── */}
-      <LeaderboardStrip onNavigate={onNavigate} />
+      <div className="stagger-7">
+        <LeaderboardStrip onNavigate={onNavigate} />
+      </div>
 
       {/* ── Recent Activity Feed ───────────────────────────────── */}
       {state.events.length > 0 ? (
