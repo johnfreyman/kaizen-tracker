@@ -50,8 +50,9 @@ export default function ChartsPage() {
   // Chart 1: Practice attendance rate per player
   const attendanceData = useMemo(() => {
     const practices = events.filter((e) => e.type === EVENT_TYPES.PRACTICE);
-    if (!practices.length || !roster.length) return [];
-    return roster
+    const regularPlayers = roster.filter((p) => !guestPlayers.includes(p));
+    if (!practices.length || !regularPlayers.length) return [];
+    return regularPlayers
       .map((player) => ({
         player,
         "Attendance %": Math.round(
@@ -61,13 +62,14 @@ export default function ChartsPage() {
         ),
       }))
       .sort((a, b) => b["Attendance %"] - a["Attendance %"]);
-  }, [events, roster]);
+  }, [events, roster, guestPlayers]);
 
   // Chart 2: Hours by player (stacked practice + optional)
   const hoursData = useMemo(() => {
-    if (!events.length || !roster.length) return [];
-    const totals = calculateTotals(events, roster);
-    return roster
+    const regularPlayers = roster.filter((p) => !guestPlayers.includes(p));
+    if (!events.length || !regularPlayers.length) return [];
+    const totals = calculateTotals(events, regularPlayers);
+    return regularPlayers
       .map((player) => ({
         player,
         Practice: +(totals[player]?.practice ?? 0).toFixed(1),
@@ -78,19 +80,20 @@ export default function ChartsPage() {
         (a, b) =>
           b.Practice + b["Optional Training"] - (a.Practice + a["Optional Training"])
       );
-  }, [events, roster]);
+  }, [events, roster, guestPlayers]);
 
   // Chart 3: Missed practice sessions per player
   const missedData = useMemo(() => {
     const practices = events.filter((e) => e.type === EVENT_TYPES.PRACTICE);
-    if (!practices.length || !roster.length) return [];
-    return roster
+    const regularPlayers = roster.filter((p) => !guestPlayers.includes(p));
+    if (!practices.length || !regularPlayers.length) return [];
+    return regularPlayers
       .map((player) => ({
         player,
         Missed: practices.filter((e) => !e.players.includes(player)).length,
       }))
       .sort((a, b) => b.Missed - a.Missed);
-  }, [events, roster]);
+  }, [events, roster, guestPlayers]);
 
   // Chart 4: Guest player session attendance counts
   const guestData = useMemo(() => {
@@ -108,6 +111,7 @@ export default function ChartsPage() {
   // Chart 5: Monthly trends — total hours + avg practice attendance %
   const trendsData = useMemo(() => {
     if (!events.length) return [];
+    const regularPlayersCount = roster.length - guestPlayers.length;
     const byMonth: Record<
       string,
       { totalHours: number; practiceRates: number[] }
@@ -116,9 +120,10 @@ export default function ChartsPage() {
       const month = event.date.slice(0, 7);
       if (!byMonth[month]) byMonth[month] = { totalHours: 0, practiceRates: [] };
       byMonth[month].totalHours += event.duration;
-      if (event.type === EVENT_TYPES.PRACTICE && roster.length > 0) {
+      if (event.type === EVENT_TYPES.PRACTICE && regularPlayersCount > 0) {
+        const regularAttendees = event.players.filter(p => !guestPlayers.includes(p)).length;
         byMonth[month].practiceRates.push(
-          Math.round((event.players.length / roster.length) * 100)
+          Math.round((regularAttendees / regularPlayersCount) * 100)
         );
       }
     });
@@ -142,7 +147,7 @@ export default function ChartsPage() {
               : 0,
         };
       });
-  }, [events, roster]);
+  }, [events, roster, guestPlayers]);
 
   const tooltipStyle = {
     borderRadius: 12,
