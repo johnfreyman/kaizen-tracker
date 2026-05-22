@@ -1,6 +1,8 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import CoachDetailPanel from "./admin/CoachDetailPanel";
 import { CoachSummaryRow } from "./admin/CoachDetailDrawer";
+import { Sparkline } from "./admin/charts/Sparkline";
+import { DashboardCharts, type DashboardChartData } from "./admin/charts/DashboardCharts";
 import {
   LogOut,
   ChevronDown,
@@ -358,6 +360,8 @@ interface KpiCardConfig {
   };
   trend?: { direction: "up" | "down" | "flat"; pct: number };
   goodUp?: boolean;
+  sparklineData?: number[];
+  sparklineColor?: string;
 }
 
 function KpiCard({
@@ -420,6 +424,17 @@ function KpiCard({
         {card.label}
       </div>
 
+      {card.sparklineData && (
+        <div className="mt-1.5 opacity-70">
+          <Sparkline
+            data={card.sparklineData}
+            color={card.sparklineColor ?? "#6366f1"}
+            width={82}
+            height={18}
+          />
+        </div>
+      )}
+
       {isActive && (
         <div className="mt-1.5 flex items-center gap-0.5 text-[10px] font-bold text-indigo-500">
           <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
@@ -447,6 +462,7 @@ export default function SuperAdminDashboard() {
   const [activeFilters, setActiveFilters] = useState<Set<FilterType>>(new Set());
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [density, setDensity] = useState<"standard" | "compact">("standard");
+  const [isChartsOpen, setIsChartsOpen] = useState(true);
 
   // Ref for keyboard navigation — track focused card index within filtered list
   const listRef = useRef<HTMLDivElement>(null);
@@ -592,6 +608,101 @@ export default function SuperAdminDashboard() {
     };
   }, [rows]);
 
+  // -------------------------------------------------------------------------
+  // Chart data — derived from coach rows, no extra DB queries
+  // -------------------------------------------------------------------------
+  const chartData = useMemo((): DashboardChartData => {
+    const now = Date.now();
+    const DAY = 86400000;
+
+    const days14 = Array.from({ length: 14 }, (_, i) => {
+      const dayStart = now - (13 - i) * DAY;
+      const dayEnd = dayStart + DAY;
+      const label = new Date(dayStart).toLocaleDateString("en-US", { month: "numeric", day: "numeric" });
+      const sessions = rows.filter((r) => {
+        if (!r.last_session_at) return false;
+        const t = new Date(r.last_session_at).getTime();
+        return t >= dayStart && t < dayEnd;
+      }).length;
+      const active = rows.filter((r) => {
+        if (!r.last_active_at) return false;
+        const t = new Date(r.last_active_at).getTime();
+        return t >= dayStart && t < dayEnd;
+      }).length;
+      return { label, sessions, active };
+    });
+
+    const weeks8 = Array.from({ length: 8 }, (_, i) => {
+      const weekStart = now - (7 - i) * 7 * DAY;
+      const weekEnd = weekStart + 7 * DAY;
+      const label = new Date(weekStart).toLocaleDateString("en-US", { month: "numeric", day: "numeric" });
+      const count = rows.filter((r) => {
+        if (!r.account_created_at) return false;
+        const t = new Date(r.account_created_at).getTime();
+        return t >= weekStart && t < weekEnd;
+      }).length;
+      return { label, count };
+    });
+
+    const storageCounts = [0, 0, 0];
+    rows.forEach((r) => {
+      const { kb } = getEstimatedStorage(r);
+      if (kb < 100) storageCounts[0]++;
+      else if (kb < 500) storageCounts[1]++;
+      else storageCounts[2]++;
+    });
+    const total = rows.length || 1;
+    const storageDistribution = [
+      { label: "< 100KB",   count: storageCounts[0], pct: Math.round((storageCounts[0] / total) * 100), color: "#10b981" },
+      { label: "100–500KB", count: storageCounts[1], pct: Math.round((storageCounts[1] / total) * 100), color: "#f59e0b" },
+      { label: "> 500KB",   count: storageCounts[2], pct: Math.round((storageCounts[2] / total) * 100), color: "#ef4444" },
+    ];
+
+    // 84 days = 12 weeks for heatmap
+    const heatmapCells = Array.from({ length: 84 }, (_, i) => {
+      const dayStart = now - (83 - i) * DAY;
+      const dayEnd = dayStart + DAY;
+      const date = new Date(dayStart);
+      const count = rows.filter((r) => {
+        if (!r.last_active_at) return false;
+        const t = new Date(r.last_active_at).getTime();
+        return t >= dayStart && t < dayEnd;
+      }).length;
+      return { date: date.toISOString().split("T")[0], count, dow: date.getDay(), week: Math.floor(i / 7) };
+    });
+
+    return { days14, weeks8, storageDistribution, heatmapCells };
+  }, [rows]);
+
+  // Sparkline series for the two trend KPI cards (7-day rolling)
+  const sessionSparkline = useMemo(() => {
+    const now = Date.now();
+    const DAY = 86400000;
+    return Array.from({ length: 7 }, (_, i) => {
+      const dayStart = now - (6 - i) * DAY;
+      const dayEnd = dayStart + DAY;
+      return rows.filter((r) => {
+        if (!r.last_session_at) return false;
+        const t = new Date(r.last_session_at).getTime();
+        return t >= dayStart && t < dayEnd;
+      }).length;
+    });
+  }, [rows]);
+
+  const activitySparkline = useMemo(() => {
+    const now = Date.now();
+    const DAY = 86400000;
+    return Array.from({ length: 7 }, (_, i) => {
+      const dayStart = now - (6 - i) * DAY;
+      const dayEnd = dayStart + DAY;
+      return rows.filter((r) => {
+        if (!r.last_active_at) return false;
+        const t = new Date(r.last_active_at).getTime();
+        return t >= dayStart && t < dayEnd;
+      }).length;
+    });
+  }, [rows]);
+
   const kpiCards = useMemo((): KpiCardConfig[] => [
     {
       key: "total",
@@ -610,6 +721,8 @@ export default function SuperAdminDashboard() {
       color: { bg: "bg-white", activeBg: "bg-emerald-50", text: "text-emerald-700", border: "border-gray-200", activeBorder: "border-emerald-300", iconBg: "bg-emerald-100" },
       trend: computeTrend(stats.activeToday, stats.activeTodayPrev),
       goodUp: true,
+      sparklineData: activitySparkline,
+      sparklineColor: "#059669",
     },
     {
       key: "sessions-week",
@@ -620,6 +733,8 @@ export default function SuperAdminDashboard() {
       color: { bg: "bg-white", activeBg: "bg-blue-50", text: "text-blue-700", border: "border-gray-200", activeBorder: "border-blue-300", iconBg: "bg-blue-100" },
       trend: computeTrend(stats.sessionsThisWeek, stats.sessionsLastWeek),
       goodUp: true,
+      sparklineData: sessionSparkline,
+      sparklineColor: "#2563eb",
     },
     {
       key: "healthy",
@@ -829,6 +944,15 @@ export default function SuperAdminDashboard() {
           ) : null}
         </div>
       </div>
+
+      {/* ── Analytics charts section ────────────────────────────── */}
+      {!isLoading && !error && (
+        <DashboardCharts
+          data={chartData}
+          isOpen={isChartsOpen}
+          onToggle={() => setIsChartsOpen((v) => !v)}
+        />
+      )}
 
       {/* ── Two-column master-detail body ───────────────────────── */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
