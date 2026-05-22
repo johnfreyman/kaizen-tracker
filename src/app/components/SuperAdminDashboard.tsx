@@ -708,7 +708,7 @@ export default function SuperAdminDashboard() {
       value: stats.total,
       icon: Users,
       filter: "clear-all",
-      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-gray-800", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
+      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
     },
     {
       key: "active-today",
@@ -716,11 +716,11 @@ export default function SuperAdminDashboard() {
       value: stats.activeToday,
       icon: Activity,
       filter: "active-today",
-      color: { bg: "bg-white", activeBg: "bg-emerald-50", text: "text-emerald-700", border: "border-gray-200", activeBorder: "border-emerald-300", iconBg: "bg-emerald-100" },
+      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
       trend: computeTrend(stats.activeToday, stats.activeTodayPrev),
       goodUp: true,
       sparklineData: activitySparkline,
-      sparklineColor: "#059669",
+      sparklineColor: "#64748b",
     },
     {
       key: "sessions-week",
@@ -728,11 +728,11 @@ export default function SuperAdminDashboard() {
       value: stats.sessionsThisWeek,
       icon: Calendar,
       filter: "active-this-week",
-      color: { bg: "bg-white", activeBg: "bg-blue-50", text: "text-blue-700", border: "border-gray-200", activeBorder: "border-blue-300", iconBg: "bg-blue-100" },
+      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
       trend: computeTrend(stats.sessionsThisWeek, stats.sessionsLastWeek),
       goodUp: true,
       sparklineData: sessionSparkline,
-      sparklineColor: "#2563eb",
+      sparklineColor: "#64748b",
     },
     {
       key: "healthy",
@@ -767,7 +767,7 @@ export default function SuperAdminDashboard() {
       value: stats.inactive,
       icon: UserX,
       filter: "inactive",
-      color: { bg: "bg-white", activeBg: "bg-gray-100", text: "text-gray-600", border: "border-gray-200", activeBorder: "border-gray-400", iconBg: "bg-gray-100" },
+      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
       goodUp: false,
     },
     {
@@ -776,7 +776,7 @@ export default function SuperAdminDashboard() {
       value: stats.newAccts,
       icon: Zap,
       filter: "new",
-      color: { bg: "bg-white", activeBg: "bg-blue-50", text: "text-blue-700", border: "border-gray-200", activeBorder: "border-blue-300", iconBg: "bg-blue-100" },
+      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
       goodUp: true,
     },
     {
@@ -785,7 +785,7 @@ export default function SuperAdminDashboard() {
       value: stats.unverified,
       icon: ShieldOff,
       filter: "unverified",
-      color: { bg: "bg-white", activeBg: "bg-red-50", text: "text-red-700", border: "border-gray-200", activeBorder: "border-red-300", iconBg: "bg-red-100" },
+      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
       goodUp: false,
     },
     {
@@ -794,7 +794,7 @@ export default function SuperAdminDashboard() {
       value: stats.noTeam,
       icon: AlertTriangle,
       filter: "no-team-setup",
-      color: { bg: "bg-white", activeBg: "bg-amber-50", text: "text-amber-700", border: "border-gray-200", activeBorder: "border-amber-300", iconBg: "bg-amber-100" },
+      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
       goodUp: false,
     },
     {
@@ -803,7 +803,7 @@ export default function SuperAdminDashboard() {
       value: stats.pendingErrors,
       icon: AlertCircle,
       filter: "high-error",
-      color: { bg: "bg-white", activeBg: "bg-red-50", text: "text-red-700", border: "border-gray-200", activeBorder: "border-red-300", iconBg: "bg-red-100" },
+      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
       goodUp: false,
     },
     {
@@ -812,7 +812,7 @@ export default function SuperAdminDashboard() {
       value: stats.failedSyncs,
       icon: RefreshCw,
       filter: "pending-sync",
-      color: { bg: "bg-white", activeBg: "bg-amber-50", text: "text-amber-700", border: "border-gray-200", activeBorder: "border-amber-300", iconBg: "bg-amber-100" },
+      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
       goodUp: false,
     },
   ], [stats, activitySparkline, sessionSparkline]);
