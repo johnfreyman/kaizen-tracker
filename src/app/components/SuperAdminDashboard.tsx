@@ -363,6 +363,8 @@ interface KpiCardConfig {
   goodUp?: boolean;
   sparklineData?: number[];
   sparklineColor?: string;
+  isPrimary?: boolean;
+  trendContext?: string;
 }
 
 function KpiCard({
@@ -389,56 +391,124 @@ function KpiCard({
         : !card.goodUp
       : null;
 
+  if (card.isPrimary) {
+    // ── Primary (tall) variant ────────────────────────────────────────────
+    return (
+      <button
+        onClick={isClickable ? onClick : undefined}
+        title={isClickable ? (isActive ? `Remove "${card.label}" filter` : `Filter by "${card.label}"`) : card.label}
+        className={[
+          "group flex flex-col justify-between p-5 rounded-xl border transition-all duration-150 min-w-[220px] h-[148px] text-left select-none",
+          isActive
+            ? `${card.color.activeBg} ${card.color.activeBorder} shadow ring-2 ring-offset-1 ring-indigo-200`
+            : `${card.color.bg} ${card.color.border} shadow-sm hover:shadow-md hover:-translate-y-px`,
+          isClickable ? "cursor-pointer active:scale-[0.97]" : "cursor-default",
+        ].join(" ")}
+      >
+        {/* Header row: icon + label */}
+        <div className="flex items-center gap-2">
+          <div className={`p-1.5 rounded-lg shrink-0 ${card.color.iconBg}`}>
+            <card.icon className={`w-3.5 h-3.5 ${card.color.text}`} />
+          </div>
+          <span className="text-[11px] font-semibold text-gray-500 group-hover:text-gray-700 transition-colors leading-tight">
+            {card.label}
+          </span>
+        </div>
+
+        {/* Main number */}
+        <div className={`text-4xl font-bold tracking-tight leading-none ${card.color.text}`}>
+          {card.value.toLocaleString()}
+        </div>
+
+        {/* Sparkline */}
+        {card.sparklineData && (
+          <div className="opacity-60">
+            <Sparkline
+              data={card.sparklineData}
+              color={card.sparklineColor ?? "#6366f1"}
+              width={110}
+              height={20}
+            />
+          </div>
+        )}
+
+        {/* Footer: trend badge + context label */}
+        <div className="flex items-center justify-between">
+          {trend && trend.direction !== "flat" ? (
+            <div className="flex items-center gap-1.5">
+              <span
+                className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold leading-none ${
+                  trendIsGood
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : "bg-red-50 text-red-600 border border-red-200"
+                }`}
+              >
+                <TrendIcon className="w-2.5 h-2.5" />
+                {trend.pct}%
+              </span>
+              {card.trendContext && (
+                <span className="text-[10px] text-gray-400 font-medium">
+                  {card.trendContext}
+                </span>
+              )}
+            </div>
+          ) : (
+            card.trendContext && (
+              <span className="text-[10px] text-gray-400 font-medium">{card.trendContext}</span>
+            )
+          )}
+
+          {isActive && (
+            <div className="flex items-center gap-0.5 text-[10px] font-bold text-indigo-500 ml-auto">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+              Active
+            </div>
+          )}
+        </div>
+      </button>
+    );
+  }
+
+  // ── Secondary (compact) variant ─────────────────────────────────────────
   return (
     <button
       onClick={isClickable ? onClick : undefined}
       title={isClickable ? (isActive ? `Remove "${card.label}" filter` : `Filter by "${card.label}"`) : card.label}
       className={[
-        "group flex flex-col justify-between p-5 rounded-xl border transition-all duration-150 min-w-[160px] text-left select-none",
+        "group flex flex-col justify-between p-4 rounded-xl border transition-all duration-150 min-w-[130px] h-[96px] text-left select-none",
         isActive
           ? `${card.color.activeBg} ${card.color.activeBorder} shadow-sm ring-2 ring-offset-1 ring-indigo-200`
           : `${card.color.bg} ${card.color.border} hover:shadow-md hover:-translate-y-px`,
         isClickable ? "cursor-pointer active:scale-[0.97]" : "cursor-default",
       ].join(" ")}
     >
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between">
         <div className={`p-1.5 rounded-lg ${card.color.iconBg}`}>
-          <card.icon className={`w-3.5 h-3.5 ${card.color.text}`} />
+          <card.icon className={`w-3 h-3 ${card.color.text}`} />
         </div>
         {trend && trend.direction !== "flat" && (
-          <div
-            className={`flex items-center gap-0.5 text-[10px] font-bold leading-none ${
+          <span
+            className={`inline-flex items-center gap-0.5 text-[9px] font-bold leading-none ${
               trendIsGood ? "text-emerald-600" : "text-red-500"
             }`}
           >
-            <TrendIcon className="w-3 h-3" />
-            <span>{trend.pct}%</span>
-          </div>
+            <TrendIcon className="w-2.5 h-2.5" />
+            {trend.pct}%
+          </span>
         )}
       </div>
 
-      <div className={`text-3xl font-bold tracking-tight leading-none mb-1.5 ${card.color.text}`}>
+      <div className={`text-2xl font-bold tracking-tight leading-none ${card.color.text}`}>
         {card.value.toLocaleString()}
       </div>
 
-      <div className="text-[11px] font-medium text-gray-500 group-hover:text-gray-700 transition-colors leading-tight">
+      <div className="text-[10px] font-medium text-gray-500 group-hover:text-gray-700 transition-colors leading-tight truncate">
         {card.label}
       </div>
 
-      {card.sparklineData && (
-        <div className="mt-1.5 opacity-70">
-          <Sparkline
-            data={card.sparklineData}
-            color={card.sparklineColor ?? "#6366f1"}
-            width={82}
-            height={18}
-          />
-        </div>
-      )}
-
       {isActive && (
-        <div className="mt-1.5 flex items-center gap-0.5 text-[10px] font-bold text-indigo-500">
-          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+        <div className="flex items-center gap-0.5 text-[9px] font-bold text-indigo-500">
+          <span className="w-1 h-1 rounded-full bg-indigo-500" />
           Active
         </div>
       )}
@@ -712,27 +782,31 @@ export default function SuperAdminDashboard() {
     },
     {
       key: "active-today",
-      label: "Coaches Active Today",
+      label: "Active Coaches",
       value: stats.activeToday,
       icon: Activity,
       filter: "active-today",
-      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
+      color: { bg: "bg-white", activeBg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-100", activeBorder: "border-indigo-400", iconBg: "bg-indigo-100" },
       trend: computeTrend(stats.activeToday, stats.activeTodayPrev),
       goodUp: true,
       sparklineData: activitySparkline,
-      sparklineColor: "#64748b",
+      sparklineColor: "#6366f1",
+      isPrimary: true,
+      trendContext: "vs. yesterday",
     },
     {
       key: "sessions-week",
-      label: "Sessions This Week",
+      label: "Sessions Active Today",
       value: stats.sessionsThisWeek,
       icon: Calendar,
       filter: "active-this-week",
-      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
+      color: { bg: "bg-white", activeBg: "bg-blue-50", text: "text-blue-700", border: "border-blue-100", activeBorder: "border-blue-400", iconBg: "bg-blue-100" },
       trend: computeTrend(stats.sessionsThisWeek, stats.sessionsLastWeek),
       goodUp: true,
       sparklineData: sessionSparkline,
-      sparklineColor: "#64748b",
+      sparklineColor: "#3b82f6",
+      isPrimary: true,
+      trendContext: "this week",
     },
     {
       key: "healthy",
@@ -903,13 +977,15 @@ export default function SuperAdminDashboard() {
       <div className="shrink-0 border-b border-gray-100 bg-white/70 backdrop-blur-sm">
         <div className="overflow-x-auto no-scrollbar px-4 py-3">
           {isLoading ? (
-            <div className="flex gap-4 min-w-max animate-pulse">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="w-[160px] h-[110px] bg-gray-100 rounded-xl border border-gray-200" />
+            <div className="flex items-end gap-3 min-w-max animate-pulse">
+              <div className="w-[220px] h-[148px] bg-indigo-50 rounded-xl border border-indigo-100" />
+              <div className="w-[220px] h-[148px] bg-blue-50 rounded-xl border border-blue-100" />
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="w-[130px] h-[96px] bg-gray-100 rounded-xl border border-gray-200" />
               ))}
             </div>
           ) : !error ? (
-            <div className="flex gap-4 min-w-max">
+            <div className="flex items-end gap-3 min-w-max">
               {kpiCards.map((card) => {
                 const isActive =
                   card.filter === "clear-all"
