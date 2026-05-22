@@ -1,6 +1,30 @@
-import { useState } from "react";
-import { BarChart3, Calendar, Clock, Archive } from "lucide-react";
-import { useTeamStore, EVENT_TYPES } from "../hooks/useTeamStore";
+import { useState, useMemo } from "react";
+import {
+  Calendar,
+  Clock,
+  Archive,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Download,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
+  Users,
+  Info,
+} from "lucide-react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+  Tooltip as ChartTooltip,
+} from "recharts";
+import { useTeamStore, EVENT_TYPES, type TeamEvent } from "../hooks/useTeamStore";
 import { formatDate } from "@/lib/dates";
 import { calculateTotals, percent } from "@/lib/stats";
 import {
@@ -13,205 +37,806 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "./ui/tooltip";
+
+type Trend = "up" | "down" | "stable";
+type SortColumn =
+  | "player"
+  | "practice"
+  | "practicePercent"
+  | "optional"
+  | "optPercent"
+  | "lastAttended";
+type SortDir = "asc" | "desc";
+type DateRange = "7d" | "30d" | "season" | "custom";
+
+const TIER_COLORS = {
+  full: "#10b981",  // emerald-500
+  mid:  "#f59e0b",  // amber-400
+  low:  "#f87171",  // red-400
+};
+
+function tierColor(pct: number) {
+  if (pct >= 100) return TIER_COLORS.full;
+  if (pct >= 50)  return TIER_COLORS.mid;
+  return TIER_COLORS.low;
+}
+
+// ── Trend helpers ────────────────────────────────────────────────────────────
+
+function computeAttendanceTrend(events: TeamEvent[], rosterSize: number): Trend {
+  const sorted = [...events]
+    .filter((e) => e.type === EVENT_TYPES.PRACTICE)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  if (sorted.length < 2) return "stable";
+  const mid = Math.floor(sorted.length / 2);
+  const avgFirst  = sorted.slice(0, mid).reduce((s, e) => s + e.players.length, 0) / mid;
+  const avgSecond = sorted.slice(mid).reduce((s, e) => s + e.players.length, 0) / (sorted.length - mid);
+  const threshold = Math.max(rosterSize * 0.05, 0.5);
+  if (avgSecond - avgFirst > threshold) return "up";
+  if (avgFirst - avgSecond > threshold) return "down";
+  return "stable";
+}
+
+function computeHoursTrend(events: TeamEvent[]): Trend {
+  const sorted = [...events]
+    .filter((e) => e.type === EVENT_TYPES.PRACTICE)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  if (sorted.length < 2) return "stable";
+  const mid = Math.floor(sorted.length / 2);
+  const avgFirst  = sorted.slice(0, mid).reduce((s, e) => s + e.duration, 0) / mid;
+  const avgSecond = sorted.slice(mid).reduce((s, e) => s + e.duration, 0) / (sorted.length - mid);
+  if (avgSecond - avgFirst > 0.1)  return "up";
+  if (avgFirst - avgSecond > 0.1)  return "down";
+  return "stable";
+}
+
+// ── Sub-components ───────────────────────────────────────────────────────────
+
+function TrendBadge({ trend }: { trend: Trend }) {
+  if (trend === "up")
+    return (
+      <span className="flex items-center gap-0.5 text-emerald-400 text-xs font-semibold">
+        <TrendingUp className="size-3.5" />↑
+      </span>
+    );
+  if (trend === "down")
+    return (
+      <span className="flex items-center gap-0.5 text-red-400 text-xs font-semibold">
+        <TrendingDown className="size-3.5" />↓
+      </span>
+    );
+  return (
+    <span className="flex items-center gap-0.5 text-white/25 text-xs font-semibold">
+      <Minus className="size-3.5" />→
+    </span>
+  );
+}
+
+function PracticeBar({ value, total }: { value: number; total: number }) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  const barColor =
+    pct >= 100 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-red-400";
+  const textColor =
+    pct >= 100 ? "text-emerald-400" : pct >= 50 ? "text-amber-400" : "text-red-400";
+  return (
+    <div className="flex items-center gap-2 min-w-[100px]">
+      <div className="flex-1 h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
+        <div
+          className={`h-full rounded-full ${barColor} transition-all`}
+          style={{ width: `${Math.min(pct, 100)}%` }}
+        />
+      </div>
+      <span className={`text-xs font-semibold tabular-nums ${textColor}`}>{pct}%</span>
+    </div>
+  );
+}
+
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+  if (!active) return <ChevronsUpDown className="size-3 opacity-30 ml-1 inline-block" />;
+  return dir === "asc" ? (
+    <ChevronUp className="size-3 text-purple-300 ml-1 inline-block" />
+  ) : (
+    <ChevronDown className="size-3 text-purple-300 ml-1 inline-block" />
+  );
+}
+
+function ColTooltip({ text }: { text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className="inline-flex items-center ml-1 cursor-default"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Info className="size-3 text-white/20 hover:text-white/50 transition-colors" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent
+        side="top"
+        sideOffset={6}
+        className="max-w-[180px] px-2.5 py-1.5 text-[11px] font-normal normal-case tracking-normal leading-snug rounded-lg bg-[#1e2333] text-white/80 border border-white/[0.10] shadow-xl"
+      >
+        {text}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+const DARK_TOOLTIP = {
+  borderRadius: 10,
+  fontSize: 12,
+  backgroundColor: "#1e2333",
+  border: "1px solid rgba(255,255,255,0.08)",
+  color: "rgba(255,255,255,0.75)",
+};
+
+// ── Main component ───────────────────────────────────────────────────────────
 
 export default function SummaryPage() {
   const { state, archiveEvents } = useTeamStore();
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [sortCol, setSortCol] = useState<SortColumn>("player");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [dateRange, setDateRange] = useState<DateRange>("season");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
 
-  const totals = calculateTotals(state.events, state.roster);
-  const totalPracticePossible = state.events
+  // ── Date filtering ─────────────────────────────────────────────────────────
+  const filteredEvents = useMemo(() => {
+    const now = new Date();
+    if (dateRange === "7d") {
+      const cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return state.events.filter((e) => new Date(e.date) >= cutoff);
+    }
+    if (dateRange === "30d") {
+      const cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      return state.events.filter((e) => new Date(e.date) >= cutoff);
+    }
+    if (dateRange === "custom" && customStart && customEnd) {
+      const start = new Date(customStart);
+      const end   = new Date(customEnd + "T23:59:59");
+      return state.events.filter((e) => {
+        const d = new Date(e.date);
+        return d >= start && d <= end;
+      });
+    }
+    return state.events;
+  }, [state.events, dateRange, customStart, customEnd]);
+
+  // ── Derived stats ──────────────────────────────────────────────────────────
+  const totals = calculateTotals(filteredEvents, state.roster);
+  const totalPracticePossible = filteredEvents
     .filter((e) => e.type === EVENT_TYPES.PRACTICE)
     .reduce((sum, e) => sum + e.duration, 0);
-  const totalTrainingPossible = state.events
+  const totalTrainingPossible = filteredEvents
     .filter((e) => e.type === EVENT_TYPES.OPTIONAL_TRAINING)
     .reduce((sum, e) => sum + e.duration, 0);
-  const totalPossible = totalPracticePossible + totalTrainingPossible;
 
+  const attendanceTrend = computeAttendanceTrend(filteredEvents, state.roster.length);
+  const hoursTrend      = computeHoursTrend(filteredEvents);
+
+  const practiceEvents = filteredEvents.filter((e) => e.type === EVENT_TYPES.PRACTICE);
+  const avgAttendanceRate =
+    practiceEvents.length > 0 && state.roster.length > 0
+      ? Math.round(
+          (practiceEvents.reduce((sum, e) => sum + e.players.length, 0) /
+            (practiceEvents.length * state.roster.length)) *
+            100
+        )
+      : 0;
+
+  // ── Last attended map ──────────────────────────────────────────────────────
+  const lastAttended = useMemo(() => {
+    const map: Record<string, string> = {};
+    filteredEvents.forEach((event) => {
+      event.players.forEach((player) => {
+        if (!map[player] || event.date > map[player]) map[player] = event.date;
+      });
+    });
+    return map;
+  }, [filteredEvents]);
+
+  // ── Sort ───────────────────────────────────────────────────────────────────
+  const players = Object.keys(totals);
+
+  const sortedPlayers = useMemo(() => {
+    return [...players].sort((a, b) => {
+      const pt_a = totals[a] ?? { practice: 0, training: 0 };
+      const pt_b = totals[b] ?? { practice: 0, training: 0 };
+      let diff = 0;
+      switch (sortCol) {
+        case "player":
+          diff = a.localeCompare(b);
+          break;
+        case "practice":
+          diff = pt_a.practice - pt_b.practice;
+          break;
+        case "practicePercent":
+          diff =
+            (totalPracticePossible > 0 ? pt_a.practice / totalPracticePossible : 0) -
+            (totalPracticePossible > 0 ? pt_b.practice / totalPracticePossible : 0);
+          break;
+        case "optional":
+          diff = pt_a.training - pt_b.training;
+          break;
+        case "optPercent":
+          diff =
+            (totalTrainingPossible > 0 ? pt_a.training / totalTrainingPossible : 0) -
+            (totalTrainingPossible > 0 ? pt_b.training / totalTrainingPossible : 0);
+          break;
+        case "lastAttended": {
+          const aDate = lastAttended[a] ?? "";
+          const bDate = lastAttended[b] ?? "";
+          diff = aDate.localeCompare(bDate);
+          break;
+        }
+      }
+      return sortDir === "asc" ? diff : -diff;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [players.join(","), sortCol, sortDir, totalPracticePossible, totalTrainingPossible, lastAttended]);
+
+  // ── Chart data ─────────────────────────────────────────────────────────────
+  const barChartData = useMemo(() => {
+    return players
+      .map((player) => {
+        const pt  = totals[player] ?? { practice: 0 };
+        const pct = totalPracticePossible > 0
+          ? Math.round((pt.practice / totalPracticePossible) * 100)
+          : 0;
+        return { player, pct };
+      })
+      .sort((a, b) => b.pct - a.pct);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [players.join(","), totalPracticePossible]);
+
+  const donutData = useMemo(() => {
+    const buckets = { full: 0, mid: 0, low: 0 };
+    players.forEach((player) => {
+      const pt  = totals[player] ?? { practice: 0 };
+      const pct = totalPracticePossible > 0
+        ? Math.round((pt.practice / totalPracticePossible) * 100)
+        : 0;
+      if (pct >= 100) buckets.full++;
+      else if (pct >= 50) buckets.mid++;
+      else buckets.low++;
+    });
+    return [
+      { name: "100% attendance",  value: buckets.full, color: TIER_COLORS.full },
+      { name: "50–99% attendance", value: buckets.mid,  color: TIER_COLORS.mid },
+      { name: "<50% attendance",  value: buckets.low,  color: TIER_COLORS.low },
+    ].filter((d) => d.value > 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [players.join(","), totalPracticePossible]);
+
+  const barYAxisWidth = useMemo(() => {
+    if (barChartData.length === 0) return 60;
+    const maxLen = Math.max(...barChartData.map((d) => d.player.length));
+    return Math.min(Math.max(maxLen * 7, 60), 140);
+  }, [barChartData]);
+
+  const barChartHeight = Math.max(200, barChartData.length * 32 + 40);
+
+  // ── Averages row ───────────────────────────────────────────────────────────
+  const playerCount   = sortedPlayers.length;
+  const avgPracticeHours =
+    playerCount > 0
+      ? sortedPlayers.reduce((s, p) => s + (totals[p]?.practice ?? 0), 0) / playerCount
+      : 0;
+  const avgOptHours =
+    playerCount > 0
+      ? sortedPlayers.reduce((s, p) => s + (totals[p]?.training ?? 0), 0) / playerCount
+      : 0;
+  const _sortedDates      = Object.values(lastAttended).sort();
+  const latestAttendanceDate =
+    _sortedDates.length > 0 ? _sortedDates[_sortedDates.length - 1] : null;
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
+  function handleSort(col: SortColumn) {
+    if (sortCol === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortCol(col);
+      setSortDir("asc");
+    }
+  }
+
+  function handleExport() {
+    const header = [
+      "Player",
+      "Practice Hours",
+      "Practice %",
+      "Optional Hours",
+      "Optional %",
+      "Last Attended",
+    ];
+    const rows = sortedPlayers.map((player) => {
+      const pt = totals[player] ?? { practice: 0, training: 0 };
+      const practPct =
+        totalPracticePossible > 0
+          ? Math.round((pt.practice / totalPracticePossible) * 100)
+          : 0;
+      const optPct =
+        totalTrainingPossible > 0
+          ? Math.round((pt.training / totalTrainingPossible) * 100)
+          : 0;
+      return [
+        player,
+        pt.practice,
+        `${practPct}%`,
+        pt.training,
+        `${optPct}%`,
+        lastAttended[player] ? formatDate(lastAttended[player]) : "—",
+      ];
+    });
+    const csv = [header, ...rows]
+      .map((r) => r.map((v) => `"${v}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = "participation-summary.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const handleArchiveEvents = () => {
     if (state.events.length === 0) return;
     setShowArchiveConfirm(true);
   };
 
-  const players = Object.keys(totals).sort((a, b) => a.localeCompare(b));
+  // ── Column config ──────────────────────────────────────────────────────────
+  const columns: { label: string; col: SortColumn; tooltip: string }[] = [
+    { label: "Player", col: "player", tooltip: "Athlete name" },
+    {
+      label: "Practice Hrs",
+      col: "practice",
+      tooltip: "Total practice hours attended within the selected date range",
+    },
+    {
+      label: "Practice %",
+      col: "practicePercent",
+      tooltip: "Percentage of total scheduled practice hours the athlete attended",
+    },
+    {
+      label: "Optional",
+      col: "optional",
+      tooltip: "Hours attended in optional training sessions",
+    },
+    {
+      label: "Opt %",
+      col: "optPercent",
+      tooltip: "Percentage of total optional training hours the athlete attended",
+    },
+    {
+      label: "Last Attended",
+      col: "lastAttended",
+      tooltip: "Date of the athlete's most recent session attendance",
+    },
+  ];
 
+  const DATE_RANGE_LABELS: Record<DateRange, string> = {
+    "7d":    "Last 7 days",
+    "30d":   "Last 30 days",
+    season:  "This season",
+    custom:  "Custom",
+  };
+
+  const showCharts = players.length > 0 && totalPracticePossible > 0;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      {/* Hero Card */}
-      <div className="bg-gradient-to-br from-white to-purple-50 rounded-3xl p-6 md:p-8 shadow-xl border border-purple-100">
-        <span className="text-xs font-bold uppercase tracking-wider text-purple-600">
-          Dashboard
-        </span>
-        <h2 className="mt-2 text-3xl md:text-5xl font-bold text-gray-900 leading-tight">
-          Team participation summary.
-        </h2>
-        <p className="mt-3 text-lg text-gray-600 max-w-2xl">
-          Review practice hours, optional training hours, and participation
-          percentages.
-        </p>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <h2 className="text-2xl md:text-3xl font-bold text-white">
+            Team participation summary
+          </h2>
+          <p className="mt-1 text-white/40 text-sm">
+            Review practice hours, optional training, and participation percentages.
+          </p>
+        </div>
+
+        {/* Date range selector */}
+        <div className="flex flex-col gap-2 sm:items-end flex-shrink-0">
+          <div
+            className="flex rounded-xl border border-white/[0.08] overflow-hidden"
+            style={{ backgroundColor: "var(--mc-surface)" }}
+          >
+            {(["7d", "30d", "season", "custom"] as DateRange[]).map((r) => (
+              <button
+                key={r}
+                onClick={() => setDateRange(r)}
+                className={`px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap ${
+                  dateRange === r
+                    ? "bg-purple-600/30 text-purple-300 border-x border-purple-500/30"
+                    : "text-white/40 hover:text-white/70 hover:bg-white/[0.04]"
+                }`}
+              >
+                {DATE_RANGE_LABELS[r]}
+              </button>
+            ))}
+          </div>
+
+          {dateRange === "custom" && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="px-2.5 py-1.5 rounded-lg text-xs text-white/70 border border-white/[0.08] bg-white/[0.04] focus:outline-none focus:border-purple-500/50"
+              />
+              <span className="text-white/25 text-xs">to</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="px-2.5 py-1.5 rounded-lg text-xs text-white/70 border border-white/[0.08] bg-white/[0.04] focus:outline-none focus:border-purple-500/50"
+              />
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-gray-200">
-          <div className="flex items-center gap-3 mb-2">
-            <Calendar className="size-5 text-blue-600" />
-            <span className="text-sm font-semibold text-gray-600">
+      {/* Stats Grid — 3 cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div
+          className="rounded-2xl p-5 border border-white/[0.08]"
+          style={{ backgroundColor: "var(--mc-surface)" }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Calendar className="size-4 text-purple-400" />
+            <span className="text-xs font-semibold text-white/50 uppercase tracking-wider">
               Total Events
             </span>
           </div>
-          <strong className="text-4xl font-bold text-gray-900">
-            {state.events.length}
-          </strong>
+          <div className="flex items-end justify-between gap-2">
+            <strong className="text-3xl font-bold text-white">
+              {filteredEvents.length}
+            </strong>
+            <TrendBadge trend={attendanceTrend} />
+          </div>
         </div>
 
-        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-gray-200">
-          <div className="flex items-center gap-3 mb-2">
-            <Clock className="size-5 text-green-600" />
-            <span className="text-sm font-semibold text-gray-600">
+        <div
+          className="rounded-2xl p-5 border border-white/[0.08]"
+          style={{ backgroundColor: "var(--mc-surface)" }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Clock className="size-4 text-purple-400" />
+            <span className="text-xs font-semibold text-white/50 uppercase tracking-wider">
               Practice Hours
             </span>
           </div>
-          <strong className="text-4xl font-bold text-gray-900">
-            {totalPracticePossible.toLocaleString(undefined, {
-              maximumFractionDigits: 1,
-            })}
-          </strong>
+          <div className="flex items-end justify-between gap-2">
+            <strong className="text-3xl font-bold text-white">
+              {totalPracticePossible.toLocaleString(undefined, {
+                maximumFractionDigits: 1,
+              })}
+            </strong>
+            <TrendBadge trend={hoursTrend} />
+          </div>
         </div>
 
-        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-gray-200">
-          <div className="flex items-center gap-3 mb-2">
-            <BarChart3 className="size-5 text-purple-600" />
-            <span className="text-sm font-semibold text-gray-600">
-              Optional Training Hours
+        <div
+          className="col-span-2 md:col-span-1 rounded-2xl p-5 border border-white/[0.08]"
+          style={{ backgroundColor: "var(--mc-surface)" }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Users className="size-4 text-purple-400" />
+            <span className="text-xs font-semibold text-white/50 uppercase tracking-wider">
+              Avg Attendance
             </span>
           </div>
-          <strong className="text-4xl font-bold text-gray-900">
-            {totalTrainingPossible.toLocaleString(undefined, {
-              maximumFractionDigits: 1,
-            })}
-          </strong>
+          <div className="flex items-end justify-between gap-2">
+            <strong className="text-3xl font-bold text-white">
+              {avgAttendanceRate}%
+            </strong>
+            <TrendBadge trend={attendanceTrend} />
+          </div>
         </div>
       </div>
 
+      {/* ── Attendance Overview Charts ──────────────────────────────────────── */}
+      {showCharts && (
+        <div
+          className="rounded-2xl border border-white/[0.08] overflow-hidden"
+          style={{ backgroundColor: "var(--mc-surface)" }}
+        >
+          <div className="px-5 py-4 border-b border-white/[0.08]">
+            <h3 className="text-xs font-bold text-white/60 uppercase tracking-widest">
+              Attendance Overview
+            </h3>
+          </div>
+
+          <div className="p-5 flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
+            {/* Left — donut chart + legend */}
+            <div className="flex flex-col items-center gap-5 lg:w-52 flex-shrink-0 w-full">
+              <div className="relative w-44 h-44">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={donutData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={48}
+                      outerRadius={72}
+                      dataKey="value"
+                      paddingAngle={donutData.length > 1 ? 3 : 0}
+                      startAngle={90}
+                      endAngle={-270}
+                      stroke="none"
+                    >
+                      {donutData.map((entry, i) => (
+                        <Cell key={i} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <ChartTooltip
+                      contentStyle={DARK_TOOLTIP}
+                      formatter={(value: number, name: string) => [
+                        `${value} player${value !== 1 ? "s" : ""}`,
+                        name,
+                      ]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Center label */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-2xl font-bold text-white leading-none">
+                    {avgAttendanceRate}%
+                  </span>
+                  <span className="text-[10px] text-white/35 uppercase tracking-wider mt-0.5">
+                    avg
+                  </span>
+                </div>
+              </div>
+
+              {/* Legend */}
+              <div className="flex flex-col gap-2 w-full">
+                {donutData.map((d) => (
+                  <div key={d.name} className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="size-2.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: d.color }}
+                      />
+                      <span className="text-xs text-white/50 truncate">{d.name}</span>
+                    </div>
+                    <span className="text-xs font-semibold text-white/70 tabular-nums flex-shrink-0">
+                      {d.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="hidden lg:block w-px self-stretch bg-white/[0.06]" />
+            <div className="lg:hidden w-full h-px bg-white/[0.06]" />
+
+            {/* Right — horizontal bar chart */}
+            <div className="flex-1 min-w-0 w-full">
+              <p className="text-[11px] font-semibold text-white/30 uppercase tracking-widest mb-3">
+                Practice % by player
+              </p>
+              <ResponsiveContainer width="100%" height={barChartHeight}>
+                <BarChart
+                  data={barChartData}
+                  layout="vertical"
+                  margin={{ top: 0, right: 48, bottom: 0, left: 0 }}
+                  barCategoryGap="25%"
+                >
+                  <XAxis
+                    type="number"
+                    domain={[0, 100]}
+                    tickFormatter={(v) => `${v}%`}
+                    tick={{ fill: "rgba(255,255,255,0.25)", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickCount={6}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="player"
+                    width={barYAxisWidth}
+                    tick={{ fill: "rgba(255,255,255,0.55)", fontSize: 12 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <ChartTooltip
+                    contentStyle={DARK_TOOLTIP}
+                    cursor={{ fill: "rgba(255,255,255,0.03)" }}
+                    formatter={(value: number) => [`${value}%`, "Practice attendance"]}
+                  />
+                  <Bar
+                    dataKey="pct"
+                    radius={[0, 4, 4, 0]}
+                    background={{ fill: "rgba(255,255,255,0.03)", radius: 4 }}
+                    label={{
+                      position: "right",
+                      fill: "rgba(255,255,255,0.35)",
+                      fontSize: 11,
+                      formatter: (v: number) => `${v}%`,
+                    }}
+                  >
+                    {barChartData.map((entry, i) => (
+                      <Cell key={i} fill={tierColor(entry.pct)} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Player Totals Table */}
-      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 md:p-8 shadow-xl border border-gray-200">
-        <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
-          <h3 className="text-xl font-bold text-gray-900">Player Totals</h3>
-          <button
-            onClick={handleArchiveEvents}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-blue-200 text-blue-600 font-semibold rounded-xl hover:bg-blue-50 focus:ring-4 focus:ring-blue-200 transition-all"
-          >
-            <Archive className="size-4" />
-            Archive Logged Events
-          </button>
+      <div
+        className="rounded-2xl border border-white/[0.08] overflow-hidden"
+        style={{ backgroundColor: "var(--mc-surface)" }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.08]">
+          <h3 className="text-xs font-bold text-white/60 uppercase tracking-widest">
+            Player Totals
+          </h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExport}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/35 hover:text-white/65 hover:bg-white/[0.06] border border-white/[0.08] transition-all"
+            >
+              <Download className="size-3.5" />
+              Export CSV
+            </button>
+            <button
+              onClick={handleArchiveEvents}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/35 hover:text-white/65 hover:bg-white/[0.06] border border-white/[0.08] transition-all"
+            >
+              <Archive className="size-3.5" />
+              Archive Events
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[800px]">
+          <table className="w-full min-w-[700px]">
             <thead>
-              <tr className="border-b border-gray-200">
-                <th className="px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-blue-600">
-                  Player
-                </th>
-                <th className="px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-blue-600">
-                  Practice Hours
-                </th>
-                <th className="px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-blue-600">
-                  Practice %
-                </th>
-                <th className="px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-blue-600">
-                  Optional Hours
-                </th>
-                <th className="px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-blue-600">
-                  Optional %
-                </th>
-                <th className="px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-blue-600">
-                  Total Hours
-                </th>
-                <th className="px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-blue-600">
-                  Total %
-                </th>
+              <tr className="border-b border-white/[0.06]">
+                {columns.map(({ label, col, tooltip }) => (
+                  <th
+                    key={col}
+                    onClick={() => handleSort(col)}
+                    className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-purple-400/80 cursor-pointer select-none hover:text-purple-300 transition-colors whitespace-nowrap"
+                  >
+                    {label}
+                    <SortIcon active={sortCol === col} dir={sortDir} />
+                    <ColTooltip text={tooltip} />
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {players.length === 0 ? (
+              {sortedPlayers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-4 text-center text-gray-500">
+                  <td
+                    colSpan={6}
+                    className="px-5 py-10 text-center text-white/25 text-sm"
+                  >
                     No roster or event data yet.
                   </td>
                 </tr>
               ) : (
-                players.map((player) => {
-                  const playerTotals = totals[player];
-                  const totalHours =
-                    playerTotals.practice + playerTotals.training;
-
+                sortedPlayers.map((player, idx) => {
+                  const playerTotals = totals[player] ?? { practice: 0, training: 0 };
                   return (
-                    <tr key={player} className="border-b border-gray-100">
-                      <td className="px-3 py-4 font-semibold text-gray-900">
+                    <tr
+                      key={player}
+                      className={`border-b border-white/[0.04] transition-colors cursor-default group ${
+                        idx % 2 !== 0 ? "bg-white/[0.015]" : ""
+                      } hover:bg-purple-500/[0.06]`}
+                    >
+                      <td className="px-5 py-3.5 font-semibold text-white/85 text-sm group-hover:text-white transition-colors">
                         {player}
                       </td>
-                      <td className="px-3 py-4 text-gray-700">
+                      <td className="px-5 py-3.5 text-white/55 text-sm tabular-nums">
                         {playerTotals.practice.toLocaleString(undefined, {
                           maximumFractionDigits: 1,
                         })}
                       </td>
-                      <td className="px-3 py-4 text-gray-700">
-                        {percent(playerTotals.practice, totalPracticePossible)}
+                      <td className="px-5 py-3.5">
+                        <PracticeBar
+                          value={playerTotals.practice}
+                          total={totalPracticePossible}
+                        />
                       </td>
-                      <td className="px-3 py-4 text-gray-700">
+                      <td className="px-5 py-3.5 text-white/55 text-sm tabular-nums">
                         {playerTotals.training.toLocaleString(undefined, {
                           maximumFractionDigits: 1,
                         })}
                       </td>
-                      <td className="px-3 py-4 text-gray-700">
+                      <td className="px-5 py-3.5 text-white/55 text-sm tabular-nums">
                         {percent(playerTotals.training, totalTrainingPossible)}
                       </td>
-                      <td className="px-3 py-4 font-semibold text-gray-900">
-                        {totalHours.toLocaleString(undefined, {
-                          maximumFractionDigits: 1,
-                        })}
-                      </td>
-                      <td className="px-3 py-4 font-semibold text-gray-900">
-                        {percent(totalHours, totalPossible)}
+                      <td className="px-5 py-3.5 text-white/40 text-sm">
+                        {lastAttended[player] ? formatDate(lastAttended[player]) : "—"}
                       </td>
                     </tr>
                   );
                 })
               )}
             </tbody>
+
+            {/* Averages footer row */}
+            {sortedPlayers.length > 0 && (
+              <tfoot>
+                <tr className="border-t-2 border-white/[0.08] bg-white/[0.03]">
+                  <td className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-white/35">
+                    Team Avg
+                  </td>
+                  <td className="px-5 py-3 text-white/40 text-sm tabular-nums">
+                    {avgPracticeHours.toLocaleString(undefined, {
+                      maximumFractionDigits: 1,
+                    })}
+                  </td>
+                  <td className="px-5 py-3">
+                    <PracticeBar value={avgPracticeHours} total={totalPracticePossible} />
+                  </td>
+                  <td className="px-5 py-3 text-white/40 text-sm tabular-nums">
+                    {avgOptHours.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                  </td>
+                  <td className="px-5 py-3 text-white/40 text-sm tabular-nums">
+                    {percent(avgOptHours, totalTrainingPossible)}
+                  </td>
+                  <td className="px-5 py-3 text-white/30 text-sm">
+                    {latestAttendanceDate ? formatDate(latestAttendanceDate) : "—"}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>
 
-      {/* Event History */}
-      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 md:p-8 shadow-xl border border-gray-200">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">Logged Events</h3>
+      {/* Logged Events */}
+      <div
+        className="rounded-2xl border border-white/[0.08] overflow-hidden"
+        style={{ backgroundColor: "var(--mc-surface)" }}
+      >
+        <div className="px-5 py-4 border-b border-white/[0.08]">
+          <h3 className="text-xs font-bold text-white/60 uppercase tracking-widest">
+            Logged Events
+          </h3>
+        </div>
 
-        {state.events.length === 0 ? (
-          <div className="bg-gray-50/60 border border-dashed border-gray-300 rounded-2xl p-8 text-center text-gray-500">
-            No events have been logged yet.
+        {filteredEvents.length === 0 ? (
+          <div className="px-5 py-10 text-center text-white/25 text-sm">
+            No events in this date range.
           </div>
         ) : (
-          <div className="space-y-3">
-            {state.events.map((event) => (
+          <div className="divide-y divide-white/[0.04]">
+            {filteredEvents.map((event) => (
               <div
                 key={event.id}
-                className="flex items-center justify-between gap-4 p-4 border border-gray-200 rounded-2xl bg-white hover:shadow-md transition-shadow"
+                className="flex items-center justify-between gap-4 px-5 py-3.5 hover:bg-white/[0.03] transition-colors"
               >
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-gray-900">
+                  <div className="font-semibold text-white/75 text-sm">
                     {event.type} • {formatDate(event.date)}
                   </div>
-                  <div className="text-sm text-gray-600 mt-1">
+                  <div className="text-xs text-white/30 mt-0.5">
                     {event.duration}{" "}
                     {event.duration === 1 ? "hour" : "hours"} •{" "}
                     {event.players.length} present
                   </div>
                 </div>
-                <div className="text-sm text-gray-500 text-right truncate max-w-xs">
+                <div className="text-xs text-white/20 text-right truncate max-w-xs">
                   {event.players.join(", ") || "No players"}
                 </div>
               </div>
@@ -219,6 +844,7 @@ export default function SummaryPage() {
           </div>
         )}
       </div>
+
       {/* Archive Confirmation Dialog */}
       <AlertDialog open={showArchiveConfirm} onOpenChange={setShowArchiveConfirm}>
         <AlertDialogContent>
@@ -231,7 +857,7 @@ export default function SummaryPage() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isArchiving}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-purple-600 hover:bg-purple-700"
               disabled={isArchiving}
               onClick={async (e) => {
                 e.preventDefault();
