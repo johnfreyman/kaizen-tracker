@@ -1,5 +1,5 @@
 import { Play, Users, ChevronRight, Activity, Trophy, Target, Clock } from "lucide-react";
-import { useTeamStore, EVENT_TYPES } from "../hooks/useTeamStore";
+import { useTeamStore, EVENT_TYPES, ActiveSession } from "../hooks/useTeamStore";
 import { useSessionTimer, formatElapsed } from "../hooks/useSessionTimer";
 import { formatDate } from "@/lib/dates";
 import { calculateTotals } from "@/lib/stats";
@@ -8,8 +8,34 @@ interface Props {
   onNavigate: (page: string) => void;
 }
 
+function buildSmartSession(): ActiveSession {
+  const now = new Date();
+  // Snap to nearest 15 min
+  const snapped = new Date(now);
+  snapped.setMinutes(Math.round(now.getMinutes() / 15) * 15, 0, 0);
+  if (snapped.getMinutes() === 60) { snapped.setHours(snapped.getHours() + 1); snapped.setMinutes(0); }
+
+  const y = snapped.getFullYear();
+  const mo = String(snapped.getMonth() + 1).padStart(2, "0");
+  const d = String(snapped.getDate()).padStart(2, "0");
+  const h = String(snapped.getHours()).padStart(2, "0");
+  const mi = String(snapped.getMinutes()).padStart(2, "0");
+
+  return {
+    id: crypto.randomUUID(),
+    date: `${y}-${mo}-${d}T${h}:${mi}`,
+    type: EVENT_TYPES.PRACTICE,
+    duration: 1.5,
+  };
+}
+
 export default function MissionControlDashboard({ onNavigate }: Props) {
-  const { state } = useTeamStore();
+  const { state, startSession } = useTeamStore();
+
+  const handleSmartStart = async () => {
+    await startSession(buildSmartSession());
+    onNavigate("attendance");
+  };
   const elapsed = useSessionTimer(state.activeSession);
 
   const practiceEvents = state.events.filter((e) => e.type === EVENT_TYPES.PRACTICE);
@@ -47,7 +73,7 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
           rosterSize={state.roster.length}
           lastEventDate={state.events[0]?.date ?? null}
           hasEvents={state.events.length > 0}
-          onStart={() => onNavigate("launch")}
+          onStart={handleSmartStart}
           onConfigure={() => onNavigate("launch")}
         />
       )}
