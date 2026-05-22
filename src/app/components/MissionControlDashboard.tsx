@@ -3,6 +3,8 @@ import { useTeamStore, EVENT_TYPES, ActiveSession } from "../hooks/useTeamStore"
 import { useSessionTimer, formatElapsed } from "../hooks/useSessionTimer";
 import { formatDate } from "@/lib/dates";
 import LeaderboardTicker from "./LeaderboardTicker";
+import AlertSurface from "./AlertSurface";
+import WorkflowChecklist from "./WorkflowChecklist";
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -73,6 +75,12 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
           onConfigure={() => onNavigate("launch")}
         />
       )}
+
+      {/* ── Alert Surface ──────────────────────────────────────── */}
+      <AlertSurface onNavigate={onNavigate} />
+
+      {/* ── Workflow Checklist ─────────────────────────────────── */}
+      <WorkflowChecklist onNavigate={onNavigate} />
 
       {/* ── Stats Tiles ────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-3">
