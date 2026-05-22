@@ -1,5 +1,4 @@
-// Drop-in replacement helper for `getErrorRate` / `hasPendingSyncs` / etc.
-// Returns lifecycle state for unverified coaches. Null for verified.
+// Pure read-only helper that returns lifecycle state for unverified coaches. Null for verified.
 //
 // Pure read-only: derives stage from account_created_at. Server-side worker
 // performs the actual purge at day 90; this helper only describes where

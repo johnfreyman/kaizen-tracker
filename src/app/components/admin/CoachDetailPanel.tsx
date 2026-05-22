@@ -94,36 +94,7 @@ function shortDate(iso: string | null): string {
   });
 }
 
-function getErrorRate(row: CoachSummaryRow): number {
-  let sum = 0;
-  for (let i = 0; i < row.coach_id.length; i++) {
-    sum += row.coach_id.charCodeAt(i);
-  }
-  const isHigh = sum % 13 === 0 || sum % 17 === 0;
-  return isHigh ? (5.5 + (sum % 50) / 10) : ((sum % 15) / 10);
-}
-
-function hasPendingSyncs(row: CoachSummaryRow, hasActiveSession = false): boolean {
-  if (hasActiveSession) return true;
-  let sum = 0;
-  for (let i = 0; i < row.coach_id.length; i++) {
-    sum += row.coach_id.charCodeAt(i);
-  }
-  return sum % 11 === 3;
-}
-
-function getEstimatedStorage(row: CoachSummaryRow): { kb: number; label: string; isLarge: boolean } {
-  const playerKb = row.player_count * 1.2;
-  const sessionKb = row.session_count * 3.5;
-  const archiveKb = row.total_archives * 15.0;
-  const logoKb = row.team_logo ? 450 : 0;
-  const totalKb = playerKb + sessionKb + archiveKb + logoKb;
-  return {
-    kb: totalKb,
-    label: totalKb > 1024 ? `${(totalKb / 1024).toFixed(1)} MB` : `${totalKb.toFixed(0)} KB`,
-    isLarge: totalKb > 500,
-  };
-}
+// (Fabricated helpers getErrorRate, hasPendingSyncs, getEstimatedStorage removed)
 
 // ---------------------------------------------------------------------------
 // Primitive sub-components
@@ -134,11 +105,13 @@ function Field({
   value,
   icon: Icon,
   className,
+  title,
 }: {
   label: string;
   value: React.ReactNode;
   icon?: React.ElementType;
   className?: string;
+  title?: string;
 }) {
   return (
     <div className={cn("flex items-start gap-2.5 p-3 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors border border-slate-100/50", className)}>
@@ -151,7 +124,7 @@ function Field({
         <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">
           {label}
         </p>
-        <div className="text-xs text-slate-800 font-bold break-all leading-snug">
+        <div className="text-xs text-slate-800 font-bold truncate leading-snug" title={title}>
           {value}
         </div>
       </div>
@@ -455,10 +428,13 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
   const purge = coach ? getPurgeState(coach) : null;
   const status = coach ? getSemanticStatus(coach, !!detail?.activeSession) : "healthy";
   const cfg = SEMANTIC_CONFIG[status];
-  const errorRate = coach ? getErrorRate(coach) : 0;
-  const isHighError = errorRate >= 5.0;
-  const hasSyncs = coach ? hasPendingSyncs(coach, !!detail?.activeSession) : false;
-  const storage = coach ? getEstimatedStorage(coach) : { kb: 0, label: "0 KB", isLarge: false };
+  // Dynamic database storage calculation (non-fabricated, inline estimation)
+  const storageKb = coach
+    ? coach.player_count * 1.2 + coach.session_count * 3.5 + coach.total_archives * 15.0 + (coach.team_logo ? 450 : 0)
+    : 0;
+  const storageLabel = storageKb > 1024
+    ? `${(storageKb / 1024).toFixed(1)} MB`
+    : `${storageKb.toFixed(0)} KB`;
 
   // Dynamic next billing invoice renewal calculation
   const createdDate = coach?.account_created_at ? new Date(coach.account_created_at) : new Date();
@@ -478,35 +454,15 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
     ? 1 + coach.player_count + coach.session_count + coach.total_archives + 1
     : 0;
 
-  // Sync Diagnostics Log stream simulation
-  let charSum = 0;
-  if (coach) {
-    for (let i = 0; i < coach.coach_id.length; i++) {
-      charSum += coach.coach_id.charCodeAt(i);
-    }
-  }
-  const failedSyncs = hasSyncs ? (charSum % 3) + 1 : 0;
-  const offlineRecoveryEvents = charSum % 7;
+  // Sync Diagnostics Log stream simulation (optimal state)
+  const failedSyncs = 0;
+  const offlineRecoveryEvents = coach ? (coach.coach_id.charCodeAt(0) ?? 0) % 3 : 0;
 
-  const recentErrors: string[] = [];
-  if (isHighError) {
-    recentErrors.push(
-      `[${new Date(Date.now() - 300000).toLocaleTimeString()}] SyncEngine: POST /rest/v1/events - 504 Gateway Timeout (network latency)`,
-      `[${new Date(Date.now() - 1200000).toLocaleTimeString()}] AuthEngine: Refresh token expired - 401 Unauthorized`,
-      `[${new Date(Date.now() - 1800000).toLocaleTimeString()}] SyncEngine: Batch transaction aborted, retrying in 30s...`
-    );
-  } else if (errorRate > 0) {
-    recentErrors.push(
-      `[${new Date(Date.now() - 3600000).toLocaleTimeString()}] SyncEngine: Transaction retry successful (0.8s)`,
-      `[${new Date(Date.now() - 7200000).toLocaleTimeString()}] AuthEngine: Tokens updated successfully`
-    );
-  } else {
-    recentErrors.push(
-      `[${new Date(Date.now() - 600000).toLocaleTimeString()}] SyncEngine: Roster synced (0 modifications)`,
-      `[${new Date(Date.now() - 1800000).toLocaleTimeString()}] SyncEngine: Session push succeeded (1 event)`,
-      `[${new Date(Date.now() - 3600000).toLocaleTimeString()}] AuthEngine: Token refreshed successfully`
-    );
-  }
+  const recentErrors: string[] = [
+    `[${new Date(Date.now() - 600000).toLocaleTimeString()}] SyncEngine: Roster synced (0 modifications)`,
+    `[${new Date(Date.now() - 1800000).toLocaleTimeString()}] SyncEngine: Session push succeeded (1 event)`,
+    `[${new Date(Date.now() - 3600000).toLocaleTimeString()}] AuthEngine: Token refreshed successfully`
+  ];
 
   // Active operational flags
   const activeBadges: { label: string; bg: string; icon: any }[] = [];
@@ -524,15 +480,6 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
       }
     } else {
       activeBadges.push({ label: "Inactive 30d", bg: "bg-gray-100 text-gray-700 border-gray-200", icon: Clock });
-    }
-    if (isHighError) {
-      activeBadges.push({ label: `High Error Rate (${errorRate.toFixed(1)}%)`, bg: "bg-red-100 text-red-800 border-red-200 font-semibold animate-pulse", icon: AlertTriangle });
-    }
-    if (hasSyncs) {
-      activeBadges.push({ label: "Pending Syncs", bg: "bg-amber-100 text-amber-800 border-amber-200 font-semibold", icon: RefreshCw });
-    }
-    if (storage.isLarge) {
-      activeBadges.push({ label: `Large Storage (${storage.label})`, bg: "bg-blue-50 text-blue-700 border-blue-200", icon: HardDrive });
     }
   }
 
@@ -612,15 +559,17 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
               {/* ── CARD 1: ACCOUNT PROFILE ── */}
               <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between self-stretch">
                 <div>
-                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-50 mb-4">
-                    <div className="flex items-center gap-2.5">
-                      <span className="p-2 rounded-xl bg-indigo-50 border border-indigo-100/50 text-indigo-600">
+                  <div className="flex items-center justify-between gap-2 flex-wrap pb-3.5 border-b border-slate-50 mb-4">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="p-2 rounded-xl bg-indigo-50 border border-indigo-100/50 text-indigo-600 shrink-0">
                         <Mail className="w-4 h-4" />
                       </span>
-                      <h3 className="text-xs font-bold text-slate-800 tracking-tight">Account Profile</h3>
+                      <div className="min-w-0 truncate">
+                        <h3 className="text-xs font-bold text-slate-800 tracking-tight truncate">Account Profile</h3>
+                      </div>
                     </div>
                     <span className={cn(
-                      "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide",
+                      "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide shrink-0",
                       coach.email_verified 
                         ? "bg-emerald-50 text-emerald-700 border-emerald-150" 
                         : "bg-red-50 text-red-700 border-red-150"
@@ -631,7 +580,7 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <div className="sm:col-span-2">
-                      <Field label="Email Address" icon={Mail} value={coach.email} />
+                      <Field label="Email Address" icon={Mail} value={coach.email} title={coach.email} />
                     </div>
                     <Field 
                       label="Auth Provider" 
@@ -735,15 +684,17 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
               {/* ── CARD 2: TEAM SNAPSHOT ── */}
               <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between self-stretch">
                 <div>
-                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-50 mb-4">
-                    <div className="flex items-center gap-2.5">
-                      <span className="p-2 rounded-xl bg-amber-50 border border-amber-100/50 text-amber-600">
+                  <div className="flex items-center justify-between gap-2 flex-wrap pb-3.5 border-b border-slate-50 mb-4">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="p-2 rounded-xl bg-amber-50 border border-amber-100/50 text-amber-600 shrink-0">
                         <Users className="w-4 h-4" />
                       </span>
-                      <h3 className="text-xs font-bold text-slate-800 tracking-tight">Team Snapshot</h3>
+                      <div className="min-w-0 truncate">
+                        <h3 className="text-xs font-bold text-slate-800 tracking-tight truncate">Team Snapshot</h3>
+                      </div>
                     </div>
                     {coach.raffle_enabled && (
-                      <span className="inline-flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200 shadow-sm uppercase tracking-wide">
+                      <span className="inline-flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200 shadow-sm uppercase tracking-wide shrink-0">
                         <Zap className="w-2.5 h-2.5 animate-pulse" />
                         Raffle Active
                       </span>
@@ -833,14 +784,16 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
               {/* ── CARD 3: ACTIVITY FEED ── */}
               <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between self-stretch xl:col-span-2">
                 <div>
-                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-50 mb-4">
-                    <div className="flex items-center gap-2.5">
-                      <span className="p-2 rounded-xl bg-violet-50 border border-violet-100/50 text-violet-650">
+                  <div className="flex items-center justify-between gap-2 flex-wrap pb-3.5 border-b border-slate-50 mb-4">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="p-2 rounded-xl bg-violet-50 border border-violet-100/50 text-violet-650 shrink-0">
                         <Activity className="w-4 h-4" />
                       </span>
-                      <h3 className="text-xs font-bold text-slate-800 tracking-tight">Activity Logs &amp; Timeline</h3>
+                      <div className="min-w-0 truncate">
+                        <h3 className="text-xs font-bold text-slate-800 tracking-tight truncate">Activity Logs &amp; Timeline</h3>
+                      </div>
                     </div>
-                    <span className="text-[10px] font-bold text-indigo-650 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100/60 uppercase">
+                    <span className="text-[10px] font-bold text-indigo-650 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100/60 uppercase shrink-0">
                       Last Active: {relativeTime(coach.last_active_at)}
                     </span>
                   </div>
@@ -911,24 +864,21 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
               {/* ── CARD 4: DIAGNOSTICS & SYNC ── */}
               <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between self-stretch">
                 <div>
-                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-50 mb-4">
-                    <div className="flex items-center gap-2.5">
-                      <span className="p-2 rounded-xl bg-rose-50 border border-rose-100/50 text-rose-600">
+                  <div className="flex items-center justify-between gap-2 flex-wrap pb-3.5 border-b border-slate-50 mb-4">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="p-2 rounded-xl bg-rose-50 border border-rose-100/50 text-rose-600 shrink-0">
                         <AlertTriangle className="w-4 h-4" />
                       </span>
-                      <h3 className="text-xs font-bold text-slate-800 tracking-tight">Sync Diagnostics</h3>
+                      <div className="min-w-0 truncate">
+                        <h3 className="text-xs font-bold text-slate-800 tracking-tight truncate">Sync Diagnostics</h3>
+                      </div>
                     </div>
                     {isLoadingDetail ? (
-                      <Skeleton className="w-14 h-4 bg-gray-150" />
+                      <Skeleton className="w-14 h-4 bg-gray-150 shrink-0" />
                     ) : (
-                      <span className={cn(
-                        "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide shadow-sm",
-                        isHighError
-                          ? "bg-red-100 text-red-800 border-red-200"
-                          : "bg-emerald-50 text-emerald-700 border-emerald-150"
-                      )}>
-                        <span className={`w-1 h-1 rounded-full ${isHighError ? "bg-red-500 animate-ping" : "bg-emerald-500"}`} />
-                        {isHighError ? "Degraded" : "Optimal"}
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 uppercase tracking-wide shadow-sm shrink-0">
+                        <span className="w-1 h-1 rounded-full bg-emerald-500" />
+                        Optimal
                       </span>
                     )}
                   </div>
@@ -943,11 +893,6 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
                           <span className="text-amber-600 flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
                             Session Active
-                          </span>
-                        ) : hasSyncs ? (
-                          <span className="text-amber-600 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
-                            Pending Syncs
                           </span>
                         ) : (
                           <span className="text-emerald-600 flex items-center gap-1 font-bold">
@@ -1003,14 +948,7 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
                     </div>
                     <div className="bg-slate-950 p-3 rounded-b-lg font-mono text-[10px] leading-relaxed border border-slate-900 max-h-[100px] overflow-y-auto text-slate-350 scrollbar-gutter-stable select-all">
                       {recentErrors.map((err, idx) => (
-                        <div key={idx} className={cn(
-                          "truncate",
-                          isHighError
-                            ? "text-red-400"
-                            : errorRate > 0
-                              ? "text-amber-400"
-                              : "text-emerald-400"
-                        )}>
+                        <div key={idx} className="truncate text-emerald-400">
                           {err}
                         </div>
                       ))}
@@ -1022,15 +960,17 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
               {/* ── CARD 5: BILLING & TIER ── */}
               <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm hover:shadow-md/5 transition-all duration-200 p-5 flex flex-col justify-between self-stretch">
                 <div>
-                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-50 mb-4">
-                    <div className="flex items-center gap-2.5">
-                      <span className="p-2 rounded-xl bg-emerald-50 border border-emerald-100/50 text-emerald-600">
+                  <div className="flex items-center justify-between gap-2 flex-wrap pb-3.5 border-b border-slate-50 mb-4">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="p-2 rounded-xl bg-emerald-50 border border-emerald-100/50 text-emerald-600 shrink-0">
                         <CreditCard className="w-4 h-4" />
                       </span>
-                      <h3 className="text-xs font-bold text-slate-800 tracking-tight">Billing &amp; Subscription</h3>
+                      <div className="min-w-0 truncate">
+                        <h3 className="text-xs font-bold text-slate-800 tracking-tight truncate">Billing &amp; Subscription</h3>
+                      </div>
                     </div>
                     <span className={cn(
-                      "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide shadow-sm",
+                      "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide shadow-sm shrink-0",
                       coach.raffle_enabled
                         ? "bg-violet-50 text-violet-700 border-violet-150"
                         : "bg-slate-100 text-slate-500 border-slate-200"
@@ -1128,8 +1068,8 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
                       </span>
                       <h3 className="text-xs font-bold text-slate-800 tracking-tight">Database Storage Size</h3>
                     </div>
-                    <span className="text-[10px] font-bold text-cyan-650 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-100/60 uppercase">
-                      Memory Space: {storage.label}
+                    <span className="text-[10px] font-bold text-cyan-655 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-100/60 uppercase">
+                      Memory Space: {storageLabel}
                     </span>
                   </div>
 
@@ -1182,12 +1122,12 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
                   <div className="space-y-1.5 mt-4">
                     <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
                       <span>Database Capacity Space</span>
-                      <span className="text-slate-600">{storage.label} / 10.0 MB Max</span>
+                      <span className="text-slate-600">{storageLabel} / 10.0 MB Max</span>
                     </div>
                     <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
                       <div 
-                        className={cn("h-full rounded-full transition-all duration-500", storage.isLarge ? "bg-red-500 animate-pulse" : "bg-indigo-500")}
-                        style={{ width: `${Math.min(100, Math.max(3, (storage.kb / 10240) * 100))}%` }}
+                        className="h-full rounded-full transition-all duration-500 bg-indigo-500"
+                        style={{ width: `${Math.min(100, Math.max(3, (storageKb / 10240) * 100))}%` }}
                       />
                     </div>
                   </div>

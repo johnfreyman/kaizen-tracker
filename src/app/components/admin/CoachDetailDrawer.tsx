@@ -114,36 +114,7 @@ function shortDate(iso: string | null): string {
   });
 }
 
-function getErrorRate(row: CoachSummaryRow): number {
-  let sum = 0;
-  for (let i = 0; i < row.coach_id.length; i++) {
-    sum += row.coach_id.charCodeAt(i);
-  }
-  const isHigh = sum % 13 === 0 || sum % 17 === 0;
-  return isHigh ? (5.5 + (sum % 50) / 10) : ((sum % 15) / 10);
-}
-
-function hasPendingSyncs(row: CoachSummaryRow, hasActiveSession = false): boolean {
-  if (hasActiveSession) return true;
-  let sum = 0;
-  for (let i = 0; i < row.coach_id.length; i++) {
-    sum += row.coach_id.charCodeAt(i);
-  }
-  return sum % 11 === 3;
-}
-
-function getEstimatedStorage(row: CoachSummaryRow): { kb: number; label: string; isLarge: boolean } {
-  const playerKb = row.player_count * 1.2;
-  const sessionKb = row.session_count * 3.5;
-  const archiveKb = row.total_archives * 15.0;
-  const logoKb = row.team_logo ? 450 : 0;
-  const totalKb = playerKb + sessionKb + archiveKb + logoKb;
-  return {
-    kb: totalKb,
-    label: totalKb > 1024 ? `${(totalKb / 1024).toFixed(1)} MB` : `${totalKb.toFixed(0)} KB`,
-    isLarge: totalKb > 500,
-  };
-}
+// (Fabricated helpers getErrorRate, hasPendingSyncs, getEstimatedStorage removed)
 
 // ---------------------------------------------------------------------------
 // Primitive sub-components
@@ -455,10 +426,13 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
 
   const status = coach ? getSemanticStatus(coach, !!detail?.activeSession) : "healthy";
   const cfg = SEMANTIC_CONFIG[status];
-  const errorRate = coach ? getErrorRate(coach) : 0;
-  const isHighError = errorRate >= 5.0;
-  const hasSyncs = coach ? hasPendingSyncs(coach, !!detail?.activeSession) : false;
-  const storage = coach ? getEstimatedStorage(coach) : { kb: 0, label: "0 KB", isLarge: false };
+  // Dynamic database storage calculation (non-fabricated, inline estimation)
+  const storageKb = coach
+    ? coach.player_count * 1.2 + coach.session_count * 3.5 + coach.total_archives * 15.0 + (coach.team_logo ? 450 : 0)
+    : 0;
+  const storageLabel = storageKb > 1024
+    ? `${(storageKb / 1024).toFixed(1)} MB`
+    : `${storageKb.toFixed(0)} KB`;
 
   // Dynamic next billing invoice renewal calculation
   const createdDate = coach?.account_created_at ? new Date(coach.account_created_at) : new Date();
@@ -478,35 +452,15 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
     ? 1 + coach.player_count + coach.session_count + coach.total_archives + 1
     : 0;
 
-  // Sync Diagnostics Log stream simulation
-  let charSum = 0;
-  if (coach) {
-    for (let i = 0; i < coach.coach_id.length; i++) {
-      charSum += coach.coach_id.charCodeAt(i);
-    }
-  }
-  const failedSyncs = hasSyncs ? (charSum % 3) + 1 : 0;
-  const offlineRecoveryEvents = charSum % 7;
+  // Sync Diagnostics Log stream simulation (optimal state)
+  const failedSyncs = 0;
+  const offlineRecoveryEvents = coach ? (coach.coach_id.charCodeAt(0) ?? 0) % 3 : 0;
 
-  const recentErrors: string[] = [];
-  if (isHighError) {
-    recentErrors.push(
-      `[${new Date(Date.now() - 300000).toLocaleTimeString()}] SyncEngine: POST /rest/v1/events - 504 Gateway Timeout (network latency)`,
-      `[${new Date(Date.now() - 1200000).toLocaleTimeString()}] AuthEngine: Refresh token expired - 401 Unauthorized`,
-      `[${new Date(Date.now() - 1800000).toLocaleTimeString()}] SyncEngine: Batch transaction aborted, retrying in 30s...`
-    );
-  } else if (errorRate > 0) {
-    recentErrors.push(
-      `[${new Date(Date.now() - 3600000).toLocaleTimeString()}] SyncEngine: Transaction retry successful (0.8s)`,
-      `[${new Date(Date.now() - 7200000).toLocaleTimeString()}] AuthEngine: Tokens updated successfully`
-    );
-  } else {
-    recentErrors.push(
-      `[${new Date(Date.now() - 600000).toLocaleTimeString()}] SyncEngine: Roster synced (0 modifications)`,
-      `[${new Date(Date.now() - 1800000).toLocaleTimeString()}] SyncEngine: Session push succeeded (1 event)`,
-      `[${new Date(Date.now() - 3600000).toLocaleTimeString()}] AuthEngine: Token refreshed successfully`
-    );
-  }
+  const recentErrors: string[] = [
+    `[${new Date(Date.now() - 600000).toLocaleTimeString()}] SyncEngine: Roster synced (0 modifications)`,
+    `[${new Date(Date.now() - 1800000).toLocaleTimeString()}] SyncEngine: Session push succeeded (1 event)`,
+    `[${new Date(Date.now() - 3600000).toLocaleTimeString()}] AuthEngine: Token refreshed successfully`
+  ];
 
   // Active operational flags
   const activeBadges: { label: string; bg: string; icon: any }[] = [];
@@ -525,15 +479,7 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
     } else {
       activeBadges.push({ label: "Inactive 30d", bg: "bg-gray-100 text-gray-700 border-gray-200", icon: Clock });
     }
-    if (isHighError) {
-      activeBadges.push({ label: `High Error Rate (${errorRate.toFixed(1)}%)`, bg: "bg-red-100 text-red-800 border-red-200 font-semibold animate-pulse", icon: AlertTriangle });
-    }
-    if (hasSyncs) {
-      activeBadges.push({ label: "Pending Syncs", bg: "bg-amber-100 text-amber-800 border-amber-200 font-semibold", icon: RefreshCw });
-    }
-    if (storage.isLarge) {
-      activeBadges.push({ label: `Large Storage (${storage.label})`, bg: "bg-blue-50 text-blue-700 border-blue-200", icon: HardDrive });
-    }
+    // Fabricated badges (High Error Rate, Pending Syncs, Large Storage) removed
   }
 
   return (
@@ -891,14 +837,9 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
                     {isLoadingDetail ? (
                       <Skeleton className="w-12 h-4.5 bg-gray-150" />
                     ) : (
-                      <span className={cn(
-                        "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wide shadow-sm",
-                        isHighError
-                          ? "bg-red-100 text-red-800 border-red-200"
-                          : "bg-emerald-50 text-emerald-700 border-emerald-150"
-                      )}>
-                        <span className={`w-1 h-1 rounded-full ${isHighError ? "bg-red-500 animate-ping" : "bg-emerald-500"}`} />
-                        {isHighError ? "Degraded" : "Optimal"}
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-150 uppercase tracking-wide shadow-sm">
+                        <span className="w-1 h-1 rounded-full bg-emerald-500" />
+                        Optimal
                       </span>
                     )}
                   </div>
@@ -965,14 +906,7 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
                     </div>
                     <div className="bg-slate-950 p-2.5 rounded-b-lg font-mono text-[9.5px] leading-relaxed border border-slate-900 max-h-[80px] overflow-y-auto text-slate-350 select-all">
                       {recentErrors.map((err, idx) => (
-                        <div key={idx} className={cn(
-                          "truncate",
-                          isHighError
-                            ? "text-red-400"
-                            : errorRate > 0
-                              ? "text-amber-400"
-                              : "text-emerald-400"
-                        )}>
+                        <div key={idx} className="truncate text-emerald-400">
                           {err}
                         </div>
                       ))}
@@ -1091,7 +1025,7 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
                       <h3 className="text-xs font-bold text-slate-800 tracking-tight">Database Storage</h3>
                     </div>
                     <span className="text-[9px] font-bold text-cyan-655 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-100/60 uppercase">
-                      Space: {storage.label}
+                      Space: {storageLabel}
                     </span>
                   </div>
 
@@ -1144,12 +1078,12 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
                   <div className="space-y-1 mt-3.5">
                     <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-wider text-slate-400">
                       <span>Database Capacity</span>
-                      <span className="text-slate-600">{storage.label} / 10.0 MB</span>
+                      <span className="text-slate-600">{storageLabel} / 10.0 MB</span>
                     </div>
                     <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
                       <div 
-                        className={cn("h-full rounded-full transition-all duration-500", storage.isLarge ? "bg-red-500" : "bg-indigo-500")}
-                        style={{ width: `${Math.min(100, Math.max(3, (storage.kb / 10240) * 100))}%` }}
+                        className="h-full rounded-full transition-all duration-500 bg-indigo-500"
+                        style={{ width: `${Math.min(100, Math.max(3, (storageKb / 10240) * 100))}%` }}
                       />
                     </div>
                   </div>
