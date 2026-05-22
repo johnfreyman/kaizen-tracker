@@ -422,30 +422,42 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
     }
   }, [coach]);
 
+  const invokeAdminAction = useCallback(
+    async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+      const { data, error } = await supabase.functions.invoke("admin-coach-actions", { body });
+      if (error) {
+        let message = error.message;
+        try {
+          const parsed = await (error as any).context?.json?.();
+          if (parsed?.error) message = parsed.error;
+        } catch {}
+        throw new Error(message);
+      }
+      return data ?? {};
+    },
+    []
+  );
+
   const handleResendVerification = useCallback(async () => {
     if (!coach) return;
     setActionLoading("resend-verification");
     try {
-      const { error } = await supabase.functions.invoke("admin-coach-actions", {
-        body: { action: "resend-verification", coachId: coach.coach_id, email: coach.email },
+      await invokeAdminAction({
+        action: "resend-verification", coachId: coach.coach_id, email: coach.email,
       });
-      if (error) throw error;
       toast.success(`Verification email resent to ${coach.email}.`);
     } catch (err: any) {
       toast.error(err.message ?? "Failed to resend verification email.");
     } finally {
       setActionLoading(null);
     }
-  }, [coach]);
+  }, [coach, invokeAdminAction]);
 
   const handleForceLogout = useCallback(async () => {
     if (!coach) return;
     setActionLoading("force-logout");
     try {
-      const { error } = await supabase.functions.invoke("admin-coach-actions", {
-        body: { action: "force-logout", coachId: coach.coach_id },
-      });
-      if (error) throw error;
+      await invokeAdminAction({ action: "force-logout", coachId: coach.coach_id });
       toast.success(`${coach.email} has been signed out of all devices.`);
     } catch (err: any) {
       toast.error(err.message ?? "Failed to force logout.");
@@ -453,16 +465,13 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
       setActionLoading(null);
       setPendingConfirm(null);
     }
-  }, [coach]);
+  }, [coach, invokeAdminAction]);
 
   const handleSuspendAccount = useCallback(async () => {
     if (!coach) return;
     setActionLoading("suspend-account");
     try {
-      const { error } = await supabase.functions.invoke("admin-coach-actions", {
-        body: { action: "suspend-account", coachId: coach.coach_id },
-      });
-      if (error) throw error;
+      await invokeAdminAction({ action: "suspend-account", coachId: coach.coach_id });
       toast.success(`${coach.email} has been suspended.`);
     } catch (err: any) {
       toast.error(err.message ?? "Failed to suspend account.");
@@ -470,7 +479,7 @@ export default function CoachDetailDrawer({ coach, onClose }: CoachDetailDrawerP
       setActionLoading(null);
       setPendingConfirm(null);
     }
-  }, [coach]);
+  }, [coach, invokeAdminAction]);
 
   const handleCopyId = useCallback((id: string) => {
     navigator.clipboard.writeText(id);
