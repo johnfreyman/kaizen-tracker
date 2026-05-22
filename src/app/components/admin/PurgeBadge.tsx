@@ -1,5 +1,5 @@
 import React from "react";
-import { Bell, Clock, AlertTriangle } from "lucide-react";
+import { Bell, Clock, AlertTriangle, Trash2 } from "lucide-react";
 import { NUDGE_WINDOW_DAYS, type PurgeState } from "./getPurgeState";
 
 interface PurgeBadgeProps {
@@ -10,9 +10,10 @@ interface PurgeBadgeProps {
 /**
  * Countdown pill for unverified coaches. Replaces the generic "Unverified"
  * badge with a stage-specific signal:
- *   nudge      amber  "Nudge phase · day N/7"
- *   scheduled  slate  "Purges in Nd"
- *   imminent   red    "Purges in Nd"
+ *   nudge         amber  "Nudge phase · day N/7"
+ *   scheduled     slate  "Purges in Nd"
+ *   imminent      red    "Purges in Nd"
+ *   soft_deleted  gray   "Purged"
  */
 export function PurgeBadge({ state, size = "sm" }: PurgeBadgeProps) {
   if (!state) return null;
@@ -32,6 +33,11 @@ export function PurgeBadge({ state, size = "sm" }: PurgeBadgeProps) {
       tone: "bg-red-50 text-red-700 border-red-300",
       Icon: AlertTriangle,
       label: `Purges in ${state.daysRemaining}d`,
+    },
+    soft_deleted: {
+      tone: "bg-gray-100 text-gray-500 border-gray-300",
+      Icon: Trash2,
+      label: "Purged",
     },
   }[state.stage];
 

@@ -57,6 +57,19 @@ export interface CoachSummaryRow {
   total_archives: number;
   last_active_at: string | null;
   email_verified: boolean;
+
+  // Purge lifecycle (NULL for verified coaches — no coach_purge_state row)
+  purge_status: "active" | "soft_deleted" | null;
+  purge_deadline: string | null;
+  hard_delete_at: string | null;
+  soft_deleted_at: string | null;
+  extended_count: number | null;
+  last_reminder_sent_at: string | null;
+  original_deadline: string | null;
+  reminder_7d_sent_at: string | null;
+  reminder_30d_sent_at: string | null;
+  reminder_60d_sent_at: string | null;
+  reminder_83d_sent_at: string | null;
 }
 
 interface RecentSession {

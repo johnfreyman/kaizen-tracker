@@ -33,12 +33,12 @@ export function VerificationTimeline({
   // TODO(backend): replace with rows from activity_log filtered by coach_id
   //                + action in ('verification_sent', 'reminder_sent', 'final_notice_sent')
   const events = [
-    { day: 0, label: "Account created", sent: true, kind: "anchor" as const },
-    { day: 0, label: "Verification email sent", sent: daysOld >= 0, kind: "auto" as const },
-    { day: 3, label: "Reminder #1", sent: daysOld >= 3, kind: "auto" as const },
-    { day: 7, label: "Reminder #2", sent: daysOld >= 7, kind: "auto" as const },
-    { day: 30, label: "Final notice", sent: daysOld >= 30, kind: "notice" as const },
-    { day: PURGE_WINDOW_DAYS, label: "Scheduled purge", sent: false, kind: "purge" as const },
+    { day: 0,  label: "Account created",          sent: true, kind: "anchor" as const },
+    { day: 7,  label: "Reminder #1 (7-day)",      sent: !!coach.reminder_7d_sent_at, kind: "auto" as const },
+    { day: 30, label: "Reminder #2 (30-day)",     sent: !!coach.reminder_30d_sent_at, kind: "auto" as const },
+    { day: 60, label: "Reminder #3 (60-day)",     sent: !!coach.reminder_60d_sent_at, kind: "auto" as const },
+    { day: 83, label: "Final notice (7d remain)", sent: !!coach.reminder_83d_sent_at, kind: "notice" as const },
+    { day: 90, label: "Scheduled purge",          sent: false, kind: "purge" as const },
   ];
 
   const stageBlurb = {
@@ -47,6 +47,7 @@ export function VerificationTimeline({
       state.purgeDate,
     ).toLocaleDateString(undefined, { month: "short", day: "numeric" })}.`,
     imminent: `Purges in ${state.daysRemaining}d. Last chance to extend or recover.`,
+    soft_deleted: `Account purged${state.hardDeleteAt ? `. Hard-delete on ${new Date(state.hardDeleteAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}.` : "."}`,
   }[state.stage];
 
   return (
