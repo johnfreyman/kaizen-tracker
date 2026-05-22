@@ -308,8 +308,8 @@ function StatTile({
     <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-4 flex flex-col gap-3 hover:bg-white/[0.05] transition-colors">
       <div className={`size-8 rounded-lg flex items-center justify-center ${p.icon}`}>{icon}</div>
       <div>
-        <div className={`mc-mono text-2xl font-bold tabular-nums leading-none ${p.val}`}>{value}</div>
-        <div className="text-white/35 text-xs mt-1">{label}</div>
+        <div className={`mc-mono text-3xl font-bold tabular-nums leading-none ${p.val}`}>{value}</div>
+        <div className="text-white/35 text-[11px] mt-1">{label}</div>
       </div>
     </div>
   );

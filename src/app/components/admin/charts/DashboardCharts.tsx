@@ -169,7 +169,7 @@ export function DashboardCharts({ data, isOpen, onToggle }: DashboardChartsProps
         onClick={onToggle}
         className="w-full flex items-center justify-between px-4 py-1.5 hover:bg-white/60 transition-colors focus:outline-none"
       >
-        <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+        <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
           Analytics Overview
         </span>
         {isOpen
@@ -186,7 +186,7 @@ export function DashboardCharts({ data, isOpen, onToggle }: DashboardChartsProps
             {/* Session Activity — 14-day area */}
             <div className="flex flex-col min-w-[170px] flex-1 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
                   Sessions (14d)
                 </span>
                 {sessTrend !== 0 && (
@@ -225,7 +225,7 @@ export function DashboardCharts({ data, isOpen, onToggle }: DashboardChartsProps
             {/* Active Coaches — 14-day area */}
             <div className="flex flex-col min-w-[170px] flex-1 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
                   Active Coaches (14d)
                 </span>
                 {actTrend !== 0 && (
@@ -263,7 +263,7 @@ export function DashboardCharts({ data, isOpen, onToggle }: DashboardChartsProps
 
             {/* New Accounts — 8-week bar */}
             <div className="flex flex-col min-w-[170px] flex-1 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
-              <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">
+              <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1.5">
                 New Accounts (8w)
               </span>
               <ResponsiveContainer width="100%" height={56}>
@@ -282,7 +282,7 @@ export function DashboardCharts({ data, isOpen, onToggle }: DashboardChartsProps
 
             {/* Storage Distribution — horizontal bars */}
             <div className="flex flex-col min-w-[170px] flex-1 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
-              <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-2.5">
+              <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider mb-2.5">
                 Storage Distribution
               </span>
               <div className="flex flex-col gap-2.5 justify-center flex-1">
@@ -317,7 +317,7 @@ export function DashboardCharts({ data, isOpen, onToggle }: DashboardChartsProps
           {/* ── Activity Heatmap ──────────────────────────────────── */}
           <div className="border-t border-gray-100 pt-2">
             <div className="px-4 mb-1.5">
-              <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+              <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
                 Activity Heatmap (12w) — last active per coach
               </span>
             </div>
