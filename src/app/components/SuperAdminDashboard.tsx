@@ -28,6 +28,8 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useTeamStore } from "../hooks/useTeamStore";
 import { TeamLogo } from "./admin/TeamLogo";
+import { getPurgeState } from "./admin/getPurgeState";
+import { PurgeBadge } from "./admin/PurgeBadge";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -129,7 +131,8 @@ export type FilterType =
   | "unverified"
   | "no-team-setup"
   | "active-today"
-  | "active-this-week";
+  | "active-this-week"
+  | "purge-queue";
 
 const FILTER_OPTIONS: { id: FilterType; label: string; icon: React.ElementType }[] = [
   { id: "healthy", label: "Healthy", icon: CheckCircle2 },
@@ -141,6 +144,7 @@ const FILTER_OPTIONS: { id: FilterType; label: string; icon: React.ElementType }
   { id: "active-this-week", label: "Active This Week", icon: Calendar },
   { id: "unverified", label: "Unverified", icon: ShieldOff },
   { id: "no-team-setup", label: "No Team Setup", icon: AlertTriangle },
+  { id: "purge-queue", label: "Purge Queue", icon: Clock },
 ];
 
 function matchesFilter(row: CoachSummaryRow, filter: FilterType): boolean {
@@ -169,6 +173,10 @@ function matchesFilter(row: CoachSummaryRow, filter: FilterType): boolean {
       return row.last_session_at
         ? Date.now() - new Date(row.last_session_at).getTime() < 7 * 86400000
         : false;
+    case "purge-queue": {
+      const purgeState = getPurgeState(row);
+      return purgeState !== null && (purgeState.stage === "scheduled" || purgeState.stage === "imminent");
+    }
     default:
       return true;
   }
@@ -201,11 +209,15 @@ function relativeTime(iso: string | null): string {
 function KpiTile({
   label,
   value,
+  subLabel,
+  dotClass,
   isActive,
   onClick,
 }: {
   label: string;
   value: number;
+  subLabel?: string;
+  dotClass?: string;
   isActive: boolean;
   onClick?: () => void;
 }) {
@@ -213,18 +225,28 @@ function KpiTile({
     <button
       onClick={onClick}
       className={[
-        "flex flex-col gap-1.5 px-4 py-2.5 rounded-xl border transition-all duration-150 min-w-[120px] text-left select-none cursor-pointer active:scale-[0.97]",
+        "flex flex-col justify-between p-3.5 rounded-xl border transition-all duration-150 min-w-[140px] h-[90px] text-left relative select-none cursor-pointer active:scale-[0.97]",
         isActive
-          ? "bg-slate-900 border-slate-900"
-          : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm",
+          ? "bg-slate-900 border-slate-900 text-white shadow-sm"
+          : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm text-slate-900",
       ].join(" ")}
     >
-      <span className={`text-[11px] font-medium leading-none ${isActive ? "text-slate-300" : "text-slate-500"}`}>
-        {label}
-      </span>
-      <span className={`text-[22px] font-semibold tabular-nums leading-none ${isActive ? "text-white" : "text-slate-900"}`}>
-        {value.toLocaleString()}
-      </span>
+      <div className="flex flex-col">
+        <span className={`text-[12px] font-semibold tracking-wide leading-none ${isActive ? "text-slate-300" : "text-slate-500"}`}>
+          {label}
+        </span>
+        <span className={`text-2xl font-bold tracking-tight mt-1.5 leading-none tabular-nums ${isActive ? "text-white" : "text-slate-900"}`}>
+          {value.toLocaleString()}
+        </span>
+      </div>
+      {subLabel && (
+        <span className={`text-[10px] font-medium tracking-wide mt-1 leading-none ${isActive ? "text-slate-400" : "text-slate-400"}`}>
+          {subLabel}
+        </span>
+      )}
+      {dotClass && (
+        <span className={`absolute top-3.5 right-3.5 w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} />
+      )}
     </button>
   );
 }
@@ -361,20 +383,28 @@ export default function SuperAdminDashboard() {
       (r) => r.last_active_at && now - new Date(r.last_active_at).getTime() < day
     ).length;
 
-    return { total: rows.length, healthy, warning, critical, inactive, newAccts, activeToday };
+    const purgeCoaches = rows.filter((r) => {
+      const p = getPurgeState(r);
+      return p !== null && p.stage !== "nudge";
+    });
+    const purgeQueue = purgeCoaches.length;
+    const purgeImminent = purgeCoaches.filter((r) => getPurgeState(r)?.stage === "imminent").length;
+
+    return { total: rows.length, healthy, warning, critical, inactive, newAccts, activeToday, purgeQueue, purgeImminent };
   }, [rows]);
 
   // -------------------------------------------------------------------------
   // KPI tiles — single flat row, no sparklines or trend indicators
   // -------------------------------------------------------------------------
   const kpiTiles = useMemo(() => [
-    { key: "total",       label: "Total coaches", value: stats.total,      filter: "clear-all" as const },
-    { key: "active-today",label: "Active today",  value: stats.activeToday,filter: "active-today" as FilterType },
-    { key: "healthy",     label: "Healthy",        value: stats.healthy,    filter: "healthy" as FilterType },
-    { key: "warning",     label: "Warning",        value: stats.warning,    filter: "warning" as FilterType },
-    { key: "critical",    label: "Critical",       value: stats.critical,   filter: "critical" as FilterType },
-    { key: "inactive",    label: "Inactive",       value: stats.inactive,   filter: "inactive" as FilterType },
-    { key: "new",         label: "New",            value: stats.newAccts,   filter: "new" as FilterType },
+    { key: "total",        label: "Total",          value: stats.total,         filter: "clear-all" as const },
+    { key: "active-today", label: "Active today",   value: stats.activeToday,   filter: "active-today" as FilterType,    dotClass: "bg-violet-600", subLabel: "last 24h" },
+    { key: "healthy",      label: "Healthy",        value: stats.healthy,       filter: "healthy" as FilterType,         dotClass: "bg-emerald-500" },
+    { key: "warning",      label: "Warning",        value: stats.warning,       filter: "warning" as FilterType,         dotClass: "bg-amber-400" },
+    { key: "critical",     label: "Critical",       value: stats.critical,      filter: "critical" as FilterType,        dotClass: "bg-red-500" },
+    { key: "inactive",     label: "Inactive",       value: stats.inactive,      filter: "inactive" as FilterType,        dotClass: "bg-slate-400" },
+    { key: "new",          label: "New",            value: stats.newAccts,      filter: "new" as FilterType,             dotClass: "bg-blue-500" },
+    { key: "purge-queue",  label: "Purge queue",    value: stats.purgeQueue,    filter: "purge-queue" as FilterType,     dotClass: "bg-orange-550", subLabel: stats.purgeImminent > 0 ? `${stats.purgeImminent} in <7d` : "on the clock" },
   ], [stats]);
 
   // -------------------------------------------------------------------------
@@ -435,7 +465,7 @@ export default function SuperAdminDashboard() {
               Super Admin
             </h1>
             <p className="text-[11px] text-gray-400 mt-0.5 font-medium">
-              Coach health &amp; activity dashboard
+              Coach health &amp; activity
             </p>
           </div>
         </div>
@@ -478,6 +508,8 @@ export default function SuperAdminDashboard() {
                     key={tile.key}
                     label={tile.label}
                     value={tile.value}
+                    subLabel={"subLabel" in tile ? tile.subLabel : undefined}
+                    dotClass={"dotClass" in tile ? tile.dotClass : undefined}
                     isActive={isActive}
                     onClick={() => {
                       if (tile.filter === "clear-all") {
@@ -709,8 +741,10 @@ export default function SuperAdminDashboard() {
                   new: { dot: SEMANTIC_CONFIG.new.dotClass, label: SEMANTIC_CONFIG.new.label },
                 };
 
+                const purge = getPurgeState(row);
+
                 const activeBadges: { label: string; bg: string; icon: React.ElementType }[] = [];
-                if (!row.email_verified) {
+                if (!row.email_verified && !purge) {
                   activeBadges.push({ label: "Unverified", bg: "bg-red-50 text-red-700 border-red-200", icon: ShieldOff });
                 }
                 if (!row.team_name) {
@@ -757,8 +791,9 @@ export default function SuperAdminDashboard() {
                     </div>
 
                     {/* Issue badges */}
-                    {!isCompact && activeBadges.length > 0 && (
+                    {!isCompact && (activeBadges.length > 0 || purge) && (
                       <div className="flex flex-wrap gap-1">
+                        {purge && <PurgeBadge state={purge} />}
                         {activeBadges.map((badge, idx) => {
                           const BadgeIcon = badge.icon;
                           return (

@@ -37,6 +37,8 @@ import {
   getSemanticStatus,
   SEMANTIC_CONFIG,
 } from "../SuperAdminDashboard";
+import { getPurgeState } from "./getPurgeState";
+import { VerificationTimeline } from "./VerificationTimeline";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -450,6 +452,7 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
   // Derived / Computed Metrics
   // ---------------------------------------------------------------------------
 
+  const purge = coach ? getPurgeState(coach) : null;
   const status = coach ? getSemanticStatus(coach, !!detail?.activeSession) : "healthy";
   const cfg = SEMANTIC_CONFIG[status];
   const errorRate = coach ? getErrorRate(coach) : 0;
@@ -508,7 +511,7 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
   // Active operational flags
   const activeBadges: { label: string; bg: string; icon: any }[] = [];
   if (coach) {
-    if (!coach.email_verified) {
+    if (!coach.email_verified && !purge) {
       activeBadges.push({ label: "Unverified", bg: "bg-red-50 text-red-700 border-red-200", icon: ShieldOff });
     }
     if (!coach.team_name) {
@@ -592,6 +595,18 @@ export default function CoachDetailPanel({ coach }: CoachDetailPanelProps) {
 
           {/* ── Scrollable Cards Grid Container ── */}
           <div className="flex-1 overflow-y-auto overscroll-contain p-6 space-y-4 scrollbar-gutter-stable">
+            {purge && (
+              <div className="bg-white rounded-2xl border border-slate-150/70 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-3 duration-250">
+                <VerificationTimeline
+                  coach={coach}
+                  state={purge}
+                  onResend={() => handleServerSideAction("Resend Verification Email")}
+                  onExtend={() => handleServerSideAction("Extend Purge Window")}
+                  onPurgeNow={() => handleServerSideAction("Purge Coach Now")}
+                />
+              </div>
+            )}
+
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
 
               {/* ── CARD 1: ACCOUNT PROFILE ── */}
