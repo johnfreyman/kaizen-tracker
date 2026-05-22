@@ -4,6 +4,7 @@ import { CoachSummaryRow } from "./admin/CoachDetailDrawer";
 import { Sparkline } from "./admin/charts/Sparkline";
 import { DashboardCharts, type DashboardChartData } from "./admin/charts/DashboardCharts";
 import { AdminActivityFeed } from "./admin/AdminActivityFeed";
+import AdminActionBar from "./admin/AdminActionBar";
 import {
   LogOut,
   ChevronDown,
@@ -894,6 +895,9 @@ export default function SuperAdminDashboard() {
           <span className="hidden sm:inline">Log out</span>
         </button>
       </header>
+
+      {/* ── Action Bar ──────────────────────────────────────────── */}
+      <AdminActionBar />
 
       {/* ── KPI Cards bar ───────────────────────────────────────── */}
       <div className="shrink-0 border-b border-gray-100 bg-white/70 backdrop-blur-sm">
