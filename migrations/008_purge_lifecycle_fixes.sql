@@ -5,7 +5,8 @@
 -- Pre-production: drops & recreates objects freely.
 --
 -- Fixes:
---   1. Add original_deadline column (immutable anchor for days_old)
+--   1. Add original_deadline column (immutable anchor for days_old) +
+--      process_purge_lifecycle cron function anchored to original_deadline
 --   2. Reset ALL reminder timestamps on admin_extend_purge_deadline
 --   3. Fix last_reminder_sent_at view alias → GREATEST(…)
 --   4. Expose individual reminder columns in the view for the UI
@@ -150,7 +151,10 @@ $$;
 --            AND expose individual reminder columns for the timeline UI
 -- =============================================================================
 
-CREATE OR REPLACE VIEW public.admin_coach_summary_view
+-- DROP required because CREATE OR REPLACE VIEW cannot rename or reorder columns
+DROP VIEW IF EXISTS public.admin_coach_summary_view;
+
+CREATE VIEW public.admin_coach_summary_view
 WITH (security_invoker = false)
 AS
 SELECT
@@ -257,3 +261,170 @@ WHERE NOT EXISTS (
 
 -- Re-grant SELECT (CREATE OR REPLACE VIEW resets grants)
 GRANT SELECT ON public.admin_coach_summary_view TO authenticated;
+
+
+-- =============================================================================
+-- FIX 1 (continued): process_purge_lifecycle — cron worker
+--
+-- Reminder threshold derivation (anchored to original_deadline):
+--   original_deadline = account_created_at + 90 days
+--   day N from account creation ≡ NOW() >= original_deadline - (90 - N) days
+--
+--   day 7  reminder → original_deadline - 83 days
+--   day 30 reminder → original_deadline - 60 days
+--   day 60 reminder → original_deadline - 30 days
+--   day 83 reminder → original_deadline -  7 days  (final warning)
+--
+-- Using original_deadline (not purge_deadline) means admin extensions never
+-- shift the reminder thresholds — the clock always measures from account creation.
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION public.process_purge_lifecycle()
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  r RECORD;
+BEGIN
+
+  -- ── 1. Soft-delete coaches past their purge_deadline ──────────────────────
+  FOR r IN
+    SELECT ps.coach_id, p.email AS original_email
+    FROM public.coach_purge_state ps
+    JOIN public.profiles p ON p.id = ps.coach_id
+    WHERE ps.purge_status = 'active'
+      AND ps.purge_deadline <= NOW()
+    FOR UPDATE OF ps SKIP LOCKED
+  LOOP
+    UPDATE public.profiles
+      SET email = 'purged-' || r.coach_id || '@deleted.local'
+      WHERE id = r.coach_id;
+
+    UPDATE public.team_settings
+      SET team_name = NULL, team_logo = ''
+      WHERE coach_id = r.coach_id;
+
+    UPDATE public.coach_purge_state
+      SET purge_status    = 'soft_deleted',
+          soft_deleted_at = NOW(),
+          hard_delete_at  = NOW() + INTERVAL '275 days',
+          purged_by       = 'cron',
+          updated_at      = NOW()
+      WHERE coach_id = r.coach_id;
+
+    INSERT INTO public.activity_log (event_type, coach_id, coach_email, metadata)
+    VALUES (
+      'purge_soft_deleted',
+      r.coach_id,
+      'purged-' || r.coach_id || '@deleted.local',
+      jsonb_build_object('trigger', 'cron', 'original_email', r.original_email)
+    );
+  END LOOP;
+
+  -- ── 2. Reminder milestones — anchored to original_deadline ────────────────
+  -- Each block is independent; a single run may fire multiple milestones for
+  -- accounts that were backfilled or had their cron paused.
+
+  FOR r IN
+    SELECT ps.coach_id
+    FROM public.coach_purge_state ps
+    WHERE ps.purge_status = 'active'
+      AND ps.reminder_7d_sent_at IS NULL
+      AND NOW() >= ps.original_deadline - INTERVAL '83 days'
+    FOR UPDATE SKIP LOCKED
+  LOOP
+    UPDATE public.coach_purge_state
+      SET reminder_7d_sent_at = NOW(), updated_at = NOW()
+      WHERE coach_id = r.coach_id;
+    INSERT INTO public.activity_log (event_type, coach_id, metadata)
+    VALUES ('purge_reminder_sent', r.coach_id, jsonb_build_object('milestone', '7d'));
+  END LOOP;
+
+  FOR r IN
+    SELECT ps.coach_id
+    FROM public.coach_purge_state ps
+    WHERE ps.purge_status = 'active'
+      AND ps.reminder_30d_sent_at IS NULL
+      AND NOW() >= ps.original_deadline - INTERVAL '60 days'
+    FOR UPDATE SKIP LOCKED
+  LOOP
+    UPDATE public.coach_purge_state
+      SET reminder_30d_sent_at = NOW(), updated_at = NOW()
+      WHERE coach_id = r.coach_id;
+    INSERT INTO public.activity_log (event_type, coach_id, metadata)
+    VALUES ('purge_reminder_sent', r.coach_id, jsonb_build_object('milestone', '30d'));
+  END LOOP;
+
+  FOR r IN
+    SELECT ps.coach_id
+    FROM public.coach_purge_state ps
+    WHERE ps.purge_status = 'active'
+      AND ps.reminder_60d_sent_at IS NULL
+      AND NOW() >= ps.original_deadline - INTERVAL '30 days'
+    FOR UPDATE SKIP LOCKED
+  LOOP
+    UPDATE public.coach_purge_state
+      SET reminder_60d_sent_at = NOW(), updated_at = NOW()
+      WHERE coach_id = r.coach_id;
+    INSERT INTO public.activity_log (event_type, coach_id, metadata)
+    VALUES ('purge_reminder_sent', r.coach_id, jsonb_build_object('milestone', '60d'));
+  END LOOP;
+
+  FOR r IN
+    SELECT ps.coach_id
+    FROM public.coach_purge_state ps
+    WHERE ps.purge_status = 'active'
+      AND ps.reminder_83d_sent_at IS NULL
+      AND NOW() >= ps.original_deadline - INTERVAL '7 days'
+    FOR UPDATE SKIP LOCKED
+  LOOP
+    UPDATE public.coach_purge_state
+      SET reminder_83d_sent_at = NOW(), updated_at = NOW()
+      WHERE coach_id = r.coach_id;
+    INSERT INTO public.activity_log (event_type, coach_id, metadata)
+    VALUES ('purge_reminder_sent', r.coach_id, jsonb_build_object('milestone', '83d'));
+  END LOOP;
+
+  -- ── 3. Hard-delete coaches past their hard_delete_at ─────────────────────
+  -- Log before DELETE — the row will be gone (and cascade to profiles /
+  -- coach_purge_state) once auth.users is deleted.
+  FOR r IN
+    SELECT ps.coach_id
+    FROM public.coach_purge_state ps
+    WHERE ps.purge_status = 'soft_deleted'
+      AND ps.hard_delete_at IS NOT NULL
+      AND ps.hard_delete_at <= NOW()
+  LOOP
+    INSERT INTO public.activity_log (event_type, coach_id, metadata)
+    VALUES ('purge_hard_deleted', r.coach_id, jsonb_build_object('trigger', 'cron'));
+
+    DELETE FROM auth.users WHERE id = r.coach_id;
+  END LOOP;
+
+END;
+$$;
+
+
+-- =============================================================================
+-- pg_cron schedule: daily at 03:00 UTC
+-- Unschedule defensively first — no-ops if the job doesn't exist yet.
+-- =============================================================================
+
+DO $$
+BEGIN
+  PERFORM cron.unschedule('process-purge-lifecycle');
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  PERFORM cron.schedule(
+    'process-purge-lifecycle',
+    '0 3 * * *',
+    'SELECT public.process_purge_lifecycle()'
+  );
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'pg_cron not available — skipping schedule. Enable the pg_cron extension in Supabase Dashboard → Database → Extensions, then re-run this block.';
+END $$;
