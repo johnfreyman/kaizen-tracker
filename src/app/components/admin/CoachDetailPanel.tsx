@@ -36,9 +36,6 @@ import type { CoachSummaryRow } from "./CoachDetailDrawer";
 import {
   getSemanticStatus,
   SEMANTIC_CONFIG,
-  getErrorRate,
-  hasPendingSyncs,
-  getEstimatedStorage,
 } from "../SuperAdminDashboard";
 
 // ---------------------------------------------------------------------------
@@ -93,6 +90,37 @@ function shortDate(iso: string | null): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function getErrorRate(row: CoachSummaryRow): number {
+  let sum = 0;
+  for (let i = 0; i < row.coach_id.length; i++) {
+    sum += row.coach_id.charCodeAt(i);
+  }
+  const isHigh = sum % 13 === 0 || sum % 17 === 0;
+  return isHigh ? (5.5 + (sum % 50) / 10) : ((sum % 15) / 10);
+}
+
+function hasPendingSyncs(row: CoachSummaryRow, hasActiveSession = false): boolean {
+  if (hasActiveSession) return true;
+  let sum = 0;
+  for (let i = 0; i < row.coach_id.length; i++) {
+    sum += row.coach_id.charCodeAt(i);
+  }
+  return sum % 11 === 3;
+}
+
+function getEstimatedStorage(row: CoachSummaryRow): { kb: number; label: string; isLarge: boolean } {
+  const playerKb = row.player_count * 1.2;
+  const sessionKb = row.session_count * 3.5;
+  const archiveKb = row.total_archives * 15.0;
+  const logoKb = row.team_logo ? 450 : 0;
+  const totalKb = playerKb + sessionKb + archiveKb + logoKb;
+  return {
+    kb: totalKb,
+    label: totalKb > 1024 ? `${(totalKb / 1024).toFixed(1)} MB` : `${totalKb.toFixed(0)} KB`,
+    isLarge: totalKb > 500,
+  };
 }
 
 // ---------------------------------------------------------------------------

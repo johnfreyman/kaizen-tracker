@@ -57,42 +57,9 @@ type SortDir = "asc" | "desc";
 
 export type SemanticStatus = "healthy" | "warning" | "critical" | "inactive" | "new";
 
-export function getErrorRate(row: CoachSummaryRow): number {
-  let sum = 0;
-  for (let i = 0; i < row.coach_id.length; i++) {
-    sum += row.coach_id.charCodeAt(i);
-  }
-  const isHigh = sum % 13 === 0 || sum % 17 === 0;
-  return isHigh ? (5.5 + (sum % 50) / 10) : ((sum % 15) / 10);
-}
-
-export function hasPendingSyncs(row: CoachSummaryRow, hasActiveSession = false): boolean {
-  if (hasActiveSession) return true;
-  let sum = 0;
-  for (let i = 0; i < row.coach_id.length; i++) {
-    sum += row.coach_id.charCodeAt(i);
-  }
-  return sum % 11 === 3;
-}
-
-export function getEstimatedStorage(row: CoachSummaryRow): { kb: number; label: string; isLarge: boolean } {
-  const playerKb = row.player_count * 1.2;
-  const sessionKb = row.session_count * 3.5;
-  const archiveKb = row.total_archives * 15.0;
-  const logoKb = row.team_logo ? 450 : 0;
-  const totalKb = playerKb + sessionKb + archiveKb + logoKb;
-  return {
-    kb: totalKb,
-    label: totalKb > 1024 ? `${(totalKb / 1024).toFixed(1)} MB` : `${totalKb.toFixed(0)} KB`,
-    isLarge: totalKb > 500,
-  };
-}
-
 export function getSemanticStatus(row: CoachSummaryRow, hasActiveSession = false): SemanticStatus {
-  if (getErrorRate(row) >= 5.0) return "critical";
   if (!row.email_verified) return "critical";
   if (!row.team_name) return "warning";
-  if (hasPendingSyncs(row, hasActiveSession)) return "warning";
 
   if (row.account_created_at) {
     const daysSinceCreated = (Date.now() - new Date(row.account_created_at).getTime()) / 86400000;
@@ -165,9 +132,6 @@ export type FilterType =
   | "critical"
   | "inactive"
   | "new"
-  | "high-error"
-  | "pending-sync"
-  | "large-storage"
   | "unverified"
   | "no-team-setup"
   | "active-today"
@@ -183,16 +147,9 @@ const FILTER_OPTIONS: { id: FilterType; label: string; icon: React.ElementType }
   { id: "active-this-week", label: "Active This Week", icon: Calendar },
   { id: "unverified", label: "Unverified", icon: ShieldOff },
   { id: "no-team-setup", label: "No Team Setup", icon: AlertTriangle },
-  { id: "high-error", label: "High Error Rate", icon: AlertCircle },
-  { id: "pending-sync", label: "Pending Syncs", icon: RefreshCw },
-  { id: "large-storage", label: "Large Storage", icon: HardDrive },
 ];
 
 function matchesFilter(row: CoachSummaryRow, filter: FilterType): boolean {
-  const errorRate = getErrorRate(row);
-  const hasHighError = errorRate >= 5.0;
-  const pendingSync = hasPendingSyncs(row, false);
-  const storage = getEstimatedStorage(row);
   const status = getSemanticStatus(row, false);
 
   switch (filter) {
@@ -206,12 +163,6 @@ function matchesFilter(row: CoachSummaryRow, filter: FilterType): boolean {
       return status === "inactive";
     case "new":
       return status === "new";
-    case "high-error":
-      return hasHighError;
-    case "pending-sync":
-      return pendingSync;
-    case "large-storage":
-      return storage.isLarge;
     case "unverified":
       return !row.email_verified;
     case "no-team-setup":
@@ -646,8 +597,6 @@ export default function SuperAdminDashboard() {
     const newAccts = rows.filter((r) => getSemanticStatus(r) === "new").length;
     const unverified = rows.filter((r) => !r.email_verified).length;
     const noTeam = rows.filter((r) => !r.team_name).length;
-    const pendingErrors = rows.filter((r) => getErrorRate(r) >= 5.0).length;
-    const failedSyncs = rows.filter((r) => hasPendingSyncs(r, false)).length;
 
     const activeToday = rows.filter(
       (r) => r.last_active_at && now - new Date(r.last_active_at).getTime() < day
@@ -670,7 +619,7 @@ export default function SuperAdminDashboard() {
     return {
       total: rows.length,
       healthy, warning, critical, inactive, newAccts,
-      unverified, noTeam, pendingErrors, failedSyncs,
+      unverified, noTeam,
       activeToday, activeTodayPrev,
       sessionsThisWeek, sessionsLastWeek,
     };
@@ -712,20 +661,6 @@ export default function SuperAdminDashboard() {
       return { label, count };
     });
 
-    const storageCounts = [0, 0, 0];
-    rows.forEach((r) => {
-      const { kb } = getEstimatedStorage(r);
-      if (kb < 100) storageCounts[0]++;
-      else if (kb < 500) storageCounts[1]++;
-      else storageCounts[2]++;
-    });
-    const total = rows.length || 1;
-    const storageDistribution = [
-      { label: "< 100 GB",   count: storageCounts[0], pct: Math.round((storageCounts[0] / total) * 100), color: "#10b981" },
-      { label: "100–500 GB", count: storageCounts[1], pct: Math.round((storageCounts[1] / total) * 100), color: "#f59e0b" },
-      { label: "500–1000 GB", count: storageCounts[2], pct: Math.round((storageCounts[2] / total) * 100), color: "#ef4444" },
-    ];
-
     // 84 days = 12 weeks for heatmap
     const heatmapCells = Array.from({ length: 84 }, (_, i) => {
       const dayStart = now - (83 - i) * DAY;
@@ -739,7 +674,7 @@ export default function SuperAdminDashboard() {
       return { date: date.toISOString().split("T")[0], count, dow: date.getDay(), week: Math.floor(i / 7) };
     });
 
-    return { days14, weeks8, storageDistribution, heatmapCells };
+    return { days14, weeks8, heatmapCells };
   }, [rows]);
 
   // Sparkline series for the two trend KPI cards (7-day rolling)
@@ -868,24 +803,6 @@ export default function SuperAdminDashboard() {
       value: stats.noTeam,
       icon: AlertTriangle,
       filter: "no-team-setup",
-      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
-      goodUp: false,
-    },
-    {
-      key: "pending-errors",
-      label: "Pending Errors",
-      value: stats.pendingErrors,
-      icon: AlertCircle,
-      filter: "high-error",
-      color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
-      goodUp: false,
-    },
-    {
-      key: "failed-syncs",
-      label: "Failed Syncs",
-      value: stats.failedSyncs,
-      icon: RefreshCw,
-      filter: "pending-sync",
       color: { bg: "bg-white", activeBg: "bg-slate-50", text: "text-slate-700", border: "border-gray-200", activeBorder: "border-slate-400", iconBg: "bg-slate-100" },
       goodUp: false,
     },
@@ -1200,10 +1117,6 @@ export default function SuperAdminDashboard() {
                 const isSelected = selectedCoach?.coach_id === row.coach_id;
                 const status = getSemanticStatus(row, false);
                 const cfg = SEMANTIC_CONFIG[status];
-                const errorRate = getErrorRate(row);
-                const isHighError = errorRate >= 5.0;
-                const hasSyncs = hasPendingSyncs(row, false);
-                const storage = getEstimatedStorage(row);
                 const pyClass = isCompact ? "py-2" : "py-3.5";
 
                 // Generate scannable operational badges
@@ -1221,15 +1134,6 @@ export default function SuperAdminDashboard() {
                   }
                 } else {
                   activeBadges.push({ label: "Inactive 30d", bg: "bg-gray-100 text-gray-700 border-gray-200", icon: Clock });
-                }
-                if (isHighError) {
-                  activeBadges.push({ label: `High Error Rate (${errorRate.toFixed(1)}%)`, bg: "bg-red-100 text-red-800 border-red-200 font-semibold animate-pulse", icon: AlertTriangle });
-                }
-                if (hasSyncs) {
-                  activeBadges.push({ label: "Pending Syncs", bg: "bg-amber-100 text-amber-800 border-amber-200 font-semibold", icon: RefreshCw });
-                }
-                if (storage.isLarge) {
-                  activeBadges.push({ label: `Large Storage (${storage.label})`, bg: "bg-blue-50 text-blue-700 border-blue-200", icon: HardDrive });
                 }
 
                 return (

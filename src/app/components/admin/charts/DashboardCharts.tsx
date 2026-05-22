@@ -26,12 +26,6 @@ export interface ChartWeekPoint {
   count: number;
 }
 
-export interface StorageTier {
-  label: string;
-  count: number;
-  pct: number;
-  color: string;
-}
 
 export interface HeatmapCell {
   date: string;
@@ -43,7 +37,6 @@ export interface HeatmapCell {
 export interface DashboardChartData {
   days14: ChartDayPoint[];
   weeks8: ChartWeekPoint[];
-  storageDistribution: StorageTier[];
   heatmapCells: HeatmapCell[];
 }
 
@@ -182,8 +175,8 @@ export function DashboardCharts({ data, isOpen, onToggle }: DashboardChartsProps
 
       {isOpen && (
         <div>
-          {/* ── Four mini charts ──────────────────────────────────── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-4 pb-4">
+          {/* ── Three mini charts ──────────────────────────────────── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 px-4 pb-4">
 
             {/* Session Activity — 14-day area */}
             <div className="flex flex-col rounded-xl border border-gray-100 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
@@ -324,50 +317,6 @@ export function DashboardCharts({ data, isOpen, onToggle }: DashboardChartsProps
                   />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
-
-            {/* Storage Distribution — segmented horizontal progress bar with clear labels */}
-            <div className="flex flex-col rounded-xl border border-gray-100 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
-              <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider mb-2.5">
-                Storage Distribution
-              </span>
-              
-              <div className="flex flex-col justify-between flex-1">
-                {/* Single segmented visual bar */}
-                <div className="flex h-3 bg-gray-100 rounded-full overflow-hidden mb-3 shadow-inner">
-                  {data.storageDistribution.map((tier) => (
-                    tier.pct > 0 && (
-                      <div
-                        key={tier.label}
-                        className="h-full transition-all duration-700 hover:opacity-90 relative"
-                        style={{ width: `${tier.pct}%`, backgroundColor: tier.color }}
-                        title={`${tier.label}: ${tier.count} coaches (${tier.pct}%)`}
-                      />
-                    )
-                  ))}
-                </div>
-
-                {/* Clear Segment Labels (Legend) */}
-                <div className="grid grid-cols-1 gap-1.5 flex-1 justify-center">
-                  {data.storageDistribution.map((tier) => (
-                    <div key={tier.label} className="flex items-center justify-between text-[10px]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tier.color }} />
-                        <span className="font-semibold text-slate-600 leading-none">{tier.label}</span>
-                      </div>
-                      <span className="font-bold text-slate-500 shrink-0">{tier.count} ({tier.pct}%)</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Spike alert */}
-                {data.storageDistribution[2]?.count > 0 && (
-                  <p className="text-[9px] text-amber-600 font-semibold mt-2.5 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block animate-pulse" />
-                    {data.storageDistribution[2].count} coach{data.storageDistribution[2].count !== 1 ? "es" : ""} near limit
-                  </p>
-                )}
-              </div>
             </div>
 
           </div>
