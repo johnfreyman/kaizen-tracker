@@ -5,3 +5,4 @@ node_modules
 !.env.example
 kaizen-project-source.zip
 kaizen-tracker-package.zip
+kaizen-audit-bundle.zip
