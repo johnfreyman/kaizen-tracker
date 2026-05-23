@@ -101,13 +101,13 @@ export default function TrainingSummaryCard() {
 
   const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
   const trendColor =
-    trend === "up" ? "text-emerald-400" : trend === "down" ? "text-red-400" : "text-white/30";
+    trend === "up" ? "text-emerald-400" : trend === "down" ? "text-red-400" : "mc-text-muted";
 
   return (
     <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5 flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-white/55 text-xs font-bold uppercase tracking-widest">
+        <h3 className="mc-text-secondary text-xs font-bold uppercase tracking-widest">
           Training Summary
         </h3>
         <TrendIcon className={`size-4 ${trendColor}`} />
@@ -116,25 +116,25 @@ export default function TrainingSummaryCard() {
       {/* This week stats */}
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl bg-blue-500/8 border border-blue-500/15 px-3 py-2.5">
-          <div className="text-white/35 text-[10px] font-semibold uppercase tracking-wider mb-1">
+          <div className="mc-text-muted text-[10px] font-semibold uppercase tracking-wider mb-1">
             Practice
           </div>
-          <div className="mc-mono text-white/85 text-lg font-bold tabular-nums leading-none">
+          <div className="mc-mono mc-text text-lg font-bold tabular-nums leading-none">
             {thisWeek.practice % 1 === 0
               ? thisWeek.practice
               : thisWeek.practice.toFixed(1)}
-            <span className="text-white/30 text-xs font-normal ml-1">hrs</span>
+            <span className="mc-text-muted text-xs font-normal ml-1">hrs</span>
           </div>
         </div>
         <div className="rounded-xl bg-violet-500/8 border border-violet-500/15 px-3 py-2.5">
-          <div className="text-white/35 text-[10px] font-semibold uppercase tracking-wider mb-1">
+          <div className="mc-text-muted text-[10px] font-semibold uppercase tracking-wider mb-1">
             Optional
           </div>
-          <div className="mc-mono text-white/85 text-lg font-bold tabular-nums leading-none">
+          <div className="mc-mono mc-text text-lg font-bold tabular-nums leading-none">
             {thisWeek.optional % 1 === 0
               ? thisWeek.optional
               : thisWeek.optional.toFixed(1)}
-            <span className="text-white/30 text-xs font-normal ml-1">hrs</span>
+            <span className="mc-text-muted text-xs font-normal ml-1">hrs</span>
           </div>
         </div>
       </div>
@@ -143,7 +143,7 @@ export default function TrainingSummaryCard() {
       {hasAnyData ? (
         <div className="space-y-1.5">
           <div className="flex items-end justify-between gap-2">
-            <div className="text-white/25 text-[10px]">6-week trend</div>
+            <div className="mc-text-muted text-[10px]">6-week trend</div>
             {lastTotal > 0 && (
               <div className={`text-[10px] font-semibold ${trendColor}`}>
                 {trend === "up" && `+${((thisTotal - lastTotal) / lastTotal * 100).toFixed(0)}% vs last wk`}
@@ -174,14 +174,14 @@ export default function TrainingSummaryCard() {
           </div>
           <div className="flex items-center gap-1">
             {weeks.map((_, i) => (
-              <div key={i} className="flex-1 text-center text-[9px] text-white/20 truncate">
+              <div key={i} className="flex-1 text-center text-[9px] mc-text-muted truncate">
                 {i === 5 ? "This" : i === 4 ? "Last" : ""}
               </div>
             ))}
           </div>
         </div>
       ) : (
-        <div className="text-white/20 text-xs text-center py-2">
+        <div className="mc-text-muted text-xs text-center py-2">
           No sessions logged this week yet.
         </div>
       )}

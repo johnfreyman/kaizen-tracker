@@ -34,11 +34,11 @@ export default function SidebarLeaderboard({ onNavigate }: Props) {
       >
         <div className="flex items-center gap-2">
           <Trophy className="size-3 text-yellow-500/70" />
-          <span className="text-white/35 text-[10px] font-bold uppercase tracking-widest">
+          <span className="mc-text-muted text-[10px] font-bold uppercase tracking-widest">
             Leaderboard
           </span>
         </div>
-        <span className="text-white/20 text-[10px] group-hover:text-white/40 transition-colors">
+        <span className="mc-text-muted text-[10px] group-hover:text-white/40 transition-colors">
           Full →
         </span>
       </button>
@@ -55,9 +55,9 @@ export default function SidebarLeaderboard({ onNavigate }: Props) {
 
           const rankColor =
             i === 0 ? "text-yellow-400" :
-            i === 1 ? "text-white/40" :
+            i === 1 ? "mc-text-muted" :
             i === 2 ? "text-amber-600/80" :
-            "text-white/20";
+            "mc-text-muted";
 
           return (
             <div
@@ -67,11 +67,11 @@ export default function SidebarLeaderboard({ onNavigate }: Props) {
               <span className={`w-4 text-center text-[10px] font-bold flex-shrink-0 ${rankColor}`}>
                 {i + 1}
               </span>
-              <div className="size-5 rounded flex items-center justify-center bg-white/[0.07] text-[9px] font-bold text-white/50 flex-shrink-0">
+              <div className="size-5 rounded flex items-center justify-center bg-white/[0.07] text-[9px] font-bold mc-text-secondary flex-shrink-0">
                 {initials}
               </div>
-              <span className="flex-1 text-white/60 text-xs truncate">{player.name}</span>
-              <span className="mc-mono text-white/35 text-[11px] tabular-nums flex-shrink-0">
+              <span className="flex-1 mc-text-secondary text-xs truncate">{player.name}</span>
+              <span className="mc-mono mc-text-muted text-[11px] tabular-nums flex-shrink-0">
                 {hasAnyHours
                   ? player.hours > 0
                     ? `${player.hours % 1 === 0 ? player.hours : player.hours.toFixed(1)}h`
@@ -87,7 +87,7 @@ export default function SidebarLeaderboard({ onNavigate }: Props) {
       {overflow > 0 && (
         <button
           onClick={() => onNavigate("summary")}
-          className="w-full px-3 py-2 text-white/20 text-[10px] hover:text-white/40 transition-colors text-center"
+          className="w-full px-3 py-2 mc-text-muted text-[10px] hover:text-white/40 transition-colors text-center"
         >
           +{overflow} more players
         </button>

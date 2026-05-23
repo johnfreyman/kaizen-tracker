@@ -44,7 +44,7 @@ export default function RewardsCard({ onNavigate }: Props) {
       {/* Body */}
       <div className="flex flex-col gap-4">
         {eligibleCount === 0 ? (
-          <p className="text-white/30 text-sm">
+          <p className="mc-text-muted text-sm">
             No eligible players yet. Attend optional training to enter the raffle.
           </p>
         ) : (
@@ -53,10 +53,10 @@ export default function RewardsCard({ onNavigate }: Props) {
               <Trophy className="size-5 text-amber-400" />
             </div>
             <div>
-              <div className="text-white/80 text-sm font-semibold">
+              <div className="mc-text text-sm font-semibold">
                 {eligibleCount} player{eligibleCount !== 1 ? "s" : ""} in the draw
               </div>
-              <div className="text-white/30 text-xs">
+              <div className="mc-text-muted text-xs">
                 {optionalEntries} total raffle {optionalEntries === 1 ? "entry" : "entries"}
               </div>
             </div>
@@ -70,7 +70,7 @@ export default function RewardsCard({ onNavigate }: Props) {
           className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
             eligibleCount > 0
               ? "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/25 hover:border-amber-500/40 animate-[shimmer_2.5s_ease-in-out_infinite]"
-              : "bg-white/5 text-white/25 cursor-not-allowed border border-white/8"
+              : "bg-white/5 mc-text-muted cursor-not-allowed border border-white/8"
           }`}
         >
           <Sparkles className="size-4" />

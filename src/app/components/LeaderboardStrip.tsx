@@ -23,7 +23,7 @@ function addWeeks(d: Date, n: number): Date {
 
 const RANK_STYLES = [
   "bg-amber-400/20  text-amber-300  border-amber-400/30",
-  "bg-white/10      text-white/60   border-white/15",
+  "bg-white/10      mc-text-secondary   border-white/15",
   "bg-orange-700/20 text-orange-400 border-orange-700/30",
 ];
 
@@ -82,7 +82,7 @@ export default function LeaderboardStrip({ onNavigate }: Props) {
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
         <div className="flex items-center gap-2">
           <Trophy className="size-3.5 text-amber-400" />
-          <h3 className="text-white/55 text-xs font-bold uppercase tracking-widest">
+          <h3 className="mc-text-secondary text-xs font-bold uppercase tracking-widest">
             Leaderboard
           </h3>
         </div>
@@ -100,7 +100,7 @@ export default function LeaderboardStrip({ onNavigate }: Props) {
       <div className="divide-y divide-white/[0.04]">
         {top5.map(([name, hours], idx) => {
           const sparkData = getPlayerSparkline(name);
-          const rankStyle = RANK_STYLES[idx] ?? "bg-white/5 text-white/35 border-white/10";
+          const rankStyle = RANK_STYLES[idx] ?? "bg-white/5 mc-text-muted border-white/10";
           const initials = name
             .split(" ")
             .filter(Boolean)
@@ -127,8 +127,8 @@ export default function LeaderboardStrip({ onNavigate }: Props) {
 
               {/* Name + hours */}
               <div className="flex-1 min-w-0">
-                <div className="text-white/80 text-sm font-semibold truncate">{name}</div>
-                <div className="text-white/30 text-xs mc-mono">
+                <div className="mc-text text-sm font-semibold truncate">{name}</div>
+                <div className="mc-text-muted text-xs mc-mono">
                   {hours % 1 === 0 ? hours : hours.toFixed(1)} hrs total
                 </div>
               </div>

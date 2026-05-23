@@ -20,22 +20,22 @@ export default function SessionStatusBar({ onNavigate }: Props) {
       <div className="flex items-center gap-2.5">
         <span className="size-1.5 rounded-full bg-emerald-400 animate-session-pulse" />
         <span className="text-emerald-300 text-xs font-bold uppercase tracking-widest">Live</span>
-        <span className="text-white/25 text-xs">·</span>
-        <span className="text-white/55 text-xs font-medium">{state.activeSession.type}</span>
+        <span className="mc-text-muted text-xs">·</span>
+        <span className="mc-text-secondary text-xs font-medium">{state.activeSession.type}</span>
       </div>
 
       {/* Right: elapsed timer + players + CTA */}
       <div className="flex items-center gap-3">
         {/* Elapsed time — icon makes clear this is a running timer, not a clock */}
-        <div className="flex items-center gap-1.5 text-white/55 text-xs">
-          <Timer className="size-3 text-white/35" />
+        <div className="flex items-center gap-1.5 mc-text-secondary text-xs">
+          <Timer className="size-3 mc-text-muted" />
           <span className="mc-mono tabular-nums">{formatElapsed(elapsed)}</span>
-          <span className="text-white/25">elapsed</span>
+          <span className="mc-text-muted">elapsed</span>
         </div>
 
-        <span className="text-white/20 text-xs">·</span>
+        <span className="mc-text-muted text-xs">·</span>
 
-        <div className="flex items-center gap-1 text-white/40 text-xs">
+        <div className="flex items-center gap-1 mc-text-muted text-xs">
           <Users className="size-3" />
           <span>{state.roster.length}</span>
         </div>

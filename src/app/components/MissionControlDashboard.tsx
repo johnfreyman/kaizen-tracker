@@ -140,7 +140,7 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
           {state.events.length > 0 ? (
             <RecentActivityFeed onNavigate={onNavigate} />
           ) : (
-            <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-8 text-white/25 text-sm text-center">
+            <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-8 mc-text-muted text-sm text-center">
               No sessions logged yet. Start your first session above.
             </div>
           )}
@@ -307,7 +307,7 @@ function StatTile({
       <div className={`size-8 rounded-lg flex items-center justify-center ${p.icon}`}>{icon}</div>
       <div>
         <div className={`mc-mono text-3xl font-bold tabular-nums leading-none ${p.val}`}>{value}</div>
-        <div className="text-white/35 text-[11px] mt-1">{label}</div>
+        <div className="mc-text-muted text-[11px] mt-1">{label}</div>
       </div>
     </div>
   );
@@ -329,7 +329,7 @@ function SectionCard({
   return (
     <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
-        <h3 className="text-white/55 text-xs font-bold uppercase tracking-widest">{title}</h3>
+        <h3 className="mc-text-secondary text-xs font-bold uppercase tracking-widest">{title}</h3>
         {action && (
           <button
             onClick={action.onClick}
@@ -340,7 +340,7 @@ function SectionCard({
         )}
       </div>
       {empty ? (
-        <div className="px-5 py-8 text-white/25 text-sm text-center">{emptyMessage}</div>
+        <div className="px-5 py-8 mc-text-muted text-sm text-center">{emptyMessage}</div>
       ) : (
         children
       )}

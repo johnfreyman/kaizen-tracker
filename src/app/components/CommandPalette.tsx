@@ -229,7 +229,7 @@ export default function CommandPalette({ open, onClose, onNavigate, onExportPdf 
     if (cmds.length === 0) return null;
     return (
       <div key={label}>
-        <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white/25">
+        <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest mc-text-muted">
           {label}
         </div>
         {cmds.map((cmd) => {
@@ -243,13 +243,13 @@ export default function CommandPalette({ open, onClose, onNavigate, onExportPdf 
               onClick={cmd.action}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left ${
                 isActive
-                  ? "bg-blue-600/15 text-white"
-                  : "text-white/70 hover:text-white"
+                  ? "bg-blue-600/15 mc-text"
+                  : "mc-text-secondary hover:mc-text"
               }`}
             >
               <span
                 className={`flex-shrink-0 size-8 rounded-lg flex items-center justify-center ${
-                  isActive ? "bg-blue-500/20 text-blue-300" : "bg-white/[0.06] text-white/40"
+                  isActive ? "bg-blue-500/20 text-blue-300" : "bg-white/[0.06] mc-text-muted"
                 }`}
               >
                 {cmd.icon}
@@ -257,10 +257,10 @@ export default function CommandPalette({ open, onClose, onNavigate, onExportPdf 
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium leading-none">{cmd.label}</div>
                 {cmd.description && (
-                  <div className="text-xs text-white/35 mt-0.5 truncate">{cmd.description}</div>
+                  <div className="text-xs mc-text-muted mt-0.5 truncate">{cmd.description}</div>
                 )}
               </div>
-              {isActive && <ArrowRight className="size-3.5 text-white/30 flex-shrink-0" />}
+              {isActive && <ArrowRight className="size-3.5 mc-text-muted flex-shrink-0" />}
             </button>
           );
         })}
@@ -280,19 +280,19 @@ export default function CommandPalette({ open, onClose, onNavigate, onExportPdf 
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
 
       {/* Panel */}
-      <div className="relative w-full max-w-lg bg-[#111827] border border-white/[0.1] rounded-2xl shadow-2xl overflow-hidden animate-hero-enter">
+      <div className="relative w-full max-w-lg border mc-border rounded-2xl shadow-2xl overflow-hidden animate-hero-enter" style={{ backgroundColor: "var(--mc-surface)" }}>
         {/* Search input */}
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/[0.07]">
-          <Search className="size-4 text-white/35 flex-shrink-0" />
+        <div className="flex items-center gap-3 px-4 py-3.5 border-b mc-border">
+          <Search className="size-4 mc-text-muted flex-shrink-0" />
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Search commands…"
-            className="flex-1 bg-transparent text-white/90 placeholder-white/30 text-sm outline-none"
+            className="flex-1 bg-transparent mc-text placeholder-black/30 dark:placeholder-white/30 text-sm outline-none"
           />
-          <kbd className="flex-shrink-0 text-[10px] text-white/25 bg-white/[0.06] border border-white/[0.08] rounded px-1.5 py-0.5 font-mono">
+          <kbd className="flex-shrink-0 text-[10px] mc-text-muted bg-white/[0.06] border mc-border rounded px-1.5 py-0.5 font-mono">
             ESC
           </kbd>
         </div>
@@ -303,7 +303,7 @@ export default function CommandPalette({ open, onClose, onNavigate, onExportPdf 
           className="p-2 max-h-[60vh] overflow-y-auto space-y-1"
         >
           {filtered.length === 0 ? (
-            <div className="py-8 text-center text-white/30 text-sm">
+            <div className="py-8 text-center mc-text-muted text-sm">
               No commands match "{query}"
             </div>
           ) : (
@@ -315,7 +315,7 @@ export default function CommandPalette({ open, onClose, onNavigate, onExportPdf 
         </div>
 
         {/* Footer hint */}
-        <div className="px-4 py-2 border-t border-white/[0.05] flex items-center gap-4 text-[10px] text-white/20">
+        <div className="px-4 py-2 border-t mc-border flex items-center gap-4 text-[10px] mc-text-muted">
           <span><kbd className="font-mono">↑↓</kbd> navigate</span>
           <span><kbd className="font-mono">↵</kbd> select</span>
           <span><kbd className="font-mono">esc</kbd> close</span>

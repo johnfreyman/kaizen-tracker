@@ -107,7 +107,7 @@ export default function RecentActivityFeed({ onNavigate }: Props) {
     <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
-        <h3 className="text-white/55 text-xs font-bold uppercase tracking-widest">
+        <h3 className="mc-text-secondary text-xs font-bold uppercase tracking-widest">
           Recent Activity
         </h3>
         {hasMore && onNavigate && (
@@ -133,12 +133,12 @@ export default function RecentActivityFeed({ onNavigate }: Props) {
               {item.icon}
             </span>
             <div className="flex-1 min-w-0">
-              <div className="text-white/75 text-sm font-medium truncate">
+              <div className="mc-text-secondary text-sm font-medium truncate">
                 {item.description}
               </div>
-              <div className="text-white/30 text-xs truncate">{item.detail}</div>
+              <div className="mc-text-muted text-xs truncate">{item.detail}</div>
             </div>
-            <div className="flex-shrink-0 text-white/25 text-xs">
+            <div className="flex-shrink-0 mc-text-muted text-xs">
               {timeAgo(item.timestamp)}
             </div>
           </div>
