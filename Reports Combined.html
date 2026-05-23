@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Reports — Combined view proposal</title>
+  <meta name="viewport" content="width=1440" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/recharts@2.13.3/umd/Recharts.js" crossorigin="anonymous"></script>
+
+  <style>
+    html, body, #root { height: 100%; margin: 0; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #0f172a;
+      background: #f1f5f9;
+    }
+    details > summary { list-style: none; }
+    details > summary::-webkit-details-marker { display: none; }
+  </style>
+
+  <template id="__bundler_thumbnail">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <rect width="100" height="100" rx="20" fill="#6366f1"/>
+      <rect x="22" y="56" width="10" height="22" rx="2" fill="white"/>
+      <rect x="36" y="44" width="10" height="34" rx="2" fill="white"/>
+      <rect x="50" y="34" width="10" height="44" rx="2" fill="white"/>
+      <rect x="64" y="24" width="10" height="54" rx="2" fill="white"/>
+    </svg>
+  </template>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="js/insights-page.jsx"></script>
+  <script type="text/babel">
+    const { useState } = React;
+
+    const DEFAULTS = /*EDITMODE-BEGIN*/{
+      "layout": "stacked",
+      "showDow": true,
+      "showSidebar": true
+    }/*EDITMODE-END*/;
+
+    function NavItem({ icon, label, active, muted }) {
+      return (
+        <div className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${
+          active ? "bg-blue-600/20 text-blue-300" : "text-white/60 hover:bg-white/5"
+        }`}>
+          <span className={`text-base ${muted ? "opacity-40" : ""}`}>{icon}</span>
+          <span className={`font-medium ${active ? "" : muted ? "opacity-60" : ""}`}>{label}</span>
+        </div>
+      );
+    }
+
+    function App() {
+      const [tweaks, setTweak] = window.useTweaks(DEFAULTS);
+
+      return (
+        <div className="flex h-screen overflow-hidden bg-[#0d1117]">
+          {/* Sidebar — mirrors the existing app shell so the new page feels in-place */}
+          {tweaks.showSidebar && (
+            <aside className="hidden md:flex flex-col w-56 flex-shrink-0 border-r border-white/[0.07] bg-[#11161d]">
+              <div className="flex items-center gap-3 px-4 h-14 border-b border-white/[0.07]">
+                <div className="size-8 rounded-lg bg-blue-600/20 grid place-items-center text-blue-300">⌘</div>
+                <div className="min-w-0">
+                  <div className="text-white/85 text-sm font-semibold truncate">U16 Lightning</div>
+                  <div className="text-white/25 text-[10px] uppercase tracking-wider">Mission Control</div>
+                </div>
+              </div>
+              <nav className="flex-1 space-y-1 p-2">
+                <NavItem icon="⌂" label="Dashboard" />
+                <NavItem icon="▤" label="Session" />
+                <NavItem icon="👥" label="Attendance" />
+                <NavItem icon="▥" label="Reports" active />
+                <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider text-white/30">
+                  Combined into Reports →
+                </div>
+                <NavItem icon="↗" label="Analytics (removed)" muted />
+                <NavItem icon="🎁" label="Raffle" />
+              </nav>
+              <div className="p-3 border-t border-white/[0.07] text-[10px] text-white/30">
+                Mock — combined Reports proposal
+              </div>
+            </aside>
+          )}
+
+          <main className="flex-1 overflow-y-auto bg-slate-100">
+            <window.InsightsPage tweaks={tweaks} />
+          </main>
+
+          <window.TweaksPanel title="Tweaks">
+            <window.TweakSection label="Layout">
+              <window.TweakRadio
+                label="Arrangement"
+                value={tweaks.layout}
+                onChange={v => setTweak("layout", v)}
+                options={[
+                  { value: "stacked", label: "Stacked" },
+                  { value: "tabs",    label: "Tabbed" },
+                ]}
+              />
+              <window.TweakToggle
+                label="Day-of-week card"
+                value={tweaks.showDow}
+                onChange={v => setTweak("showDow", v)}
+              />
+              <window.TweakToggle
+                label="App sidebar context"
+                value={tweaks.showSidebar}
+                onChange={v => setTweak("showSidebar", v)}
+              />
+            </window.TweakSection>
+          </window.TweaksPanel>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
