@@ -123,7 +123,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
   };
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${state.activeSession ? "pb-24 md:pb-20" : ""}`}>
       {/* Leaderboard Ticker */}
       <LeaderboardTicker onNavigate={onNavigate} />
 
