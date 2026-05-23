@@ -2,7 +2,6 @@ import { Play, Users, Activity, Target, Clock } from "lucide-react";
 import { useTeamStore, EVENT_TYPES, ActiveSession } from "../hooks/useTeamStore";
 import { useSessionTimer, formatElapsed } from "../hooks/useSessionTimer";
 import { formatDate } from "@/lib/dates";
-import LeaderboardTicker from "./LeaderboardTicker";
 import AlertSurface from "./AlertSurface";
 import WorkflowChecklist from "./WorkflowChecklist";
 import TrainingSummaryCard from "./TrainingSummaryCard";
@@ -60,13 +59,8 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
 
   return (
     <div className="space-y-4 animate-hero-enter">
-      {/* ── Leaderboard Ticker ─────────────────────────────────── */}
-      <div className="stagger-1">
-        <LeaderboardTicker onNavigate={onNavigate} />
-      </div>
-
       {/* ── Hero Panel — key forces re-animation on state change ── */}
-      <div key={heroKey} className="stagger-2 animate-hero-state">
+      <div key={heroKey} className="stagger-1 animate-hero-state">
         {state.activeSession ? (
           <ActiveSessionHero
             session={state.activeSession}
@@ -84,6 +78,11 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
             onConfigure={() => onNavigate("launch")}
           />
         )}
+      </div>
+
+      {/* ── Mobile Leaderboard Strip (below the hero panel) ───── */}
+      <div className="md:hidden stagger-2">
+        <LeaderboardStrip onNavigate={onNavigate} />
       </div>
 
       {/* ── Alert Surface ──────────────────────────────────────── */}
@@ -127,11 +126,6 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
       <div className={`stagger-6 grid gap-4 ${state.raffleEnabled ? "md:grid-cols-2" : "grid-cols-1"}`}>
         <TrainingSummaryCard />
         <RewardsCard onNavigate={onNavigate} />
-      </div>
-
-      {/* ── Leaderboard Strip ──────────────────────────────────── */}
-      <div className="stagger-7">
-        <LeaderboardStrip onNavigate={onNavigate} />
       </div>
 
       {/* ── Recent Activity Feed ───────────────────────────────── */}
