@@ -211,7 +211,7 @@ export default function SummaryPage() {
                     {event.players.length} present
                   </div>
                 </div>
-                <div className="text-sm text-gray-500 text-right truncate max-w-xs">
+                <div className="text-sm text-gray-500 text-right max-w-xs sm:max-w-md md:max-w-lg break-words whitespace-normal">
                   {event.players.join(", ") || "No players"}
                 </div>
               </div>
