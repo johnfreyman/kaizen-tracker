@@ -32,6 +32,7 @@ import {
   insightsFromAttendance,
   type PlayerAttendanceRecord,
 } from "@/lib/stats";
+import { exportReportCSV } from "@/lib/csv";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -306,7 +307,12 @@ export default function SummaryPage({
               </Pill>
             ))}
           </div>
-          <button className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+          <button
+            onClick={() =>
+              exportReportCSV({ events: scoped, roster, guestPlayers, range })
+            }
+            className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+          >
             <Download className="size-3.5" />
             Export
           </button>
