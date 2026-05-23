@@ -14,6 +14,8 @@ import {
   Info,
   Search,
   FileText,
+  Award,
+  Flame,
 } from "lucide-react";
 import {
   PieChart,
@@ -245,6 +247,14 @@ export default function SummaryPage({ openExportPdf, onExportPdfOpened, onNaviga
   const [isArchiving, setIsArchiving] = useState(false);
   const [showExportDrawer, setShowExportDrawer] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const [expandedSessions, setExpandedSessions] = useState<Record<string, boolean>>({});
+
+  const toggleSessionExpand = (sessionId: string) => {
+    setExpandedSessions((prev) => ({
+      ...prev,
+      [sessionId]: !prev[sessionId],
+    }));
+  };
 
   useEffect(() => {
     if (openExportPdf) {
@@ -976,6 +986,126 @@ export default function SummaryPage({ openExportPdf, onExportPdfOpened, onNaviga
             )}
           </table>
         </div>
+      </div>
+
+      {/* Logged Sessions */}
+      <div
+        className="rounded-2xl border border-white/[0.08] overflow-hidden"
+        style={{ backgroundColor: "var(--mc-surface)" }}
+      >
+        <div className="px-5 py-4 border-b border-white/[0.08] flex items-center justify-between">
+          <h3 className="text-xs font-bold text-white/60 uppercase tracking-widest">
+            Logged Sessions
+          </h3>
+          <span className="text-[11px] text-white/25 tabular-nums">
+            {filteredEvents.length} session{filteredEvents.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+
+        {filteredEvents.length === 0 ? (
+          <div className="px-5 py-14 text-center">
+            <div className="flex flex-col items-center gap-2.5">
+              <Calendar className="size-8 text-white/10" />
+              <p className="text-white/50 text-sm font-medium">No sessions logged in this range</p>
+              <p className="text-white/30 text-xs">
+                Select a different date range or start a new session.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="divide-y divide-white/[0.04]">
+            {filteredEvents.map((event) => {
+              const isExpanded = !!expandedSessions[event.id];
+              const isPractice = event.type === EVENT_TYPES.PRACTICE;
+              const typeColor = isPractice
+                ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                : "bg-purple-500/10 text-purple-400 border-purple-500/20";
+              const Icon = isPractice ? Flame : Award;
+
+              return (
+                <div
+                  key={event.id}
+                  className="hover:bg-white/[0.01] transition-all duration-200"
+                >
+                  {/* Session Header / Row */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className={`size-9 rounded-xl flex items-center justify-center border shrink-0 ${typeColor}`}>
+                        <Icon className="size-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-white/85 text-sm">
+                            {formatDate(event.date)}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${typeColor}`}>
+                            {event.type}
+                          </span>
+                        </div>
+                        <div className="text-xs text-white/40 mt-1 flex items-center gap-1.5 flex-wrap">
+                          <span className="tabular-nums font-medium text-white/50">
+                            {event.duration} {event.duration === 1 ? "hour" : "hours"}
+                          </span>
+                          <span className="text-white/15">•</span>
+                          <button
+                            onClick={() => toggleSessionExpand(event.id)}
+                            className="text-purple-400/80 hover:text-purple-300 font-semibold flex items-center gap-1 cursor-pointer transition-colors text-[11px]"
+                          >
+                            <span>{event.players.length} present</span>
+                            {isExpanded ? (
+                              <ChevronUp className="size-3" />
+                            ) : (
+                              <ChevronDown className="size-3" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 sm:self-center">
+                      <button
+                        onClick={() => toggleSessionExpand(event.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/45 hover:text-white/75 hover:bg-white/[0.05] border border-white/[0.08] transition-all cursor-pointer"
+                      >
+                        {isExpanded ? "Hide Attendees" : "Show Attendees"}
+                        {isExpanded ? (
+                          <ChevronUp className="size-3.5" />
+                        ) : (
+                          <ChevronDown className="size-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded Attendees Accordion */}
+                  {isExpanded && (
+                    <div className="px-5 pb-5 pt-1 border-t border-white/[0.02] bg-white/[0.005] animate-fade-in">
+                      <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2.5">
+                        Attended Players ({event.players.length})
+                      </p>
+                      {event.players.length === 0 ? (
+                        <p className="text-xs text-white/30 italic">No players recorded for this session.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {event.players.map((player) => (
+                            <button
+                              key={player}
+                              onClick={() => setSelectedPlayer(player)}
+                              className="group flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-500/8 text-purple-300 border border-purple-500/15 hover:bg-purple-500/15 hover:text-purple-200 hover:border-purple-500/25 transition-all cursor-pointer active:scale-[0.97]"
+                            >
+                              <span>{player}</span>
+                              <span className="text-[10px] text-purple-400/40 group-hover:text-purple-300/60 transition-colors">→</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Export PDF Drawer */}
