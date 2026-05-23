@@ -17,6 +17,7 @@ export type DateRange = "7d" | "30d" | "season" | "custom";
 export interface ExportPdfSections {
   cover: boolean;
   playerTable: boolean;
+  attendanceDistribution: boolean;
   eventLog: boolean;
   archivedEvents: boolean;
   coachNotes: boolean;
@@ -33,7 +34,7 @@ export interface ExportPdfArgs {
   sortCol: SortColumn;
   sortDir: SortDir;
   sections: ExportPdfSections;
-  paperSize: "letter" | "a4";
+  paperSize: "letter" | "a4" | "legal";
   orientation: "portrait" | "landscape";
   filename: string;
   archivedEventsBundles?: ArchivedEventSet[];
@@ -163,7 +164,7 @@ export function exportPdf(args: ExportPdfArgs): void {
   const generatedDate = new Date().toLocaleDateString(undefined, {
     month: "long", day: "numeric", year: "numeric",
   });
-  const pageSize = paperSize === "a4" ? "210mm 297mm" : "8.5in 11in";
+  const pageSize = paperSize === "a4" ? "210mm 297mm" : paperSize === "legal" ? "8.5in 14in" : "8.5in 11in";
   const pageOrient = orientation;
 
   // ── Section: Cover ──────────────────────────────────────────────────────────
@@ -246,6 +247,51 @@ export function exportPdf(args: ExportPdfArgs): void {
       </div>
     </div>
   ` : "";
+
+  // ── Section: Attendance Distribution ───────────────────────────────────────
+  const attendanceDistHtml = sections.attendanceDistribution ? (() => {
+    const buckets: { label: string; color: string; textColor: string; count: number }[] = [
+      { label: "100% attendance",   color: TIER_OK,  textColor: "#027a48", count: 0 },
+      { label: "50–99% attendance", color: TIER_MID, textColor: "#b54708", count: 0 },
+      { label: "< 50% attendance",  color: TIER_LOW, textColor: "#b42318", count: 0 },
+    ];
+    sorted.forEach((player) => {
+      const pt = totals[player] ?? { practice: 0 };
+      const pct = totalPracticePossible > 0 ? Math.round((pt.practice / totalPracticePossible) * 100) : 0;
+      if (pct >= 100) buckets[0].count++;
+      else if (pct >= 50) buckets[1].count++;
+      else buckets[2].count++;
+    });
+    const barsHtml = sorted.map((player) => {
+      const pt = totals[player] ?? { practice: 0 };
+      const pct = totalPracticePossible > 0 ? Math.round((pt.practice / totalPracticePossible) * 100) : 0;
+      const color = tierColor(pct);
+      const textColor = tierTextColor(pct);
+      return `
+        <div class="dist-row">
+          <div class="dist-name">${player}</div>
+          <div class="dist-bar-wrap">
+            <div class="dist-track"><div class="dist-fill" style="width:${Math.min(pct,100)}%;background:${color}"></div></div>
+          </div>
+          <div class="dist-pct" style="color:${textColor}">${pct}%</div>
+        </div>`;
+    }).join("");
+    return `
+      <div class="page">
+        <div class="section-eyebrow">Attendance Distribution</div>
+        <h2 class="section-title">Practice participation overview</h2>
+        <p class="section-meta">${rangeLabel} · ${sorted.length} athlete${sorted.length !== 1 ? "s" : ""}</p>
+        <div class="tier-grid">
+          ${buckets.map((b) => `
+            <div class="tier-card">
+              <div class="tier-dot" style="background:${b.color}"></div>
+              <div class="tier-count" style="color:${b.textColor}">${b.count}</div>
+              <div class="tier-label">${b.label}</div>
+            </div>`).join("")}
+        </div>
+        <div class="dist-list">${barsHtml}</div>
+      </div>`;
+  })() : "";
 
   // ── Section: Event Log ──────────────────────────────────────────────────────
   const eventLogHtml = sections.eventLog ? (() => {
@@ -438,6 +484,30 @@ export function exportPdf(args: ExportPdfArgs): void {
           height: 32px; border-bottom: 1px solid #d0d5dd; margin-bottom: 0;
         }
 
+        /* Attendance distribution */
+        .tier-grid {
+          display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;
+        }
+        .tier-card {
+          border: 1px solid #e4e7ec; border-radius: 8px; padding: 12px 14px;
+          background: #f9fafb; display: flex; flex-direction: column; gap: 4px;
+        }
+        .tier-dot {
+          width: 10px; height: 10px; border-radius: 50%; margin-bottom: 2px;
+        }
+        .tier-count { font-size: 28px; font-weight: 700; line-height: 1; }
+        .tier-label { font-size: 10px; color: #667085; }
+        .dist-list { display: flex; flex-direction: column; gap: 5px; }
+        .dist-row { display: flex; align-items: center; gap: 8px; }
+        .dist-name {
+          width: 100px; font-size: 11px; color: #344054; overflow: hidden;
+          white-space: nowrap; text-overflow: ellipsis; flex-shrink: 0;
+        }
+        .dist-bar-wrap { flex: 1; }
+        .dist-track { height: 6px; border-radius: 99px; background: #f2f4f7; overflow: hidden; }
+        .dist-fill { height: 100%; border-radius: 99px; }
+        .dist-pct { width: 32px; font-size: 11px; font-weight: 700; text-align: right; flex-shrink: 0; }
+
         /* Footer */
         .page::after {
           content: "${teamName} · Attendance & Training";
@@ -451,6 +521,7 @@ export function exportPdf(args: ExportPdfArgs): void {
     <body>
       ${coverHtml}
       ${playerTableHtml}
+      ${attendanceDistHtml}
       ${eventLogHtml}
       ${archivedHtml}
       ${coachNotesHtml}

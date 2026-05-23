@@ -32,11 +32,13 @@ interface Props {
   sortCol: SortColumn;
   sortDir: SortDir;
   archivedEventsBundles?: ArchivedEventSet[];
+  initialSections?: Partial<ExportPdfSections>;
 }
 
 const DEFAULT_SECTIONS: ExportPdfSections = {
   cover: true,
   playerTable: true,
+  attendanceDistribution: true,
   eventLog: true,
   archivedEvents: false,
   coachNotes: false,
@@ -52,11 +54,12 @@ function todayStr(): string {
 
 function pageCount(sections: ExportPdfSections, hasArchives: boolean): number {
   let n = 0;
-  if (sections.cover)       n++;
-  if (sections.playerTable) n++;
-  if (sections.eventLog)    n++;
+  if (sections.cover)                         n++;
+  if (sections.playerTable)                   n++;
+  if (sections.attendanceDistribution)        n++;
+  if (sections.eventLog)                      n++;
   if (sections.archivedEvents && hasArchives) n++;
-  if (sections.coachNotes)  n++;
+  if (sections.coachNotes)                    n++;
   return n;
 }
 
@@ -73,20 +76,23 @@ export default function ExportPdfDrawer({
   sortCol,
   sortDir,
   archivedEventsBundles = [],
+  initialSections,
 }: Props) {
   const [sections, setSections] = useState<ExportPdfSections>(DEFAULT_SECTIONS);
-  const [paperSize, setPaperSize] = useState<"letter" | "a4">("letter");
+  const [paperSize, setPaperSize] = useState<"letter" | "a4" | "legal">("letter");
   const [orientation, setOrientation] = useState<"portrait" | "landscape">("portrait");
   const [filename, setFilename] = useState("");
 
   // Reset local state whenever the drawer opens
   useEffect(() => {
     if (open) {
-      setSections(DEFAULT_SECTIONS);
+      setSections({ ...DEFAULT_SECTIONS, ...initialSections });
       setPaperSize("letter");
       setOrientation("portrait");
       setFilename(`${slugify(teamName || "team")}-summary-${todayStr()}`);
     }
+  // initialSections is intentionally excluded — it's only applied on open, not on every render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, teamName]);
 
   // Derived preview stats
@@ -157,10 +163,16 @@ export default function ExportPdfDrawer({
       pages: "p. 2",
     },
     {
+      key: "attendanceDistribution",
+      label: "Attendance distribution",
+      desc: "Donut chart + practice % bars by player",
+      pages: "+1 p.",
+    },
+    {
       key: "eventLog",
       label: "Event log",
       desc: `${events.length} session${events.length !== 1 ? "s" : ""} grouped by week`,
-      pages: "p. 3",
+      pages: "+1 p.",
     },
     {
       key: "archivedEvents",
@@ -227,7 +239,7 @@ export default function ExportPdfDrawer({
               <div>
                 <label className="text-xs text-white/55 font-medium mb-1.5 block">Paper size</label>
                 <div className="flex rounded-lg border border-white/[0.08] overflow-hidden bg-white/[0.02] h-9">
-                  {(["letter", "a4"] as const).map((s) => (
+                  {(["letter", "a4", "legal"] as const).map((s) => (
                     <button
                       key={s}
                       onClick={() => setPaperSize(s)}
@@ -237,7 +249,7 @@ export default function ExportPdfDrawer({
                           : "text-white/35 hover:text-white/60"
                       }`}
                     >
-                      {s === "letter" ? "Letter" : "A4"}
+                      {s === "letter" ? "Letter" : s === "a4" ? "A4" : "Legal"}
                     </button>
                   ))}
                 </div>

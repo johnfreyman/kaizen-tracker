@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { Save, UserPlus, X, Upload, Gift, FileText, Archive, RotateCcw, Trash2, Trophy, Sun, Moon, Monitor } from "lucide-react";
+import ExportPdfDrawer from "./ExportPdfDrawer";
 import { useTeamStore, ConflictResolutionStrategy } from "../hooks/useTeamStore";
 import { useTheme, type Theme } from "../hooks/useTheme";
 import PlayerTypeDialog from "./PlayerTypeDialog";
 import { formatDate } from "@/lib/dates";
 import { toast } from "sonner";
-import { exportPdf } from "@/app/lib/exportPdf";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -136,6 +136,7 @@ export default function SettingsPage() {
 
   const [restoreReviewArchiveId, setRestoreReviewArchiveId] = useState<string | null>(null);
   const [conflictStrategy, setConflictStrategy] = useState<ConflictResolutionStrategy>("overwrite");
+  const [showExportDrawer, setShowExportDrawer] = useState(false);
 
   // State variables for dialogs and confirmations
   const [showAddPlayerDialog, setShowAddPlayerDialog] = useState(false);
@@ -144,31 +145,6 @@ export default function SettingsPage() {
   const [playerToRemove, setPlayerToRemove] = useState<string | null>(null);
   const [isAddingPlayer, setIsAddingPlayer] = useState(false);
   const [isRemovingPlayer, setIsRemovingPlayer] = useState(false);
-
-  const printFullArchive = () => {
-    const slug = (state.teamName || "team").toLowerCase().replace(/[^a-z0-9]+/g, "-");
-    const date = new Date().toISOString().split("T")[0];
-    exportPdf({
-      teamName: state.teamName,
-      teamLogo: state.teamLogo,
-      events: state.events,
-      roster: state.roster,
-      dateRange: "season",
-      sortCol: "player",
-      sortDir: "asc",
-      sections: {
-        cover: true,
-        playerTable: true,
-        eventLog: true,
-        archivedEvents: true,
-        coachNotes: false,
-      },
-      paperSize: "letter",
-      orientation: "portrait",
-      filename: `${slug}-full-archive-${date}`,
-      archivedEventsBundles: state.archivedEvents,
-    });
-  };
 
   const handleRestoreArchive = (archiveId: string) => {
     setRestoreReviewArchiveId(archiveId);
@@ -235,13 +211,6 @@ export default function SettingsPage() {
               Update team branding and manage the roster stored on this device.
             </p>
           </div>
-          <button
-            onClick={printFullArchive}
-            className="flex items-center gap-2 px-5 py-3 bg-white border-2 border-indigo-600 text-indigo-700 font-bold rounded-xl hover:bg-indigo-50 focus:ring-4 focus:ring-indigo-200 transition-all shadow-md hover:shadow-lg"
-          >
-            <FileText className="size-5" />
-            Print full archive
-          </button>
         </div>
       </div>
 
@@ -453,9 +422,18 @@ export default function SettingsPage() {
       {/* Archived Events */}
       {state.archivedEvents.length > 0 && (
         <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 md:p-8 shadow-xl border border-gray-200">
-          <div className="flex items-center gap-3 mb-4">
-            <Archive className="size-6 text-indigo-600" />
-            <h3 className="text-xl font-bold text-gray-900">Archived Events</h3>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3">
+              <Archive className="size-6 text-indigo-600" />
+              <h3 className="text-xl font-bold text-gray-900">Archived Events</h3>
+            </div>
+            <button
+              onClick={() => setShowExportDrawer(true)}
+              className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-indigo-600 transition-colors"
+            >
+              <FileText className="size-4" />
+              Print full archive
+            </button>
           </div>
           <p className="text-sm text-gray-600 mb-4">
             View and restore previously archived event sets.
@@ -908,6 +886,21 @@ export default function SettingsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Export PDF Drawer — opened from "Print full archive" link in Archived Events */}
+      <ExportPdfDrawer
+        open={showExportDrawer}
+        onClose={() => setShowExportDrawer(false)}
+        teamName={state.teamName}
+        teamLogo={state.teamLogo}
+        events={state.events}
+        roster={state.roster}
+        dateRange="season"
+        sortCol="player"
+        sortDir="asc"
+        archivedEventsBundles={state.archivedEvents}
+        initialSections={{ archivedEvents: true }}
+      />
     </div>
   );
 }

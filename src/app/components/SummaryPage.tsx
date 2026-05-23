@@ -800,7 +800,7 @@ export default function SummaryPage({ openExportPdf, onExportPdfOpened, onNaviga
               </button>
               <button
                 onClick={() => setShowExportDrawer(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-300/70 hover:text-blue-200 hover:bg-blue-500/[0.08] border border-blue-500/25 transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/35 hover:text-white/65 hover:bg-white/[0.06] border border-white/[0.08] transition-all"
               >
                 <FileText className="size-3.5" />
                 Export PDF
