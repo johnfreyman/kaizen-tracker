@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Play, Users, Activity, Target, Clock } from "lucide-react";
 import { useTeamStore, EVENT_TYPES, ActiveSession } from "../hooks/useTeamStore";
 import { useSessionTimer, formatElapsed } from "../hooks/useSessionTimer";
@@ -36,6 +37,7 @@ function buildSmartSession(): ActiveSession {
 
 export default function MissionControlDashboard({ onNavigate }: Props) {
   const { state, startSession } = useTeamStore();
+  const [showActivity, setShowActivity] = useState(false);
 
   const handleSmartStart = async () => {
     await startSession(buildSmartSession());
@@ -58,9 +60,14 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
   const heroKey = state.activeSession ? "active" : "idle";
 
   return (
-    <div className="space-y-4 animate-hero-enter">
+    <div className="space-y-4 animate-hero-enter" data-screen-label="Dashboard">
+      {/* ── Mobile Leaderboard Strip (mobile only) ──────────────── */}
+      <div className="md:hidden stagger-1">
+        <LeaderboardStrip onNavigate={onNavigate} />
+      </div>
+
       {/* ── Hero Panel — key forces re-animation on state change ── */}
-      <div key={heroKey} className="stagger-1 animate-hero-state">
+      <div key={heroKey} className="stagger-2 animate-hero-state">
         {state.activeSession ? (
           <ActiveSessionHero
             session={state.activeSession}
@@ -80,11 +87,6 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
         )}
       </div>
 
-      {/* ── Mobile Leaderboard Strip (below the hero panel) ───── */}
-      <div className="md:hidden stagger-2">
-        <LeaderboardStrip onNavigate={onNavigate} />
-      </div>
-
       {/* ── Alert Surface ──────────────────────────────────────── */}
       <div className="stagger-3">
         <AlertSurface onNavigate={onNavigate} />
@@ -96,30 +98,40 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
       </div>
 
       {/* ── Stats Tiles ────────────────────────────────────────── */}
-      <div className="stagger-5 grid grid-cols-3 gap-4">
-        {state.activeSession ? (
-          <>
-            <StatTile label="On Roster" value={String(state.roster.length)} icon={<Users className="size-4" />} color="blue" />
-            <StatTile label="Duration" value={`${state.activeSession.duration}h`} icon={<Clock className="size-4" />} color="emerald" />
-            <StatTile label="Events Logged" value={String(state.events.length)} icon={<Activity className="size-4" />} color="violet" />
-          </>
-        ) : (
-          <>
-            <StatTile label="Total Events" value={String(state.events.length)} icon={<Activity className="size-4" />} color="blue" />
-            <StatTile
-              label="Practice Hrs"
-              value={totalPracticeHrs % 1 === 0 ? String(totalPracticeHrs) : totalPracticeHrs.toFixed(1)}
-              icon={<Users className="size-4" />}
-              color="emerald"
-            />
-            <StatTile
-              label="Optional Hrs"
-              value={totalOptionalHrs % 1 === 0 ? String(totalOptionalHrs) : totalOptionalHrs.toFixed(1)}
-              icon={<Target className="size-4" />}
-              color="violet"
-            />
-          </>
-        )}
+      <div className="stagger-5 space-y-2">
+        <div className="grid grid-cols-3 gap-4">
+          {state.activeSession ? (
+            <>
+              <StatTile label="On Roster" value={String(state.roster.length)} icon={<Users className="size-4" />} color="blue" />
+              <StatTile label="Duration" value={`${state.activeSession.duration}h`} icon={<Clock className="size-4" />} color="emerald" />
+              <StatTile label="Events Logged" value={String(state.events.length)} icon={<Activity className="size-4" />} color="violet" />
+            </>
+          ) : (
+            <>
+              <StatTile label="Total Events" value={String(state.events.length)} icon={<Activity className="size-4" />} color="blue" />
+              <StatTile
+                label="Practice Hrs"
+                value={totalPracticeHrs % 1 === 0 ? String(totalPracticeHrs) : totalPracticeHrs.toFixed(1)}
+                icon={<Users className="size-4" />}
+                color="emerald"
+              />
+              <StatTile
+                label="Optional Hrs"
+                value={totalOptionalHrs % 1 === 0 ? String(totalOptionalHrs) : totalOptionalHrs.toFixed(1)}
+                icon={<Target className="size-4" />}
+                color="violet"
+              />
+            </>
+          )}
+        </div>
+        <div className="flex justify-end">
+          <button
+            onClick={() => setShowActivity(!showActivity)}
+            className="text-xs font-semibold text-blue-400/60 hover:text-blue-400 transition-colors flex items-center gap-1 cursor-pointer"
+          >
+            {showActivity ? "Recent activity ↑" : "Recent activity →"}
+          </button>
+        </div>
       </div>
 
       {/* ── Intelligence Row: Training Summary + Rewards ───────── */}
@@ -128,12 +140,16 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
         <RewardsCard onNavigate={onNavigate} />
       </div>
 
-      {/* ── Recent Activity Feed ───────────────────────────────── */}
-      {state.events.length > 0 ? (
-        <RecentActivityFeed onNavigate={onNavigate} />
-      ) : (
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-8 text-white/25 text-sm text-center">
-          No sessions logged yet. Start your first session above.
+      {/* ── Recent Activity Feed (collapsible) ─────────────────── */}
+      {showActivity && (
+        <div className="stagger-7 animate-hero-enter">
+          {state.events.length > 0 ? (
+            <RecentActivityFeed onNavigate={onNavigate} />
+          ) : (
+            <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-8 text-white/25 text-sm text-center">
+              No sessions logged yet. Start your first session above.
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -203,13 +219,7 @@ function ActiveSessionHero({
               }`}
             >
               <Users className="size-4" />
-              Take Attendance
-            </button>
-            <button
-              onClick={onAttendance}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-white/60 hover:text-white/80 bg-white/[0.06] hover:bg-white/[0.09] border border-white/[0.08] transition-colors"
-            >
-              Save & End
+              Take Attendance →
             </button>
           </div>
         </div>
