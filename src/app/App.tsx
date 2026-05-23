@@ -164,15 +164,15 @@ function AppContent() {
                   title={label}
                   className={`group relative w-full flex items-center md:justify-center lg:justify-start gap-3 md:px-2 lg:px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                     isActive
-                      ? "bg-blue-600/12 text-blue-300"
+                      ? "mc-nav-active"
                       : "mc-text-secondary hover:mc-text hover:bg-white/[0.05]"
                   }`}
                 >
                   {isActive && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 bg-blue-400 rounded-r-full" />
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 bg-blue-600 dark:bg-blue-400 rounded-r-full" />
                   )}
                   <div className="relative flex-shrink-0">
-                    <Icon className={`size-4 ${isActive ? "text-blue-400" : ""}`} />
+                    <Icon className="size-4" />
                     {showBadge && (
                       <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-emerald-400 animate-session-pulse lg:hidden" />
                     )}
@@ -198,14 +198,14 @@ function AppContent() {
               title="Settings"
               className={`relative w-full flex items-center md:justify-center lg:justify-start gap-3 md:px-2 lg:px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                 activePage === "settings"
-                  ? "bg-blue-600/12 text-blue-300"
+                  ? "mc-nav-active"
                   : isNewAccount
                   ? "text-amber-400/80 hover:text-amber-300 hover:bg-amber-500/8 animate-pulse"
                   : "mc-text-secondary hover:mc-text hover:bg-white/[0.05]"
               }`}
             >
               {activePage === "settings" && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 bg-blue-400 rounded-r-full" />
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 bg-blue-600 dark:bg-blue-400 rounded-r-full" />
               )}
               <SettingsIcon className="size-4 flex-shrink-0" />
               <span className="hidden lg:block">Settings</span>
@@ -322,11 +322,11 @@ function AppContent() {
                   }
                 }}
                 className={`relative flex flex-col items-center justify-center gap-1 px-3 h-full min-w-[56px] transition-colors ${
-                  isActive ? "text-blue-400" : "mc-text-muted hover:mc-text-secondary"
+                  isActive ? "text-[var(--mc-nav-active-text)]" : "mc-text-muted hover:mc-text-secondary"
                 }`}
               >
                 {isActive && (
-                  <span className="absolute top-0 inset-x-3 h-0.5 bg-blue-400 rounded-b-full" />
+                  <span className="absolute top-0 inset-x-3 h-0.5 bg-[var(--mc-nav-active-text)] rounded-b-full" />
                 )}
                 <div className="relative">
                   <Icon className="size-5" />

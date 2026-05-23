@@ -354,6 +354,7 @@
     .mc-border           { border-color: var(--mc-card-border); }
     .mc-card             { background-color: var(--mc-card); border-color: var(--mc-card-border); }
     .mc-card-hover:hover { background-color: var(--mc-card-hover); }
+    .mc-nav-active       { background-color: var(--mc-nav-active-bg); color: var(--mc-nav-active-text); }
 
     /* Hover variants — match how the hardcoded `hover:text-white/75` etc. were used */
     .hover\:mc-text:hover           { color: var(--mc-text-primary); }
