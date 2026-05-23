@@ -226,14 +226,14 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
       {/* Prominent Active Session Alert Container */}
       {state.activeSession && (
-        <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-5 flex items-start gap-4 animate-fade-in text-amber-300">
-          <div className="p-2.5 bg-amber-500/15 text-amber-300 rounded-xl flex-shrink-0">
+        <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-5 flex items-start gap-4 animate-fade-in text-amber-800 dark:text-amber-300">
+          <div className="p-2.5 bg-amber-500/15 text-amber-700 dark:text-amber-300 rounded-xl flex-shrink-0">
             <Info className="size-5" />
           </div>
           <div className="space-y-1">
-            <h4 className="font-extrabold text-amber-200 text-sm">Active Session in Progress</h4>
-            <p className="text-xs text-amber-300/80 leading-relaxed">
-              There is already an active <span className="font-bold text-amber-200">{state.activeSession.type}</span> session started ({state.activeSession.duration} hrs). Starting a new event below will overwrite this active session.
+            <h4 className="font-extrabold text-amber-900 dark:text-amber-200 text-sm">Active Session in Progress</h4>
+            <p className="text-xs text-amber-800/90 dark:text-amber-300/80 leading-relaxed">
+              There is already an active <span className="font-bold text-amber-900 dark:text-amber-200">{state.activeSession.type}</span> session started ({state.activeSession.duration} hrs). Starting a new event below will overwrite this active session.
             </p>
           </div>
         </div>
@@ -609,7 +609,7 @@ function SessionCard({
                 key={player}
                 className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
                   isGuest
-                    ? "bg-amber-500/15 text-amber-300 ring-1 ring-inset ring-amber-500/25"
+                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 ring-1 ring-inset ring-amber-500/25"
                     : "bg-white/[0.06] mc-text-secondary"
                 }`}
               >

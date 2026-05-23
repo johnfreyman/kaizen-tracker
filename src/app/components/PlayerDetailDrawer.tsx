@@ -48,10 +48,10 @@ const getInitials = (name: string) => {
 const getAvatarGradient = (name: string) => {
   const hash = name.split("").reduce((acc, char) => char.charCodeAt(0) + acc, 0);
   const gradients = [
-    "from-blue-500/20 to-indigo-500/20 text-blue-300 border-blue-500/30",
-    "from-purple-500/20 to-pink-500/20 text-purple-300 border-purple-500/30",
-    "from-emerald-500/20 to-teal-500/20 text-emerald-300 border-emerald-500/30",
-    "from-amber-500/20 to-orange-500/20 text-amber-300 border-amber-500/30",
+    "from-blue-500/20 to-indigo-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30",
+    "from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-purple-300 border-purple-500/30",
+    "from-emerald-500/20 to-teal-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+    "from-amber-500/20 to-orange-500/20 text-amber-800 dark:text-amber-300 border-amber-500/30",
   ];
   return gradients[hash % gradients.length];
 };
@@ -274,11 +274,11 @@ export default function PlayerDetailDrawer({
                   </div>
                   <div className="shrink-0">
                     {isPresent ? (
-                      <div className="flex items-center justify-center size-6 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                      <div className="flex items-center justify-center size-6 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
                         <Check className="size-3.5" />
                       </div>
                     ) : (
-                      <div className="flex items-center justify-center size-6 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
+                      <div className="flex items-center justify-center size-6 rounded-lg bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400">
                         <X className="size-3.5" />
                       </div>
                     )}

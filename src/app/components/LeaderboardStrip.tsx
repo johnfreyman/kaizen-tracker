@@ -22,9 +22,9 @@ function addWeeks(d: Date, n: number): Date {
 /* ── Rank badge colors ─────────────────────────────────────────────── */
 
 const RANK_STYLES = [
-  "bg-amber-400/20  text-amber-300  border-amber-400/30",
-  "bg-white/10      mc-text-secondary   border-white/15",
-  "bg-orange-700/20 text-orange-400 border-orange-700/30",
+  "bg-amber-500/20 dark:bg-amber-400/20 text-amber-800 dark:text-amber-300 border-amber-500/30 dark:border-amber-400/30",
+  "bg-black/8 dark:bg-white/10 mc-text-secondary border-black/10 dark:border-white/15",
+  "bg-orange-600/20 dark:bg-orange-700/20 text-orange-700 dark:text-orange-400 border-orange-600/30 dark:border-orange-700/30",
 ];
 
 /* ── Main component ────────────────────────────────────────────────── */

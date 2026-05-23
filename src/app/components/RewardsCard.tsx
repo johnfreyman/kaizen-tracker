@@ -30,12 +30,12 @@ export default function RewardsCard({ onNavigate }: Props) {
     <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/8 to-orange-500/5 p-5 flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center gap-2 pb-3 border-b border-amber-500/15">
-        <Gift className="size-3.5 text-amber-400" />
-        <h3 className="text-amber-300/70 text-xs font-bold uppercase tracking-widest flex-1">
+        <Gift className="size-3.5 text-amber-600 dark:text-amber-400" />
+        <h3 className="text-amber-800/80 dark:text-amber-300/70 text-xs font-bold uppercase tracking-widest flex-1">
           Rewards
         </h3>
         {eligibleCount > 0 && (
-          <span className="text-[10px] font-semibold text-amber-300/60 bg-amber-500/12 px-2 py-0.5 rounded-full">
+          <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300/70 bg-amber-500/15 dark:bg-amber-500/12 px-2 py-0.5 rounded-full">
             {eligibleCount} eligible
           </span>
         )}
@@ -50,7 +50,7 @@ export default function RewardsCard({ onNavigate }: Props) {
         ) : (
           <div className="flex items-center gap-3">
             <div className="size-10 rounded-xl bg-amber-500/15 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
-              <Trophy className="size-5 text-amber-400" />
+              <Trophy className="size-5 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
               <div className="mc-text text-sm font-semibold">
@@ -69,7 +69,7 @@ export default function RewardsCard({ onNavigate }: Props) {
           disabled={eligibleCount === 0}
           className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
             eligibleCount > 0
-              ? "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/25 hover:border-amber-500/40 animate-[shimmer_2.5s_ease-in-out_infinite]"
+              ? "bg-amber-500/15 dark:bg-amber-500/20 hover:bg-amber-500/25 dark:hover:bg-amber-500/30 text-amber-800 dark:text-amber-300 border border-amber-500/30 dark:border-amber-500/25 hover:border-amber-500/50 dark:hover:border-amber-500/40 animate-[shimmer_2.5s_ease-in-out_infinite]"
               : "bg-white/5 mc-text-muted cursor-not-allowed border border-white/8"
           }`}
         >

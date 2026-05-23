@@ -14,15 +14,15 @@ export default function AlertSurface({ onNavigate }: Props) {
   if (visibleAlerts.length === 0) return null;
 
   const severityStyles: Record<AlertSeverity, string> = {
-    danger:  "border-red-500/30    bg-red-500/8    text-red-300",
-    warning: "border-amber-500/30  bg-amber-500/8  text-amber-300",
-    info:    "border-blue-500/20   bg-blue-500/6   text-blue-300",
+    danger:  "border-red-500/30    bg-red-500/8    text-red-700 dark:text-red-300",
+    warning: "border-amber-500/30  bg-amber-500/8  text-amber-800 dark:text-amber-300",
+    info:    "border-blue-500/20   bg-blue-500/6   text-blue-700 dark:text-blue-300",
   };
 
   const iconStyles: Record<AlertSeverity, string> = {
-    danger:  "text-red-400",
-    warning: "text-amber-400",
-    info:    "text-blue-400",
+    danger:  "text-red-600 dark:text-red-400",
+    warning: "text-amber-600 dark:text-amber-400",
+    info:    "text-blue-600 dark:text-blue-400",
   };
 
   return (
