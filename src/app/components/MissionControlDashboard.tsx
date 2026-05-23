@@ -169,8 +169,8 @@ function ActiveSessionHero({
     <div
       className={`relative overflow-hidden rounded-2xl border p-6 md:p-8 ${
         isPractice
-          ? "border-emerald-500/25 bg-gradient-to-br from-emerald-950/50 via-emerald-900/25 to-transparent"
-          : "border-violet-500/25 bg-gradient-to-br from-violet-950/50 via-violet-900/25 to-transparent"
+          ? "border-emerald-500/30 bg-gradient-to-br from-[#022c22] via-[#043e30] to-[#022c22]"
+          : "border-violet-500/30 bg-gradient-to-br from-[#2e1065] via-[#3b0764] to-[#2e1065]"
       }`}
     >
       {/* Decorative glow */}
@@ -244,7 +244,7 @@ function IdleHero({
   onConfigure: () => void;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-blue-950/40 via-indigo-950/20 to-transparent p-6 md:p-8">
+    <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#0b1329] via-[#111c40] to-[#0b1329] p-6 md:p-8">
       <div className="absolute -top-20 -right-20 size-56 rounded-full blur-3xl bg-blue-600/6 pointer-events-none" />
 
       <div className="relative space-y-5">
