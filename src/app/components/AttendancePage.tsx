@@ -152,11 +152,11 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
         <button
           onClick={handleSaveSession}
           disabled={!state.activeSession || isSavingSession}
-          className="mt-4 md:mt-0 w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all min-w-[160px]"
+          className="hidden md:flex items-center justify-center gap-2 text-blue-400 hover:text-blue-300 font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isSavingSession ? (
             <>
-              <span className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span className="size-5 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
               Saving...
             </>
           ) : (
@@ -374,6 +374,38 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Sticky Action Bar */}
+      <div
+        className={`fixed bottom-0 left-0 right-0 z-50 px-4 pb-[80px] md:pb-[24px] transition-transform duration-200 ease-in-out pointer-events-none ${
+          state.activeSession ? "translate-y-0" : "translate-y-full"
+        }`}
+      >
+        <div className="max-w-5xl mx-auto w-full pointer-events-auto bg-[var(--mc-elev)] border border-white/[0.08] rounded-2xl px-4 py-3 shadow-2xl backdrop-blur flex items-center justify-between gap-4">
+          <div className="text-white/90 text-sm md:text-base">
+            <span className="opacity-80">
+              <b className="font-bold text-white">{presentPlayers.size}</b> of {state.roster.length} present
+            </span>
+          </div>
+          <button
+            onClick={handleSaveSession}
+            disabled={!state.activeSession || isSavingSession}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all min-w-[160px]"
+          >
+            {isSavingSession ? (
+              <>
+                <span className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="size-5" />
+                Save Session
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
