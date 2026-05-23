@@ -128,17 +128,20 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
       <LeaderboardTicker onNavigate={onNavigate} />
 
       {/* Session Banner */}
-      <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 md:p-8 shadow-xl border border-gray-200 md:flex md:items-center md:justify-between gap-4">
+      <div
+        className="rounded-2xl border border-white/[0.08] overflow-hidden p-6 md:p-8 md:flex md:items-center md:justify-between gap-4"
+        style={{ backgroundColor: "var(--mc-surface)" }}
+      >
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+          <span className="text-xs font-bold uppercase tracking-widest text-white/55">
             Current Session
           </span>
-          <h2 className="mt-1 text-2xl md:text-3xl font-bold text-gray-900">
+          <h2 className="mt-1 text-2xl md:text-3xl font-bold text-white">
             {state.activeSession
               ? state.activeSession.type
               : "No active session"}
           </h2>
-          <p className="mt-1 text-gray-600">
+          <p className="mt-1 text-white/45">
             {state.activeSession
               ? `${formatDate(state.activeSession.date)} • ${
                   state.activeSession.duration
@@ -149,7 +152,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
         <button
           onClick={handleSaveSession}
           disabled={!state.activeSession || isSavingSession}
-          className="mt-4 md:mt-0 w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed focus:ring-4 focus:ring-blue-200 transition-all shadow-lg min-w-[160px]"
+          className="mt-4 md:mt-0 w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all min-w-[160px]"
         >
           {isSavingSession ? (
             <>
@@ -169,27 +172,28 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <button
           onClick={handleAddPlayer}
-          className="group relative flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-br from-blue-400/90 via-blue-500/90 to-indigo-500/90 text-white font-semibold rounded-2xl hover:from-blue-500/95 hover:via-blue-600/95 hover:to-indigo-600/95 focus:ring-4 focus:ring-blue-200/50 transition-all shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm"
+          className="flex items-center justify-center gap-3 px-6 py-4 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white font-semibold rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
-          <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/10 rounded-2xl" />
-          <UserPlus className="size-5 relative z-10" />
-          <span className="relative z-10">Add Player</span>
+          <UserPlus className="size-5" />
+          <span>Add Player</span>
         </button>
         {state.events.length > 0 && (
           <button
             onClick={handleEditLastSession}
-            className="group relative flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-br from-amber-400/90 via-orange-400/90 to-orange-500/90 text-white font-semibold rounded-2xl hover:from-amber-500/95 hover:via-orange-500/95 hover:to-orange-600/95 focus:ring-4 focus:ring-orange-200/50 transition-all shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm"
+            className="flex items-center justify-center gap-3 px-6 py-4 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white font-semibold rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
-            <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/10 rounded-2xl" />
-            <Edit className="size-5 relative z-10" />
-            <span className="relative z-10">Edit Last Session</span>
+            <Edit className="size-5" />
+            <span>Edit Last Session</span>
           </button>
         )}
       </div>
 
       {/* Player Grid */}
       {state.roster.length === 0 ? (
-        <div className="bg-white/60 border border-dashed border-gray-300 rounded-3xl p-8 text-center text-gray-500">
+        <div
+          className="rounded-2xl border border-dashed border-white/[0.08] p-8 text-center text-white/40"
+          style={{ backgroundColor: "var(--mc-surface)" }}
+        >
           No players yet. Add players from Attendance or Settings.
         </div>
       ) : (
@@ -210,12 +214,12 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
                 }}
                 className={`relative flex flex-col items-center justify-center gap-3 min-h-36 p-5 rounded-2xl border transition-all ${
                   isPresent
-                    ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-green-50 text-emerald-800 shadow-md shadow-emerald-100/50"
-                    : "border-gray-200/80 bg-white/90 backdrop-blur-sm text-gray-700 hover:border-gray-300 hover:shadow-md hover:scale-[1.02] shadow-sm"
+                    ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-300"
+                    : "bg-white/[0.03] border-white/[0.07] text-white/70 hover:border-white/[0.15] hover:bg-white/[0.06] hover:scale-[1.02]"
                 }`}
               >
                 {hasStreak && (
-                  <div className="absolute -top-1 -right-1 size-8 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center shadow-lg border-2 border-white">
+                  <div className="absolute -top-1 -right-1 size-8 rounded-full bg-orange-500 flex items-center justify-center border border-white/[0.08]">
                     <span className="text-lg" title="5 event streak!">🔥</span>
                   </div>
                 )}
@@ -235,16 +239,16 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
                         className="absolute -top-1 -left-1 size-7 rounded-full object-cover drop-shadow-md"
                       />
                     ) : (
-                      <div className="absolute -top-1 -left-1 size-7 rounded-full bg-white flex items-center justify-center shadow-lg border-2 border-gray-200">
-                      <Trophy className="size-3.5 text-blue-600" />
+                      <div className="absolute -top-1 -left-1 size-7 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center">
+                        <Trophy className="size-3.5 text-blue-400" />
                       </div>
                     )}
                   </>
                 )}
-                <div className={`size-14 rounded-xl flex items-center justify-center font-bold text-base transition-all ${
+                <div className={`size-14 rounded-full flex items-center justify-center font-bold text-base transition-all ${
                   isPresent
-                    ? "bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-md"
-                    : "bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-sm"
+                    ? "bg-emerald-500/15 text-emerald-300"
+                    : "bg-white/[0.06] text-white/70"
                 }`}>
                   {getInitials(player)}
                 </div>
@@ -324,7 +328,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSavingSession}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-blue-600 hover:bg-blue-500 text-white rounded-xl"
               disabled={isSavingSession}
               onClick={async (e) => {
                 e.preventDefault();
@@ -356,7 +360,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-blue-600 hover:bg-blue-500 text-white rounded-xl"
               onClick={() => {
                 const lastEvent = editLastSession();
                 if (lastEvent) {

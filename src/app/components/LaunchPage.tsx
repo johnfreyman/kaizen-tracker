@@ -120,28 +120,28 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
   return (
     <div className="space-y-8 max-w-3xl mx-auto">
       {/* Hero Card */}
-      <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-700 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-[radial-gradient(circle_at_bottom_right,_var(--tw-gradient-stops))] from-white/10 to-transparent pointer-events-none" />
+      <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-blue-950/40 to-transparent p-8 text-white">
+        <div className="absolute -top-20 -right-20 size-56 rounded-full blur-3xl bg-blue-600/6 pointer-events-none" />
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-xs font-bold uppercase tracking-wider text-blue-100 border border-white/10">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-xs font-bold uppercase tracking-wider text-blue-300 border border-white/[0.08]">
               <Play className="size-3 fill-current" /> Event Launcher
             </span>
-            <h2 className="mt-4 text-3xl md:text-4xl font-extrabold tracking-tight leading-tight">
+            <h2 className="mt-4 text-3xl md:text-4xl font-extrabold tracking-tight leading-tight text-white">
               Set up today's team event.
             </h2>
-            <p className="mt-3 text-blue-100/90 text-sm md:text-base max-w-xl leading-relaxed">
+            <p className="mt-3 text-white/45 text-sm md:text-base max-w-xl leading-relaxed">
               Configure the event details below so players can instantly check in and record their training hours.
             </p>
           </div>
           {/* Roster Stat Badge */}
-          <div className="flex-shrink-0 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 flex items-center gap-3">
-            <div className="p-2 bg-white/20 rounded-xl text-white">
+          <div className="flex-shrink-0 bg-white/[0.06] border border-white/[0.08] rounded-xl p-4 flex items-center gap-3">
+            <div className="p-2 bg-white/[0.08] rounded-lg text-white">
               <Users className="size-6" />
             </div>
             <div>
-              <div className="text-xs text-blue-100 font-bold uppercase tracking-wider">Roster Size</div>
-              <div className="text-xl font-extrabold">{state.roster.length} active players</div>
+              <div className="text-xs text-white/40 font-bold uppercase tracking-widest">Roster Size</div>
+              <div className="text-xl font-extrabold text-white">{state.roster.length} active players</div>
             </div>
           </div>
         </div>
@@ -149,14 +149,14 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
       {/* Prominent Active Session Alert Container */}
       {state.activeSession && (
-        <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-5 flex items-start gap-4 animate-fade-in shadow-sm">
-          <div className="p-2.5 bg-amber-100 text-amber-700 rounded-xl flex-shrink-0">
+        <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-5 flex items-start gap-4 animate-fade-in text-amber-300">
+          <div className="p-2.5 bg-amber-500/15 text-amber-300 rounded-xl flex-shrink-0">
             <Info className="size-5" />
           </div>
           <div className="space-y-1">
-            <h4 className="font-extrabold text-amber-900 text-sm">Active Session in Progress</h4>
-            <p className="text-xs text-amber-700 leading-relaxed">
-              There is already an active <span className="font-bold">{state.activeSession.type}</span> session started ({state.activeSession.duration} hrs). Starting a new event below will overwrite this active session.
+            <h4 className="font-extrabold text-amber-200 text-sm">Active Session in Progress</h4>
+            <p className="text-xs text-amber-300/80 leading-relaxed">
+              There is already an active <span className="font-bold text-amber-200">{state.activeSession.type}</span> session started ({state.activeSession.duration} hrs). Starting a new event below will overwrite this active session.
             </p>
           </div>
         </div>
@@ -165,29 +165,30 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
       {/* Session Form */}
       <form
         onSubmit={handleSubmit}
-        className="bg-white rounded-3xl p-6 md:p-8 shadow-xl border border-slate-100 space-y-10 transition-all duration-300"
+        className="rounded-2xl border border-white/[0.08] overflow-hidden p-6 md:p-8 space-y-10 transition-all duration-300"
+        style={{ backgroundColor: "var(--mc-surface)" }}
       >
         {/* Date and Time Group */}
         <div className="space-y-6">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2 flex items-center gap-2">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-white/55 border-b border-white/[0.08] pb-2 flex items-center gap-2">
             <CalendarIcon className="size-4" /> Date & Time Configuration
           </h3>
           
           <div className="grid grid-cols-1 gap-6">
             {/* Event Date */}
             <div className="relative">
-              <label className="block mb-2 font-bold text-slate-800 text-sm uppercase tracking-wide flex items-center gap-1.5">
-                <CalendarDays className="size-4 text-blue-600" /> Event Date
+              <label className="block mb-2 font-bold text-white/55 text-sm uppercase tracking-wide flex items-center gap-1.5">
+                <CalendarDays className="size-4 text-blue-500" /> Event Date
               </label>
               <button
                 type="button"
                 onClick={() => setShowCalendar(!showCalendar)}
-                className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl border border-slate-200 bg-white hover:border-blue-500 hover:bg-blue-50/10 transition-all text-left focus:outline-none focus:ring-4 focus:ring-blue-500/10 shadow-sm"
+                className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl border border-white/[0.08] bg-white/[0.03] hover:border-white/[0.15] hover:bg-white/[0.06] transition-all text-left focus:outline-none text-white"
               >
-                <span className="text-slate-800 font-semibold text-sm">
+                <span className="text-white font-semibold text-sm">
                   {formatDisplayDate(selectedDate)}
                 </span>
-                <CalendarIcon className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                <CalendarIcon className="w-5 h-5 text-white/40 flex-shrink-0" />
               </button>
 
               {showCalendar && (
@@ -196,7 +197,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                     className="fixed inset-0 z-40"
                     onClick={() => setShowCalendar(false)}
                   />
-                  <div className="absolute top-full left-0 mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-slate-100 p-4">
+                  <div className="absolute top-full left-0 mt-2 z-50 bg-[#1e2333] rounded-xl border border-white/[0.1] p-4 text-white shadow-2xl">
                     <DayPicker
                       mode="single"
                       selected={selectedDate}
@@ -210,8 +211,8 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
             {/* Start Time */}
             <div className="space-y-3">
-              <label className="block mb-2 font-bold text-slate-800 text-sm uppercase tracking-wide flex items-center gap-1.5">
-                <Clock className="size-4 text-blue-600" /> Start Time
+              <label className="block mb-2 font-bold text-white/55 text-sm uppercase tracking-wide flex items-center gap-1.5">
+                <Clock className="size-4 text-blue-500" /> Start Time
               </label>
               
               {/* Preset Time Buttons Grid */}
@@ -223,10 +224,10 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                       key={value}
                       type="button"
                       onClick={() => selectTimePreset(value)}
-                      className={`py-3.5 px-2 rounded-2xl text-sm font-bold border transition-all active:scale-[0.98] ${
+                      className={`py-3.5 px-2 rounded-xl text-sm font-bold border transition-all active:scale-[0.98] ${
                         isSelected
-                          ? "bg-gradient-to-r from-blue-600 to-indigo-600 border-transparent text-white shadow-lg shadow-blue-500/15 scale-[1.02] transform"
-                          : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700"
+                          ? "bg-blue-600 border-transparent text-white scale-[1.02] transform"
+                          : "bg-white/[0.03] border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.06] text-white/70"
                       }`}
                     >
                       {label}
@@ -236,10 +237,10 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                 <button
                   type="button"
                   onClick={enableCustomTime}
-                  className={`py-3.5 px-2 rounded-2xl text-sm font-bold border transition-all active:scale-[0.98] ${
+                  className={`py-3.5 px-2 rounded-xl text-sm font-bold border transition-all active:scale-[0.98] ${
                     timeMode === "custom"
-                      ? "bg-gradient-to-r from-blue-600 to-indigo-600 border-transparent text-white shadow-lg shadow-blue-500/15 scale-[1.02] transform"
-                      : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700"
+                      ? "bg-blue-600 border-transparent text-white scale-[1.02] transform"
+                      : "bg-white/[0.03] border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.06] text-white/70"
                   }`}
                 >
                   Custom time
@@ -248,7 +249,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
               {/* Custom Time Input Reveal */}
               {timeMode === "custom" && (
-                <div className="p-5 bg-slate-50 border border-slate-200/80 rounded-2xl animate-fade-in max-w-sm mt-3">
+                <div className="p-5 bg-white/[0.02] border border-white/[0.08] rounded-xl animate-fade-in max-w-sm mt-3">
                   <div className="relative group">
                     <input
                       type="time"
@@ -256,7 +257,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                       step="900"
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white hover:border-blue-500 focus:border-blue-500 focus:outline-none text-slate-800 font-semibold text-sm transition-all focus:ring-4 focus:ring-blue-500/10 shadow-sm"
+                      className="w-full px-4 py-3 rounded-lg border border-white/[0.08] bg-white/[0.03] hover:border-white/[0.15] focus:border-blue-500 focus:outline-none text-white font-semibold text-sm transition-all focus:ring-4 focus:ring-blue-500/10"
                     />
                   </div>
                 </div>
@@ -267,7 +268,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
         {/* Event Type Section */}
         <fieldset className="space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2 flex items-center gap-2">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-white/55 border-b border-white/[0.08] pb-2 flex items-center gap-2">
             <Target className="size-4" /> Select Event Type
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -292,23 +293,23 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                   <div
                     className={`flex flex-col items-center justify-center p-6 rounded-2xl border-2 text-center transition-all duration-200 active:scale-[0.99] group h-full ${
                       isSelected
-                        ? "border-blue-600 bg-gradient-to-tr from-blue-50/30 to-indigo-50/30 text-blue-900 shadow-md ring-4 ring-blue-500/5 scale-[1.01]"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50/50 hover:scale-[1.01]"
+                        ? "border-blue-500 bg-blue-500/10 text-white scale-[1.01]"
+                        : "border-white/[0.08] bg-white/[0.03] text-white/70 hover:border-white/[0.15] hover:bg-white/[0.06] hover:scale-[1.01]"
                     }`}
                   >
                     {/* Event Type Icon Indicator */}
-                    <div className={`p-3.5 rounded-2xl mb-4 transition-all duration-200 ${
+                    <div className={`p-3.5 rounded-xl mb-4 transition-all duration-200 ${
                       isSelected
-                        ? isPractice ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20" : "bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
-                        : "bg-slate-100 text-slate-500 group-hover:bg-slate-200"
+                        ? isPractice ? "bg-blue-600 text-white" : "bg-emerald-600 text-white"
+                        : "bg-white/[0.06] text-white/50 group-hover:bg-white/[0.1]"
                     }`}>
                       {isPractice ? <Users className="size-6" /> : <Target className="size-6" />}
                     </div>
 
-                    <span className="font-extrabold text-base tracking-tight mb-1">
+                    <span className="font-extrabold text-base tracking-tight mb-1 text-white">
                       {isPractice ? "Practice" : "Optional Training"}
                     </span>
-                    <span className={`text-xs font-medium leading-relaxed max-w-xs ${isSelected ? "text-blue-900/80" : "text-slate-400"}`}>
+                    <span className={`text-xs font-medium leading-relaxed max-w-xs ${isSelected ? "text-white/70" : "text-white/40"}`}>
                       {isPractice
                         ? "Official team practice for rostered players."
                         : "Voluntary sessions for skill development, conditioning, and extra work."}
@@ -322,14 +323,14 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
         {/* Duration Selection */}
         <fieldset className="space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+          <div className="flex items-center justify-between border-b border-white/[0.08] pb-2">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-white/55 flex items-center gap-2">
               <Clock className="size-4" /> Duration
             </h3>
             <span className={`text-xs font-bold px-3 py-1 rounded-full border transition-all duration-200 ${
               isDurationValid 
-                ? "bg-blue-50 text-blue-700 border-blue-200" 
-                : "bg-red-50 text-red-700 border-red-200 animate-pulse"
+                ? "bg-blue-500/10 text-blue-300 border-blue-500/25" 
+                : "bg-red-500/10 text-red-300 border-red-500/25 animate-pulse"
             }`}>
               {isDurationValid ? `${parsedDuration} ${parsedDuration === 1 ? "hour" : "hours"}` : "Invalid Duration"}
             </span>
@@ -345,10 +346,10 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                     key={val}
                     type="button"
                     onClick={() => selectPreset(val)}
-                    className={`py-3.5 px-2 rounded-2xl text-sm font-bold border transition-all active:scale-[0.98] ${
+                    className={`py-3.5 px-2 rounded-xl text-sm font-bold border transition-all active:scale-[0.98] ${
                       isSelected
-                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 border-transparent text-white shadow-lg shadow-blue-500/15 scale-[1.02] transform"
-                        : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700"
+                        ? "bg-blue-600 border-transparent text-white scale-[1.02] transform"
+                        : "bg-white/[0.03] border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.06] text-white/70"
                     }`}
                   >
                     {val === 0.5 ? "30 min" : `${val} ${val === 1 ? "hr" : "hrs"}`}
@@ -358,10 +359,10 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
               <button
                 type="button"
                 onClick={() => setDurationMode("custom")}
-                className={`py-3.5 px-2 rounded-2xl text-sm font-bold border transition-all active:scale-[0.98] ${
+                className={`py-3.5 px-2 rounded-xl text-sm font-bold border transition-all active:scale-[0.98] ${
                   durationMode === "custom"
-                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 border-transparent text-white shadow-lg shadow-blue-500/15 scale-[1.02] transform"
-                    : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700"
+                    ? "bg-blue-600 border-transparent text-white scale-[1.02] transform"
+                    : "bg-white/[0.03] border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.06] text-white/70"
                 }`}
               >
                 Custom
@@ -370,7 +371,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
             {/* Custom Input Reveal */}
             {durationMode === "custom" && (
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-5 bg-slate-50 border border-slate-200/80 rounded-2xl animate-fade-in">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-5 bg-white/[0.02] border border-white/[0.08] rounded-xl animate-fade-in">
                 <div className="flex items-center gap-3 flex-1">
                   <div className="relative flex-1">
                     <input
@@ -380,20 +381,20 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                       step="0.5"
                       value={durationInput}
                       onChange={(e) => setDurationInput(e.target.value)}
-                      className={`w-full px-4 py-3 rounded-xl border text-center font-extrabold text-slate-900 transition-all focus:outline-none focus:ring-4 ${
+                      className={`w-full px-4 py-3 rounded-lg border text-center font-extrabold text-white transition-all focus:outline-none focus:ring-4 ${
                         isDurationValid
-                          ? "border-slate-200 bg-white focus:border-blue-500 focus:ring-blue-500/10"
-                          : "border-red-500 bg-red-50/30 focus:border-red-500 focus:ring-red-100"
+                          ? "border-white/[0.08] bg-white/[0.03] focus:border-blue-500 focus:ring-blue-500/10"
+                          : "border-red-500 bg-red-500/10 focus:border-red-500 focus:ring-red-100"
                       }`}
                       placeholder="e.g. 1.5"
                     />
                   </div>
-                  <span className="text-sm font-bold text-slate-500">hours</span>
+                  <span className="text-sm font-bold text-white/40">hours</span>
                 </div>
 
                 {/* Range validation error banner */}
                 {!isDurationValid && (
-                  <span className="text-xs font-bold text-red-600 animate-pulse bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 self-start sm:self-auto">
+                  <span className="text-xs font-bold text-red-300 animate-pulse bg-red-500/10 border border-red-500/25 rounded-lg px-3 py-1.5 self-start sm:self-auto">
                     Must be 0.5–4.0 (0.5 steps)
                   </span>
                 )}
@@ -406,7 +407,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
         <button
           type="submit"
           disabled={!isDurationValid}
-          className="w-full flex items-center justify-center gap-2.5 px-6 py-4.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-400 text-white font-extrabold rounded-2xl transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-blue-500/15 active:scale-[0.98] disabled:cursor-not-allowed text-base tracking-wide group"
+          className="w-full flex items-center justify-center gap-2.5 px-6 py-4.5 bg-blue-600 hover:bg-blue-500 disabled:bg-white/[0.04] disabled:text-white/20 text-white font-extrabold rounded-xl transition-all duration-300 active:scale-[0.98] disabled:cursor-not-allowed text-base tracking-wide group"
         >
           <Play className="size-5 fill-current transition-transform group-hover:scale-110 duration-200" />
           Start Session
