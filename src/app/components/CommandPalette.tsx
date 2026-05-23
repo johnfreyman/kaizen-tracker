@@ -10,6 +10,7 @@ import {
   Play,
   Search,
   ArrowRight,
+  FileText,
 } from "lucide-react";
 import { useTeamStore, EVENT_TYPES, ActiveSession } from "../hooks/useTeamStore";
 
@@ -48,9 +49,10 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onNavigate: (page: string) => void;
+  onExportPdf?: () => void;
 }
 
-export default function CommandPalette({ open, onClose, onNavigate }: Props) {
+export default function CommandPalette({ open, onClose, onNavigate, onExportPdf }: Props) {
   const { state, startSession } = useTeamStore();
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
@@ -162,6 +164,22 @@ export default function CommandPalette({ open, onClose, onNavigate }: Props) {
             action: () => handleNavigate("attendance"),
           },
         ]),
+    {
+      id: "action-export-pdf",
+      label: "Export PDF report",
+      description: "Download a PDF of the current Reports page",
+      icon: <FileText className="size-4" />,
+      group: "action" as const,
+      keywords: ["pdf", "download", "export", "report", "print"],
+      action: () => {
+        if (onExportPdf) {
+          onExportPdf();
+        } else {
+          handleNavigate("summary");
+        }
+        onClose();
+      },
+    },
   ];
 
   const filtered = query.trim()

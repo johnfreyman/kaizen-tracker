@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { Save, UserPlus, X, Upload, Gift, FileText, Archive, RotateCcw, Trash2, Trophy, Sun, Moon, Monitor } from "lucide-react";
-import { useTeamStore, EVENT_TYPES, ConflictResolutionStrategy } from "../hooks/useTeamStore";
+import { useTeamStore, ConflictResolutionStrategy } from "../hooks/useTeamStore";
 import { useTheme, type Theme } from "../hooks/useTheme";
 import PlayerTypeDialog from "./PlayerTypeDialog";
 import { formatDate } from "@/lib/dates";
 import { toast } from "sonner";
-import { calculateTotals, percent } from "@/lib/stats";
+import { exportPdf } from "@/app/lib/exportPdf";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -145,299 +145,29 @@ export default function SettingsPage() {
   const [isAddingPlayer, setIsAddingPlayer] = useState(false);
   const [isRemovingPlayer, setIsRemovingPlayer] = useState(false);
 
-  const generatePrintableSummary = () => {
-    const totals = calculateTotals(state.events, state.roster);
-    const totalPracticePossible = state.events
-      .filter((e) => e.type === EVENT_TYPES.PRACTICE)
-      .reduce((sum, e) => sum + e.duration, 0);
-    const totalTrainingPossible = state.events
-      .filter((e) => e.type === EVENT_TYPES.OPTIONAL_TRAINING)
-      .reduce((sum, e) => sum + e.duration, 0);
-    const totalPossible = totalPracticePossible + totalTrainingPossible;
-
-    const players = Object.keys(totals).sort((a, b) => a.localeCompare(b));
-
-    // Generate HTML for print
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      toast.error("Please allow popups to generate the PDF.");
-      return;
-    }
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>${state.teamName} - Session Summary</title>
-        <style>
-          @media print {
-            @page { margin: 0.5in; }
-          }
-          * { box-sizing: border-box; }
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            margin: 0;
-            padding: 20px;
-            color: #122033;
-          }
-          .header {
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 3px solid #153e75;
-            padding-bottom: 20px;
-          }
-          .header h1 {
-            margin: 0 0 5px;
-            color: #153e75;
-            font-size: 32px;
-          }
-          .header p {
-            margin: 5px 0;
-            color: #68778b;
-            font-size: 14px;
-          }
-          .stats {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-            margin-bottom: 30px;
-          }
-          .stat-card {
-            text-align: center;
-            padding: 15px;
-            background: #f8fbff;
-            border: 2px solid #153e75;
-            border-radius: 8px;
-          }
-          .stat-card h3 {
-            margin: 0 0 5px;
-            font-size: 14px;
-            color: #68778b;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-          }
-          .stat-card p {
-            margin: 0;
-            font-size: 32px;
-            font-weight: bold;
-            color: #153e75;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 30px;
-          }
-          th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #d9e2ee;
-          }
-          th {
-            background: #153e75;
-            color: white;
-            font-weight: bold;
-            text-transform: uppercase;
-            font-size: 11px;
-            letter-spacing: 0.5px;
-          }
-          tr:hover {
-            background: #f8fbff;
-          }
-          .event-history {
-            margin-top: 30px;
-          }
-          .event-history h2 {
-            color: #153e75;
-            border-bottom: 2px solid #153e75;
-            padding-bottom: 10px;
-            margin-bottom: 15px;
-          }
-          .event-item {
-            padding: 10px;
-            border: 1px solid #d9e2ee;
-            border-radius: 4px;
-            margin-bottom: 10px;
-            background: white;
-          }
-          .event-item strong {
-            color: #153e75;
-          }
-          .event-item small {
-            color: #68778b;
-            display: block;
-            margin-top: 5px;
-          }
-          .footer {
-            margin-top: 40px;
-            text-align: center;
-            color: #68778b;
-            font-size: 12px;
-            border-top: 1px solid #d9e2ee;
-            padding-top: 15px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>${state.teamName || "Kaizen Tracker"}</h1>
-          <p>Session Summary Report</p>
-          <p>Generated on ${new Date().toLocaleDateString(undefined, {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}</p>
-        </div>
-
-        <div class="stats">
-          <div class="stat-card">
-            <h3>Total Events</h3>
-            <p>${state.events.length}</p>
-          </div>
-          <div class="stat-card">
-            <h3>Practice Hours</h3>
-            <p>${totalPracticePossible.toLocaleString(undefined, {
-              maximumFractionDigits: 1,
-            })}</p>
-          </div>
-          <div class="stat-card">
-            <h3>Training Hours</h3>
-            <p>${totalTrainingPossible.toLocaleString(undefined, {
-              maximumFractionDigits: 1,
-            })}</p>
-          </div>
-        </div>
-
-        <h2 style="color: #153e75; margin-bottom: 15px;">Player Totals</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Player</th>
-              <th>Practice Hours</th>
-              <th>Practice %</th>
-              <th>Optional Hours</th>
-              <th>Optional %</th>
-              <th>Total Hours</th>
-              <th>Total %</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${
-              players.length === 0
-                ? '<tr><td colspan="7" style="text-align: center; color: #68778b;">No roster or event data yet.</td></tr>'
-                : players
-                    .map((player) => {
-                      const playerTotals = totals[player];
-                      const totalHours =
-                        playerTotals.practice + playerTotals.training;
-                      return `
-                      <tr>
-                        <td><strong>${player}</strong></td>
-                        <td>${playerTotals.practice.toLocaleString(undefined, {
-                          maximumFractionDigits: 1,
-                        })}</td>
-                        <td>${percent(
-                          playerTotals.practice,
-                          totalPracticePossible
-                        )}</td>
-                        <td>${playerTotals.training.toLocaleString(undefined, {
-                          maximumFractionDigits: 1,
-                        })}</td>
-                        <td>${percent(
-                          playerTotals.training,
-                          totalTrainingPossible
-                        )}</td>
-                        <td><strong>${totalHours.toLocaleString(undefined, {
-                          maximumFractionDigits: 1,
-                        })}</strong></td>
-                        <td><strong>${percent(totalHours, totalPossible)}</strong></td>
-                      </tr>
-                    `;
-                    })
-                    .join("")
-            }
-          </tbody>
-        </table>
-
-        <div class="event-history">
-          <h2>Event History</h2>
-          ${
-            state.events.length === 0
-              ? '<p style="color: #68778b; text-align: center;">No events have been logged yet.</p>'
-              : state.events
-                  .map(
-                    (event) => `
-                  <div class="event-item">
-                    <strong>${event.type} • ${formatDate(event.date)}</strong>
-                    <small>${event.duration} ${
-                      event.duration === 1 ? "hour" : "hours"
-                    } • ${event.players.length} present: ${
-                      event.players.join(", ") || "No players"
-                    }</small>
-                  </div>
-                `
-                  )
-                  .join("")
-          }
-        </div>
-
-        ${
-          state.archivedEvents.length > 0
-            ? `
-        <div class="event-history" style="margin-top: 40px;">
-          <h2>Archived Events</h2>
-          ${state.archivedEvents
-            .map(
-              (archive) => `
-            <div style="margin-bottom: 30px;">
-              <h3 style="color: #153e75; font-size: 16px; margin-bottom: 10px;">
-                Archived on ${formatDate(archive.archivedAt, {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit",
-                })} (${archive.events.length} events)
-              </h3>
-              ${archive.events
-                .map(
-                  (event) => `
-                <div class="event-item">
-                  <strong>${event.type} • ${formatDate(event.date)}</strong>
-                  <small>${event.duration} ${
-                    event.duration === 1 ? "hour" : "hours"
-                  } • ${event.players.length} present: ${
-                    event.players.join(", ") || "No players"
-                  }</small>
-                </div>
-              `
-                )
-                .join("")}
-            </div>
-          `
-            )
-            .join("")}
-        </div>
-        `
-            : ""
-        }
-
-        <div class="footer">
-          <p>${state.teamName || "Kaizen Tracker"} • Attendance & Training Hours</p>
-        </div>
-
-        <script>
-          window.onload = function() {
-            window.print();
-          };
-        </script>
-      </body>
-      </html>
-    `;
-
-    printWindow.document.write(html);
-    printWindow.document.close();
+  const printFullArchive = () => {
+    const slug = (state.teamName || "team").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const date = new Date().toISOString().split("T")[0];
+    exportPdf({
+      teamName: state.teamName,
+      teamLogo: state.teamLogo,
+      events: state.events,
+      roster: state.roster,
+      dateRange: "season",
+      sortCol: "player",
+      sortDir: "asc",
+      sections: {
+        cover: true,
+        playerTable: true,
+        eventLog: true,
+        archivedEvents: true,
+        coachNotes: false,
+      },
+      paperSize: "letter",
+      orientation: "portrait",
+      filename: `${slug}-full-archive-${date}`,
+      archivedEventsBundles: state.archivedEvents,
+    });
   };
 
   const handleRestoreArchive = (archiveId: string) => {
@@ -506,11 +236,11 @@ export default function SettingsPage() {
             </p>
           </div>
           <button
-            onClick={generatePrintableSummary}
+            onClick={printFullArchive}
             className="flex items-center gap-2 px-5 py-3 bg-white border-2 border-indigo-600 text-indigo-700 font-bold rounded-xl hover:bg-indigo-50 focus:ring-4 focus:ring-indigo-200 transition-all shadow-md hover:shadow-lg"
           >
             <FileText className="size-5" />
-            Generate PDF
+            Print full archive
           </button>
         </div>
       </div>

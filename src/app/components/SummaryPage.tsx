@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Calendar,
   Clock,
@@ -13,6 +13,7 @@ import {
   Users,
   Info,
   Search,
+  FileText,
 } from "lucide-react";
 import {
   PieChart,
@@ -43,6 +44,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "./ui/tooltip";
+import ExportPdfDrawer from "./ExportPdfDrawer";
 
 type Trend = "up" | "down" | "stable";
 type PlayerFilter = "all" | "active" | "attention";
@@ -228,10 +230,23 @@ function SummaryPageSkeleton() {
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export default function SummaryPage() {
+interface SummaryPageProps {
+  openExportPdf?: boolean;
+  onExportPdfOpened?: () => void;
+}
+
+export default function SummaryPage({ openExportPdf, onExportPdfOpened }: SummaryPageProps = {}) {
   const { state, archiveEvents, isLoading } = useTeamStore();
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [showExportDrawer, setShowExportDrawer] = useState(false);
+
+  useEffect(() => {
+    if (openExportPdf) {
+      setShowExportDrawer(true);
+      onExportPdfOpened?.();
+    }
+  }, [openExportPdf, onExportPdfOpened]);
   const [sortCol, setSortCol] = useState<SortColumn>("player");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [dateRange, setDateRange] = useState<DateRange>("season");
@@ -779,6 +794,13 @@ export default function SummaryPage() {
                 Export CSV
               </button>
               <button
+                onClick={() => setShowExportDrawer(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-300/70 hover:text-blue-200 hover:bg-blue-500/[0.08] border border-blue-500/25 transition-all"
+              >
+                <FileText className="size-3.5" />
+                Export PDF
+              </button>
+              <button
                 onClick={handleArchiveEvents}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/35 hover:text-white/65 hover:bg-white/[0.06] border border-white/[0.08] transition-all"
               >
@@ -990,6 +1012,22 @@ export default function SummaryPage() {
           </div>
         )}
       </div>
+
+      {/* Export PDF Drawer */}
+      <ExportPdfDrawer
+        open={showExportDrawer}
+        onClose={() => setShowExportDrawer(false)}
+        teamName={state.teamName}
+        teamLogo={state.teamLogo}
+        events={filteredEvents}
+        roster={state.roster}
+        dateRange={dateRange}
+        customStart={customStart}
+        customEnd={customEnd}
+        sortCol={sortCol}
+        sortDir={sortDir}
+        archivedEventsBundles={state.archivedEvents}
+      />
 
       {/* Archive Confirmation Dialog */}
       <AlertDialog open={showArchiveConfirm} onOpenChange={setShowArchiveConfirm}>

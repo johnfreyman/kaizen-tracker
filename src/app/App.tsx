@@ -46,6 +46,7 @@ const PAGE_TITLES: Record<Page, string> = {
 function AppContent() {
   const [activePage, setActivePage] = useState<Page>("dashboard");
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [exportPdfTrigger, setExportPdfTrigger] = useState(false);
   const { state, isLoading, isAuthenticated, isPasswordRecovery, isSuperAdmin, isNewCoach, logout } =
     useTeamStore();
   const { resolved: theme } = useTheme();
@@ -116,6 +117,10 @@ function AppContent() {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         onNavigate={navigate}
+        onExportPdf={() => {
+          navigate("summary");
+          setExportPdfTrigger(true);
+        }}
       />
       <div className="flex h-screen overflow-hidden" style={{ backgroundColor: "var(--mc-bg)" }}>
 
@@ -266,7 +271,12 @@ function AppContent() {
                 {activePage === "dashboard"  && <MissionControlDashboard onNavigate={navigate} />}
                 {activePage === "launch"     && <LaunchPage onNavigate={navigate} />}
                 {activePage === "attendance" && <AttendancePage onNavigate={navigate} />}
-                {activePage === "summary"    && <SummaryPage />}
+                {activePage === "summary"    && (
+                  <SummaryPage
+                    openExportPdf={exportPdfTrigger}
+                    onExportPdfOpened={() => setExportPdfTrigger(false)}
+                  />
+                )}
                 {activePage === "charts"     && <ChartsPage />}
                 {activePage === "raffle"     && <RafflePage />}
                 {activePage === "settings"   && <SettingsPage />}
