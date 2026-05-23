@@ -116,6 +116,7 @@ function AppContent() {
   ];
 
   const isSessionActive = !!state.activeSession;
+  const isPractice = state.activeSession?.type === "Practice";
 
   return (
     /* ── Root shell ─────────────────────────────────────────────── */
@@ -251,9 +252,13 @@ function AppContent() {
             <div className="flex items-center gap-2">
               {/* Active session indicator (mobile only — desktop uses status bar) */}
               {isSessionActive && (
-                <div className="md:hidden flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/12 border border-emerald-500/20">
-                  <span className="size-1.5 rounded-full bg-emerald-400 animate-session-pulse" />
-                  <span className="text-emerald-300 text-[11px] font-bold uppercase tracking-wider">Live</span>
+                <div className={`md:hidden flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-colors ${
+                  isPractice
+                    ? "bg-emerald-500/12 border-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                    : "bg-violet-500/12 border-violet-500/20 text-violet-700 dark:text-violet-300"
+                }`}>
+                  <span className={`size-1.5 rounded-full animate-session-pulse ${isPractice ? "bg-emerald-500 dark:bg-emerald-400" : "bg-violet-500 dark:bg-violet-400"}`} />
+                  <span className="text-[11px] font-bold uppercase tracking-wider">Live</span>
                 </div>
               )}
 

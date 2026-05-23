@@ -214,7 +214,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
                 }}
                 className={`relative flex flex-col items-center justify-center gap-3 min-h-36 p-5 rounded-2xl border transition-all ${
                   isPresent
-                    ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-300"
+                    ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-700 dark:text-emerald-300"
                     : "bg-white/[0.03] border mc-border mc-text-secondary hover:border-white/[0.15] hover:bg-white/[0.06] hover:scale-[1.02]"
                 }`}
               >
@@ -223,12 +223,12 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
                     className="absolute -top-1.5 -right-1.5 size-7 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center"
                     title="5-session attendance streak"
                   >
-                    <Flame className="size-3.5 text-emerald-300" />
+                    <Flame className="size-3.5 text-emerald-600 dark:text-emerald-300" />
                   </div>
                 )}
                 <div className={`size-14 rounded-full flex items-center justify-center font-bold text-base transition-all ${
                   isPresent
-                    ? "bg-emerald-500/15 text-emerald-300"
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                     : "bg-white/[0.06] mc-text-secondary"
                 }`}>
                   {getInitials(player)}
@@ -244,7 +244,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
                     </div>
                   )}
                   {isPresent && (
-                    <div className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400">
+                    <div className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                       <Check className="size-3.5" />
                       <span>Present</span>
                     </div>
