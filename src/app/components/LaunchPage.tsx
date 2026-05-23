@@ -15,19 +15,6 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
   const [eventType, setEventType] = useState<EventType>(
     EVENT_TYPES.PRACTICE
   );
-  const [durationInput, setDurationInput] = useState("1.5");
-  const [durationMode, setDurationMode] = useState<"presets" | "custom">("presets");
-  const commonTimes = [
-    { label: "5:00 PM", value: "17:00" },
-    { label: "5:30 PM", value: "17:30" },
-    { label: "6:00 PM", value: "18:00" },
-    { label: "6:30 PM", value: "18:30" },
-    { label: "7:00 PM", value: "19:00" },
-    { label: "7:30 PM", value: "19:30" },
-    { label: "8:00 PM", value: "20:00" },
-    { label: "8:30 PM", value: "20:30" },
-  ];
-
   const getNearest15Time = () => {
     const now = new Date();
     const minutes = now.getMinutes();
@@ -45,10 +32,99 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
     return `${hours}:${minutesStr}`;
   };
 
-  const initialTime = getNearest15Time();
+  const formatTimeLabel = (value: string) => {
+    try {
+      return new Date(`2000-01-01T${value}`).toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    } catch (e) {
+      return value;
+    }
+  };
+
+  const commonTimes = (() => {
+    const freq: Record<string, number> = {};
+    state.events
+      .slice(0, 60)
+      .forEach((e) => {
+        const t = e.date.slice(11, 16); // "HH:MM"
+        if (t) freq[t] = (freq[t] ?? 0) + 1;
+      });
+
+    const uniqueTimes = Object.keys(freq);
+    if (uniqueTimes.length >= 3) {
+      const sorted = uniqueTimes.sort((a, b) => {
+        const diff = freq[b] - freq[a];
+        if (diff !== 0) return diff;
+        return a.localeCompare(b);
+      });
+      return sorted.slice(0, 7).map((value) => ({
+        value,
+        label: formatTimeLabel(value),
+      }));
+    } else {
+      const fallbackValues = [
+        "17:00",
+        "17:30",
+        "18:00",
+        "18:30",
+        "19:00",
+        "19:30",
+        "20:00",
+        "20:30",
+      ];
+      return fallbackValues.map((value) => ({
+        value,
+        label: formatTimeLabel(value),
+      }));
+    }
+  })();
+
+  const commonDurations = (() => {
+    const freq: Record<number, number> = {};
+    state.events
+      .slice(0, 60)
+      .forEach((e) => {
+        const d = e.duration;
+        if (typeof d === "number") {
+          freq[d] = (freq[d] ?? 0) + 1;
+        }
+      });
+
+    const uniqueDurations = Object.keys(freq).map(Number);
+    if (uniqueDurations.length >= 3) {
+      const sorted = uniqueDurations.sort((a, b) => {
+        const diff = freq[b] - freq[a];
+        if (diff !== 0) return diff;
+        return a - b;
+      });
+      return sorted.slice(0, 6);
+    } else {
+      return [0.5, 1.0, 1.5, 2.0, 2.5, 3.0];
+    }
+  })();
+
+  const [durationInput, setDurationInput] = useState(() => {
+    return state.events[0]?.duration.toString() ?? "1.5";
+  });
+  const [durationMode, setDurationMode] = useState<"presets" | "custom">(() => {
+    const lastUsed = state.events[0]?.duration;
+    if (lastUsed === undefined) return "presets";
+    return commonDurations.includes(lastUsed) ? "presets" : "custom";
+  });
+
   const [startTime, setStartTime] = useState(() => {
-    const matchesPreset = commonTimes.some((t) => t.value === initialTime);
-    return matchesPreset ? initialTime : "18:00";
+    const lastUsed = state.events[0]?.date.slice(11, 16);
+    const nearest15 = getNearest15Time();
+
+    if (lastUsed && commonTimes.some((t) => t.value === lastUsed)) {
+      return lastUsed;
+    }
+    if (commonTimes.some((t) => t.value === nearest15)) {
+      return nearest15;
+    }
+    return commonTimes[0]?.value || "18:00";
   });
   const [timeMode, setTimeMode] = useState<"presets" | "custom">("presets");
 
@@ -60,13 +136,12 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
   const enableCustomTime = () => {
     setTimeMode("custom");
     const currentSnapped = getNearest15Time();
-    // If we're transitioning to custom and still on the default fallback preset, snap to the actual current system time!
-    if (startTime === "18:00") {
+    const defaultPresetVal = commonTimes[0]?.value || "18:00";
+    if (startTime === defaultPresetVal) {
       setStartTime(currentSnapped);
     }
   };
 
-  const commonDurations = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0];
   const parsedDuration = parseFloat(durationInput);
   const isDurationValid =
     !isNaN(parsedDuration) &&
@@ -78,6 +153,8 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
     setDurationMode("presets");
     setDurationInput(val.toString());
   };
+
+  const lastUsedTime = state.events[0]?.date.slice(11, 16);
 
   const formatDisplayDate = (date: Date) => {
     return date.toLocaleDateString(undefined, {
@@ -219,6 +296,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
               <div className="grid grid-cols-3 gap-3">
                 {commonTimes.map(({ label, value }) => {
                   const isSelected = timeMode === "presets" && startTime === value;
+                  const isLastUsed = lastUsedTime === value;
                   return (
                     <button
                       key={value}
@@ -230,7 +308,12 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                           : "bg-white/[0.03] border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.06] text-white/70"
                       }`}
                     >
-                      {label}
+                      <span className="flex items-center justify-center gap-1.5">
+                        {label}
+                        {isLastUsed && (
+                          <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? "bg-white" : "bg-blue-500"}`} />
+                        )}
+                      </span>
                     </button>
                   );
                 })}
@@ -341,6 +424,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
               {commonDurations.map((val) => {
                 const isSelected = durationMode === "presets" && parsedDuration === val;
+                const isLastUsed = state.events[0]?.duration === val;
                 return (
                   <button
                     key={val}
@@ -352,7 +436,16 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                         : "bg-white/[0.03] border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.06] text-white/70"
                     }`}
                   >
-                    {val === 0.5 ? "30 min" : `${val} ${val === 1 ? "hr" : "hrs"}`}
+                    <span className="flex flex-col items-center justify-center">
+                      <span>
+                        {val === 0.5 ? "30 min" : `${val} ${val === 1 ? "hr" : "hrs"}`}
+                      </span>
+                      {isLastUsed && (
+                        <span className={`text-[10px] font-medium leading-none mt-1 ${isSelected ? "text-white/80" : "text-white/40"}`}>
+                          last used
+                        </span>
+                      )}
+                    </span>
                   </button>
                 );
               })}
