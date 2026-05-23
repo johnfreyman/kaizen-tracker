@@ -9,6 +9,8 @@ import {
   Settings as SettingsIcon,
   LogOut,
   Trophy,
+  Menu,
+  ChevronRight,
 } from "lucide-react";
 import MissionControlDashboard from "./components/MissionControlDashboard";
 import LaunchPage from "./components/LaunchPage";
@@ -30,6 +32,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useSwipeNavigation } from "./hooks/useSwipeNavigation";
 import { useTheme } from "./hooks/useTheme";
+import { Drawer, DrawerContent } from "./components/ui/drawer";
 
 type Page = "dashboard" | "launch" | "attendance" | "summary" | "charts" | "settings" | "raffle";
 
@@ -47,6 +50,7 @@ function AppContent() {
   const [activePage, setActivePage] = useState<Page>("dashboard");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [exportPdfTrigger, setExportPdfTrigger] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const { state, isLoading, isAuthenticated, isPasswordRecovery, isSuperAdmin, isNewCoach, logout } =
     useTeamStore();
   const { resolved: theme } = useTheme();
@@ -101,11 +105,18 @@ function AppContent() {
   ];
 
   const bottomNavItems = [
-    { id: "dashboard"  as Page, label: "Home",      icon: Home },
-    { id: "launch"     as Page, label: "Session",   icon: Calendar },
-    { id: "attendance" as Page, label: "Attend",    icon: Users },
-    { id: "summary"    as Page, label: "Reports",   icon: BarChart2 },
-    { id: "settings"   as Page, label: "Settings",  icon: SettingsIcon },
+    { id: "dashboard"  as const, label: "Home",      icon: Home },
+    { id: "launch"     as const, label: "Session",   icon: Calendar },
+    { id: "attendance" as const, label: "Attend",    icon: Users },
+    { id: "summary"    as const, label: "Reports",   icon: BarChart2 },
+    { id: "more"       as const, label: "More",      icon: Menu },
+  ];
+
+  const moreNavItems = [
+    { id: "charts" as Page, label: "Analytics", icon: TrendingUp },
+    ...(state.raffleEnabled ? [{ id: "raffle" as Page, label: "Raffle", icon: Gift }] : []),
+    { id: "settings" as Page, label: "Settings", icon: SettingsIcon },
+    { id: "logout" as Page, label: "Log out", icon: LogOut, action: logout },
   ];
 
   const isSessionActive = !!state.activeSession;
@@ -291,12 +302,24 @@ function AppContent() {
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 h-16 backdrop-blur-md border-t border-white/[0.07]" style={{ backgroundColor: "color-mix(in srgb, var(--mc-surface) 96%, transparent)" }}>
         <div className="flex items-center justify-around h-full px-1">
           {bottomNavItems.map(({ id, label, icon: Icon }) => {
-            const isActive = activePage === id;
-            const showDot = id === "attendance" && isSessionActive;
+            const isActive = id === "more"
+              ? (activePage === "charts" || activePage === "raffle" || activePage === "settings")
+              : activePage === id;
+            const showDot = id === "attendance"
+              ? isSessionActive
+              : id === "more"
+              ? (activePage === "charts" || activePage === "raffle" || activePage === "settings")
+              : false;
             return (
               <button
                 key={id}
-                onClick={() => setActivePage(id)}
+                onClick={() => {
+                  if (id === "more") {
+                    setMoreOpen(true);
+                  } else {
+                    setActivePage(id as Page);
+                  }
+                }}
                 className={`relative flex flex-col items-center justify-center gap-1 px-3 h-full min-w-[56px] transition-colors ${
                   isActive ? "text-blue-400" : "text-white/35 hover:text-white/60"
                 }`}
@@ -316,6 +339,36 @@ function AppContent() {
           })}
         </div>
       </nav>
+
+      {/* ── More Drawer ───────────────────────────────────────── */}
+      <Drawer open={moreOpen} onOpenChange={setMoreOpen}>
+        <DrawerContent className="border-t border-white/[0.08] bg-[var(--mc-surface)] px-4 pb-8 rounded-t-3xl outline-none">
+          <div className="space-y-1.5 py-4">
+            {moreNavItems.map(({ id, label, icon: Icon, action }) => (
+              <button
+                key={id}
+                onClick={() => {
+                  setMoreOpen(false);
+                  if (action) {
+                    action();
+                  } else {
+                    setActivePage(id as Page);
+                  }
+                }}
+                className="w-full h-[56px] flex items-center justify-between px-4 py-2 rounded-xl text-white/80 hover:text-white hover:bg-white/[0.05] active:bg-white/[0.08] transition-all cursor-pointer animate-fade-in"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="size-9 rounded-lg bg-white/[0.03] flex items-center justify-center border border-white/[0.06]">
+                    <Icon className="size-4.5 text-white/70" />
+                  </div>
+                  <span className="text-sm font-semibold">{label}</span>
+                </div>
+                <ChevronRight className="size-4 text-white/30" />
+              </button>
+            ))}
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }
