@@ -197,28 +197,28 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
   return (
     <div className="space-y-8 max-w-3xl mx-auto">
       {/* Hero Card */}
-      <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-blue-950/40 to-transparent p-8 text-white">
+      <div className="relative overflow-hidden rounded-2xl border mc-border bg-gradient-to-br from-blue-950/40 to-transparent p-8 mc-text">
         <div className="absolute -top-20 -right-20 size-56 rounded-full blur-3xl bg-blue-600/6 pointer-events-none" />
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-xs font-bold uppercase tracking-wider text-blue-300 border border-white/[0.08]">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-xs font-bold uppercase tracking-wider text-blue-500 dark:text-blue-300 border mc-border">
               <Play className="size-3 fill-current" /> Event Launcher
             </span>
-            <h2 className="mt-4 text-3xl md:text-4xl font-extrabold tracking-tight leading-tight text-white">
+            <h2 className="mt-4 text-3xl md:text-4xl font-extrabold tracking-tight leading-tight">
               Set up today's team event.
             </h2>
-            <p className="mt-3 text-white/45 text-sm md:text-base max-w-xl leading-relaxed">
+            <p className="mt-3 mc-text-secondary text-sm md:text-base max-w-xl leading-relaxed">
               Configure the event details below so players can instantly check in and record their training hours.
             </p>
           </div>
           {/* Roster Stat Badge */}
-          <div className="flex-shrink-0 bg-white/[0.06] border border-white/[0.08] rounded-xl p-4 flex items-center gap-3">
-            <div className="p-2 bg-white/[0.08] rounded-lg text-white">
+          <div className="flex-shrink-0 bg-white/[0.06] border mc-border rounded-xl p-4 flex items-center gap-3">
+            <div className="p-2 bg-white/[0.08] rounded-lg">
               <Users className="size-6" />
             </div>
             <div>
-              <div className="text-xs text-white/40 font-bold uppercase tracking-widest">Roster Size</div>
-              <div className="text-xl font-extrabold text-white">{state.roster.length} active players</div>
+              <div className="text-xs mc-text-muted font-bold uppercase tracking-widest">Roster Size</div>
+              <div className="text-xl font-extrabold">{state.roster.length} active players</div>
             </div>
           </div>
         </div>
@@ -247,25 +247,25 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
       >
         {/* Date and Time Group */}
         <div className="space-y-6">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-white/55 border-b border-white/[0.08] pb-2 flex items-center gap-2">
+          <h3 className="text-xs font-bold uppercase tracking-widest mc-text-secondary border-b mc-border pb-2 flex items-center gap-2">
             <CalendarIcon className="size-4" /> Date & Time Configuration
           </h3>
           
           <div className="grid grid-cols-1 gap-6">
             {/* Event Date */}
             <div className="relative">
-              <label className="block mb-2 font-bold text-white/55 text-sm uppercase tracking-wide flex items-center gap-1.5">
+              <label className="block mb-2 font-bold mc-text-secondary text-sm uppercase tracking-wide flex items-center gap-1.5">
                 <CalendarDays className="size-4 text-blue-500" /> Event Date
               </label>
               <button
                 type="button"
                 onClick={() => setShowCalendar(!showCalendar)}
-                className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl border border-white/[0.08] bg-white/[0.03] hover:border-white/[0.15] hover:bg-white/[0.06] transition-all text-left focus:outline-none text-white"
+                className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl border mc-border bg-white/[0.03] hover:border-white/[0.15] hover:bg-white/[0.06] transition-all text-left focus:outline-none mc-text"
               >
-                <span className="text-white font-semibold text-sm">
+                <span className="font-semibold text-sm">
                   {formatDisplayDate(selectedDate)}
                 </span>
-                <CalendarIcon className="w-5 h-5 text-white/40 flex-shrink-0" />
+                <CalendarIcon className="w-5 h-5 mc-text-muted flex-shrink-0" />
               </button>
 
               {showCalendar && (
@@ -288,7 +288,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
             {/* Start Time */}
             <div className="space-y-3">
-              <label className="block mb-2 font-bold text-white/55 text-sm uppercase tracking-wide flex items-center gap-1.5">
+              <label className="block mb-2 font-bold mc-text-secondary text-sm uppercase tracking-wide flex items-center gap-1.5">
                 <Clock className="size-4 text-blue-500" /> Start Time
               </label>
               
@@ -305,7 +305,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                       className={`py-3.5 px-2 rounded-xl text-sm font-bold border transition-all active:scale-[0.98] ${
                         isSelected
                           ? "bg-blue-600 border-transparent text-white scale-[1.02] transform"
-                          : "bg-white/[0.03] border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.06] text-white/70"
+                          : "bg-white/[0.03] border mc-border hover:border-white/[0.15] hover:bg-white/[0.06] mc-text-secondary"
                       }`}
                     >
                       <span className="flex items-center justify-center gap-1.5">
@@ -323,7 +323,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                   className={`py-3.5 px-2 rounded-xl text-sm font-bold border transition-all active:scale-[0.98] ${
                     timeMode === "custom"
                       ? "bg-blue-600 border-transparent text-white scale-[1.02] transform"
-                      : "bg-white/[0.03] border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.06] text-white/70"
+                      : "bg-white/[0.03] border mc-border hover:border-white/[0.15] hover:bg-white/[0.06] mc-text-secondary"
                   }`}
                 >
                   Custom time
@@ -351,7 +351,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
         {/* Event Type Section */}
         <fieldset className="space-y-4">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-white/55 border-b border-white/[0.08] pb-2 flex items-center gap-2">
+          <h3 className="text-xs font-bold uppercase tracking-widest mc-text-secondary border-b mc-border pb-2 flex items-center gap-2">
             <Target className="size-4" /> Select Event Type
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -377,22 +377,22 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                     className={`flex flex-col items-center justify-center p-6 rounded-2xl border-2 text-center transition-all duration-200 active:scale-[0.99] group h-full ${
                       isSelected
                         ? "border-blue-500 bg-blue-500/10 text-white scale-[1.01]"
-                        : "border-white/[0.08] bg-white/[0.03] text-white/70 hover:border-white/[0.15] hover:bg-white/[0.06] hover:scale-[1.01]"
+                        : "border-white/[0.08] bg-white/[0.03] mc-text-secondary hover:border-white/[0.15] hover:bg-white/[0.06] hover:scale-[1.01]"
                     }`}
                   >
                     {/* Event Type Icon Indicator */}
                     <div className={`p-3.5 rounded-xl mb-4 transition-all duration-200 ${
                       isSelected
                         ? isPractice ? "bg-blue-600 text-white" : "bg-emerald-600 text-white"
-                        : "bg-white/[0.06] text-white/50 group-hover:bg-white/[0.1]"
+                        : "bg-white/[0.06] mc-text-muted group-hover:bg-white/[0.1]"
                     }`}>
                       {isPractice ? <Users className="size-6" /> : <Target className="size-6" />}
                     </div>
 
-                    <span className="font-extrabold text-base tracking-tight mb-1 text-white">
+                    <span className="font-extrabold text-base tracking-tight mb-1">
                       {isPractice ? "Practice" : "Optional Training"}
                     </span>
-                    <span className={`text-xs font-medium leading-relaxed max-w-xs ${isSelected ? "text-white/70" : "text-white/40"}`}>
+                    <span className={`text-xs font-medium leading-relaxed max-w-xs ${isSelected ? "text-white/70" : "mc-text-muted"}`}>
                       {isPractice
                         ? "Official team practice for rostered players."
                         : "Voluntary sessions for skill development, conditioning, and extra work."}
@@ -406,8 +406,8 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
         {/* Duration Selection */}
         <fieldset className="space-y-4">
-          <div className="flex items-center justify-between border-b border-white/[0.08] pb-2">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-white/55 flex items-center gap-2">
+          <div className="flex items-center justify-between border-b mc-border pb-2">
+            <h3 className="text-xs font-bold uppercase tracking-widest mc-text-secondary flex items-center gap-2">
               <Clock className="size-4" /> Duration
             </h3>
             <span className={`text-xs font-bold px-3 py-1 rounded-full border transition-all duration-200 ${
@@ -433,7 +433,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                     className={`py-3.5 px-2 rounded-xl text-sm font-bold border transition-all active:scale-[0.98] ${
                       isSelected
                         ? "bg-blue-600 border-transparent text-white scale-[1.02] transform"
-                        : "bg-white/[0.03] border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.06] text-white/70"
+                        : "bg-white/[0.03] border mc-border hover:border-white/[0.15] hover:bg-white/[0.06] mc-text-secondary"
                     }`}
                   >
                     <span className="flex flex-col items-center justify-center">
@@ -441,7 +441,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                         {val === 0.5 ? "30 min" : `${val} ${val === 1 ? "hr" : "hrs"}`}
                       </span>
                       {isLastUsed && (
-                        <span className={`text-[10px] font-medium leading-none mt-1 ${isSelected ? "text-white/80" : "text-white/40"}`}>
+                        <span className={`text-[10px] font-medium leading-none mt-1 ${isSelected ? "mc-text" : "mc-text-muted"}`}>
                           last used
                         </span>
                       )}
@@ -455,7 +455,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                 className={`py-3.5 px-2 rounded-xl text-sm font-bold border transition-all active:scale-[0.98] ${
                   durationMode === "custom"
                     ? "bg-blue-600 border-transparent text-white scale-[1.02] transform"
-                    : "bg-white/[0.03] border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.06] text-white/70"
+                    : "bg-white/[0.03] border mc-border hover:border-white/[0.15] hover:bg-white/[0.06] mc-text-secondary"
                 }`}
               >
                 Custom
@@ -482,7 +482,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                       placeholder="e.g. 1.5"
                     />
                   </div>
-                  <span className="text-sm font-bold text-white/40">hours</span>
+                  <span className="text-sm font-bold mc-text-muted">hours</span>
                 </div>
 
                 {/* Range validation error banner */}
@@ -500,7 +500,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
         <button
           type="submit"
           disabled={!isDurationValid}
-          className="w-full flex items-center justify-center gap-2.5 px-6 py-4.5 bg-blue-600 hover:bg-blue-500 disabled:bg-white/[0.04] disabled:text-white/20 text-white font-extrabold rounded-xl transition-all duration-300 active:scale-[0.98] disabled:cursor-not-allowed text-base tracking-wide group"
+          className="w-full flex items-center justify-center gap-2.5 px-6 py-4.5 bg-blue-600 hover:bg-blue-500 disabled:bg-white/[0.04] disabled:mc-text-muted text-white font-extrabold rounded-xl transition-all duration-300 active:scale-[0.98] disabled:cursor-not-allowed text-base tracking-wide group"
         >
           <Play className="size-5 fill-current transition-transform group-hover:scale-110 duration-200" />
           Start Session
@@ -536,11 +536,11 @@ function PastSessions({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <Clock className="size-4 text-white/40" />
-        <h3 className="text-xs font-bold uppercase tracking-widest text-white/55">
+        <Clock className="size-4 mc-text-muted" />
+        <h3 className="text-xs font-bold uppercase tracking-widest mc-text-secondary">
           Past sessions
         </h3>
-        <span className="ml-1 rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-medium text-white/40">
+        <span className="ml-1 rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-medium mc-text-muted">
           {sorted.length}
         </span>
       </div>
@@ -555,7 +555,7 @@ function PastSessions({
         <button
           type="button"
           onClick={() => setPage((p) => p + 1)}
-          className="w-full py-2.5 rounded-xl border border-white/[0.08] bg-white/[0.03] text-xs font-semibold text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-all"
+          className="w-full py-2.5 rounded-xl border mc-border bg-white/[0.03] text-xs font-semibold mc-text-muted hover:mc-text hover:bg-white/[0.06] transition-all"
         >
           Load more ({sorted.length - visible.length} remaining)
         </button>
@@ -583,10 +583,10 @@ function SessionCard({
     <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 hover:bg-white/[0.05] transition-colors">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <div className="text-sm font-semibold text-white/90">
+          <div className="text-sm font-semibold mc-text">
             {ev.type} · {dateLabel}
           </div>
-          <div className="text-xs text-white/40">
+          <div className="text-xs mc-text-muted">
             {ev.duration}h · {ev.players.length} present
           </div>
         </div>
@@ -595,7 +595,7 @@ function SessionCard({
           onClick={() => {
             navigator.clipboard.writeText(ev.players.join(", ")).catch(() => {});
           }}
-          className="shrink-0 text-[11px] font-semibold text-white/35 hover:text-blue-400 transition-colors"
+          className="shrink-0 text-[11px] font-semibold mc-text-muted hover:text-blue-500 transition-colors"
         >
           Copy roster
         </button>
@@ -610,7 +610,7 @@ function SessionCard({
                 className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
                   isGuest
                     ? "bg-amber-500/15 text-amber-300 ring-1 ring-inset ring-amber-500/25"
-                    : "bg-white/[0.06] text-white/55"
+                    : "bg-white/[0.06] mc-text-secondary"
                 }`}
               >
                 {player}

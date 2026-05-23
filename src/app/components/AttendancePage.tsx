@@ -133,15 +133,15 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
         style={{ backgroundColor: "var(--mc-surface)" }}
       >
         <div>
-          <span className="text-xs font-bold uppercase tracking-widest text-white/55">
+          <span className="text-xs font-bold uppercase tracking-widest mc-text-secondary">
             Current Session
           </span>
-          <h2 className="mt-1 text-2xl md:text-3xl font-bold text-white">
+          <h2 className="mt-1 text-2xl md:text-3xl font-bold">
             {state.activeSession
               ? state.activeSession.type
               : "No active session"}
           </h2>
-          <p className="mt-1 text-white/45">
+          <p className="mt-1 mc-text-secondary">
             {state.activeSession
               ? `${formatDate(state.activeSession.date)} • ${
                   state.activeSession.duration
@@ -191,7 +191,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
       {/* Player Grid */}
       {state.roster.length === 0 ? (
         <div
-          className="rounded-2xl border border-dashed border-white/[0.08] p-8 text-center text-white/40"
+          className="rounded-2xl border border-dashed mc-border p-8 text-center mc-text-muted"
           style={{ backgroundColor: "var(--mc-surface)" }}
         >
           No players yet. Add players from Attendance or Settings.
@@ -215,7 +215,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
                 className={`relative flex flex-col items-center justify-center gap-3 min-h-36 p-5 rounded-2xl border transition-all ${
                   isPresent
                     ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-300"
-                    : "bg-white/[0.03] border-white/[0.07] text-white/70 hover:border-white/[0.15] hover:bg-white/[0.06] hover:scale-[1.02]"
+                    : "bg-white/[0.03] border mc-border mc-text-secondary hover:border-white/[0.15] hover:bg-white/[0.06] hover:scale-[1.02]"
                 }`}
               >
                 {hasStreak && (
@@ -229,7 +229,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
                 <div className={`size-14 rounded-full flex items-center justify-center font-bold text-base transition-all ${
                   isPresent
                     ? "bg-emerald-500/15 text-emerald-300"
-                    : "bg-white/[0.06] text-white/70"
+                    : "bg-white/[0.06] mc-text-secondary"
                 }`}>
                   {getInitials(player)}
                 </div>
@@ -372,7 +372,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
         }`}
       >
         <div className="max-w-5xl mx-auto w-full pointer-events-auto bg-[var(--mc-elev)] border border-white/[0.08] rounded-2xl px-4 py-3 shadow-2xl backdrop-blur flex items-center justify-between gap-4">
-          <div className="text-white/90 text-sm md:text-base">
+          <div className="mc-text text-sm md:text-base">
             <span className="opacity-80">
               <b className="font-bold text-white">{presentPlayers.size}</b> of {state.roster.length} present
             </span>

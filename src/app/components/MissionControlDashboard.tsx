@@ -296,14 +296,14 @@ function StatTile({
   color: "blue" | "emerald" | "violet";
 }) {
   const palettes = {
-    blue:    { icon: "text-blue-400   bg-blue-500/10",   val: "text-blue-50" },
-    emerald: { icon: "text-emerald-400 bg-emerald-500/10", val: "text-emerald-50" },
-    violet:  { icon: "text-violet-400  bg-violet-500/10",  val: "text-violet-50" },
+    blue:    { icon: "text-blue-400   bg-blue-500/10",   val: "mc-text" },
+    emerald: { icon: "text-emerald-400 bg-emerald-500/10", val: "mc-text" },
+    violet:  { icon: "text-violet-400  bg-violet-500/10",  val: "mc-text" },
   };
   const p = palettes[color];
 
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-5 flex flex-col gap-3 hover:bg-white/[0.05] transition-colors">
+    <div className="rounded-xl border mc-border bg-white/[0.03] p-5 flex flex-col gap-3 hover:bg-white/[0.05] transition-colors">
       <div className={`size-8 rounded-lg flex items-center justify-center ${p.icon}`}>{icon}</div>
       <div>
         <div className={`mc-mono text-3xl font-bold tabular-nums leading-none ${p.val}`}>{value}</div>

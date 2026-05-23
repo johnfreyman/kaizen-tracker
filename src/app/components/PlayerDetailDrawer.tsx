@@ -148,7 +148,7 @@ export default function PlayerDetailDrawer({
                 >
                   {tier.label} Tier
                 </span>
-                <span className="text-[11px] text-white/35">
+                <span className="text-[11px] mc-text-muted">
                   Participation Tier
                 </span>
               </div>
@@ -160,7 +160,7 @@ export default function PlayerDetailDrawer({
         <div className="grid grid-cols-3 gap-3 px-6 py-5 border-b border-white/[0.04] bg-white/[0.01] shrink-0">
           {/* Practice Hrs */}
           <div className="rounded-xl p-3.5 border border-white/[0.06] bg-white/[0.02]">
-            <div className="text-[9px] font-bold text-white/35 uppercase tracking-wider mb-1 truncate">
+            <div className="text-[9px] font-bold mc-text-muted uppercase tracking-wider mb-1 truncate">
               Practice Hrs
             </div>
             <div className="text-xl font-bold text-white tabular-nums leading-none">
@@ -172,7 +172,7 @@ export default function PlayerDetailDrawer({
 
           {/* Practice % */}
           <div className="rounded-xl p-3.5 border border-white/[0.06] bg-white/[0.02]">
-            <div className="text-[9px] font-bold text-white/35 uppercase tracking-wider mb-1 truncate">
+            <div className="text-[9px] font-bold mc-text-muted uppercase tracking-wider mb-1 truncate">
               Practice %
             </div>
             <div className="text-xl font-bold text-white tabular-nums leading-none">
@@ -182,10 +182,10 @@ export default function PlayerDetailDrawer({
 
           {/* Last Attended */}
           <div className="rounded-xl p-3.5 border border-white/[0.06] bg-white/[0.02] min-w-0">
-            <div className="text-[9px] font-bold text-white/35 uppercase tracking-wider mb-1 truncate">
+            <div className="text-[9px] font-bold mc-text-muted uppercase tracking-wider mb-1 truncate">
               Last Attended
             </div>
-            <div className="text-xs font-semibold text-white/80 leading-none truncate mt-1">
+            <div className="text-xs font-semibold mc-text leading-none truncate mt-1">
               {stats.lastAttendedDate ? formatDate(stats.lastAttendedDate) : "—"}
             </div>
           </div>
@@ -194,10 +194,10 @@ export default function PlayerDetailDrawer({
         {/* Attendance Timeline */}
         <div className="px-6 py-5 border-b border-white/[0.04] shrink-0">
           <div className="flex items-center justify-between gap-2 mb-3">
-            <h4 className="text-[10px] font-bold text-white/30 uppercase tracking-widest">
+            <h4 className="text-[10px] font-bold mc-text-muted uppercase tracking-widest">
               Attendance Timeline
             </h4>
-            <span className="text-[9px] text-white/25">Last 12 sessions</span>
+            <span className="text-[9px] mc-text-muted">Last 12 sessions</span>
           </div>
 
           <div className="flex items-center justify-between gap-1 h-9 px-3 bg-white/[0.02] rounded-xl border border-white/[0.04]">
@@ -222,10 +222,10 @@ export default function PlayerDetailDrawer({
                   <TooltipContent
                     side="top"
                     sideOffset={6}
-                    className="max-w-[200px] px-2.5 py-1.5 text-[11px] font-normal normal-case tracking-normal leading-snug rounded-lg bg-[#1e2333] text-white/90 border border-white/[0.10] shadow-xl"
+                    className="max-w-[200px] px-2.5 py-1.5 text-[11px] font-normal normal-case tracking-normal leading-snug rounded-lg bg-[#1e2333] mc-text border border-white/[0.10] shadow-xl"
                   >
                     <div className="font-semibold text-white">{event.type}</div>
-                    <div className="text-[10px] text-white/55 mt-0.5">{formatDate(event.date)}</div>
+                    <div className="text-[10px] mc-text-secondary mt-0.5">{formatDate(event.date)}</div>
                     <div className="text-[10px] font-medium mt-1 flex items-center gap-1">
                       {isPresent ? (
                         <span className="text-emerald-400 flex items-center gap-0.5">
@@ -242,7 +242,7 @@ export default function PlayerDetailDrawer({
               );
             })}
             {timelineEvents.length === 0 && (
-              <div className="w-full text-center text-xs text-white/20">
+              <div className="w-full text-center text-xs mc-text-muted">
                 No sessions logged in this range.
               </div>
             )}
@@ -251,7 +251,7 @@ export default function PlayerDetailDrawer({
 
         {/* Sessions list */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          <h4 className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-3">
+          <h4 className="text-[10px] font-bold mc-text-muted uppercase tracking-widest mb-3">
             Sessions ({filteredEvents.length})
           </h4>
           <div className="space-y-2">
@@ -263,10 +263,10 @@ export default function PlayerDetailDrawer({
                   className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-white/[0.04] bg-white/[0.01] hover:bg-white/[0.03] transition-all"
                 >
                   <div className="min-w-0">
-                    <div className="font-semibold text-white/85 text-xs">
+                    <div className="font-semibold mc-text text-xs">
                       {formatDate(event.date)}
                     </div>
-                    <div className="text-[10px] text-white/35 mt-0.5 flex items-center gap-1.5">
+                    <div className="text-[10px] mc-text-muted mt-0.5 flex items-center gap-1.5">
                       <span>{event.type}</span>
                       <span className="text-white/10">•</span>
                       <span>{event.duration} {event.duration === 1 ? "hour" : "hours"}</span>
@@ -287,7 +287,7 @@ export default function PlayerDetailDrawer({
               );
             })}
             {filteredEvents.length === 0 && (
-              <div className="text-center py-10 text-xs text-white/20">
+              <div className="text-center py-10 text-xs mc-text-muted">
                 No sessions logged in this range.
               </div>
             )}
@@ -301,7 +301,7 @@ export default function PlayerDetailDrawer({
               onClose();
               onNavigate("launch");
             }}
-            className="w-full h-11 rounded-xl text-sm font-semibold text-white/80 border border-white/[0.08] hover:text-white hover:bg-white/[0.04] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full h-11 rounded-xl text-sm font-semibold mc-text border border-white/[0.08] hover:text-white hover:bg-white/[0.04] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             Schedule make-up training
           </button>

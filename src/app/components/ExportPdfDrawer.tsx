@@ -205,13 +205,13 @@ export default function ExportPdfDrawer({
               <SheetTitle className="text-base font-semibold text-white">
                 Export report as PDF
               </SheetTitle>
-              <SheetDescription className="text-xs text-white/35 mt-0.5">
+              <SheetDescription className="text-xs mc-text-muted mt-0.5">
                 {teamName || "Team"} · {rangeLabel} · {events.length} event{events.length !== 1 ? "s" : ""}
               </SheetDescription>
             </div>
             <button
               onClick={onClose}
-              className="size-7 rounded-lg flex items-center justify-center text-white/35 hover:text-white/70 border border-white/[0.08] hover:bg-white/[0.06] transition-all shrink-0"
+              className="size-7 rounded-lg flex items-center justify-center mc-text-muted hover:mc-text-secondary border border-white/[0.08] hover:bg-white/[0.06] transition-all shrink-0"
             >
               <X className="size-3.5" />
             </button>
@@ -223,21 +223,21 @@ export default function ExportPdfDrawer({
 
           {/* File settings */}
           <div className="px-6 py-5 border-b border-white/[0.04]">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-3">File</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest mc-text-muted mb-3">File</p>
             <div className="mb-3">
-              <label className="text-xs text-white/55 font-medium mb-1.5 block">Filename</label>
+              <label className="text-xs mc-text-secondary font-medium mb-1.5 block">Filename</label>
               <div className="flex items-center gap-0 rounded-lg border border-white/[0.08] bg-white/[0.02] overflow-hidden">
                 <input
                   value={filename}
                   onChange={(e) => setFilename(e.target.value)}
-                  className="flex-1 px-3 py-2 text-xs text-white/80 bg-transparent focus:outline-none font-mono"
+                  className="flex-1 px-3 py-2 text-xs mc-text bg-transparent focus:outline-none font-mono"
                 />
-                <span className="px-3 py-2 text-xs text-white/25 font-mono border-l border-white/[0.06] shrink-0">.pdf</span>
+                <span className="px-3 py-2 text-xs mc-text-muted font-mono border-l border-white/[0.06] shrink-0">.pdf</span>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-white/55 font-medium mb-1.5 block">Paper size</label>
+                <label className="text-xs mc-text-secondary font-medium mb-1.5 block">Paper size</label>
                 <div className="flex rounded-lg border border-white/[0.08] overflow-hidden bg-white/[0.02] h-9">
                   {(["letter", "a4", "legal"] as const).map((s) => (
                     <button
@@ -246,7 +246,7 @@ export default function ExportPdfDrawer({
                       className={`flex-1 text-xs font-semibold transition-all ${
                         paperSize === s
                           ? "bg-purple-600/20 text-purple-300"
-                          : "text-white/35 hover:text-white/60"
+                          : "mc-text-muted hover:mc-text-secondary"
                       }`}
                     >
                       {s === "letter" ? "Letter" : s === "a4" ? "A4" : "Legal"}
@@ -255,7 +255,7 @@ export default function ExportPdfDrawer({
                 </div>
               </div>
               <div>
-                <label className="text-xs text-white/55 font-medium mb-1.5 block">Orientation</label>
+                <label className="text-xs mc-text-secondary font-medium mb-1.5 block">Orientation</label>
                 <div className="flex rounded-lg border border-white/[0.08] overflow-hidden bg-white/[0.02] h-9">
                   {(["portrait", "landscape"] as const).map((o) => (
                     <button
@@ -264,7 +264,7 @@ export default function ExportPdfDrawer({
                       className={`flex-1 text-xs font-semibold transition-all ${
                         orientation === o
                           ? "bg-purple-600/20 text-purple-300"
-                          : "text-white/35 hover:text-white/60"
+                          : "mc-text-muted hover:mc-text-secondary"
                       }`}
                     >
                       {o === "portrait" ? "Portrait" : "Landscape"}
@@ -277,7 +277,7 @@ export default function ExportPdfDrawer({
 
           {/* Sections */}
           <div className="px-6 py-5 border-b border-white/[0.04]">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-3">Sections</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest mc-text-muted mb-3">Sections</p>
             <div className="space-y-2">
               {sectionItems.map(({ key, label, desc, pages, disabled }) => {
                 const checked = sections[key] && !disabled;
@@ -304,10 +304,10 @@ export default function ExportPdfDrawer({
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-white/85">{label}</div>
-                      <div className="text-xs text-white/35 truncate">{desc}</div>
+                      <div className="text-sm font-semibold mc-text">{label}</div>
+                      <div className="text-xs mc-text-muted truncate">{desc}</div>
                     </div>
-                    <span className="text-[10px] text-white/25 font-mono shrink-0">{pages}</span>
+                    <span className="text-[10px] mc-text-muted font-mono shrink-0">{pages}</span>
                   </button>
                 );
               })}
@@ -316,7 +316,7 @@ export default function ExportPdfDrawer({
 
           {/* Preview thumbnail */}
           <div className="px-6 py-5">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest mc-text-muted mb-3">
               Preview · {pages} page{pages !== 1 ? "s" : ""}
             </p>
             <div
@@ -368,7 +368,7 @@ export default function ExportPdfDrawer({
         <div className="px-6 py-4 border-t border-white/[0.08] shrink-0 flex gap-3" style={{ backgroundColor: "var(--mc-elev, #11161f)" }}>
           <button
             onClick={onClose}
-            className="h-10 px-4 rounded-xl text-sm font-semibold text-white/40 border border-white/[0.08] hover:text-white/65 hover:bg-white/[0.04] transition-all"
+            className="h-10 px-4 rounded-xl text-sm font-semibold mc-text-muted border border-white/[0.08] hover:mc-text-secondary hover:bg-white/[0.04] transition-all"
           >
             Cancel
           </button>

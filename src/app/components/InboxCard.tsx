@@ -100,7 +100,7 @@ export default function InboxCard({ onNavigate }: Props) {
   const severityIconColors: Record<"alert" | "todo" | "tip", string> = {
     alert: "text-red-400",
     todo: "text-blue-400",
-    tip: "text-white/45",
+    tip: "mc-text-muted",
   };
 
   const severityRowBorders: Record<"alert" | "todo" | "tip", string> = {
@@ -110,14 +110,14 @@ export default function InboxCard({ onNavigate }: Props) {
   };
 
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[var(--mc-surface)] overflow-hidden transition-all duration-300">
+    <div className="rounded-2xl border mc-border bg-[var(--mc-surface)] overflow-hidden transition-all duration-300">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
-        <h3 className="text-white/55 text-xs font-bold uppercase tracking-widest">Inbox</h3>
+      <div className="flex items-center justify-between px-5 py-3.5 border-b mc-border">
+        <h3 className="mc-text-secondary text-xs font-bold uppercase tracking-widest">Inbox</h3>
         {hasMore && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="text-xs font-semibold text-blue-300 hover:text-blue-200 transition-colors"
+            className="text-xs font-semibold text-blue-600 dark:text-blue-400 transition-colors"
           >
             {expanded ? "Show less ↑" : `See all (${combinedItems.length}) →`}
           </button>
@@ -126,7 +126,7 @@ export default function InboxCard({ onNavigate }: Props) {
 
       {/* Content */}
       {combinedItems.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-8 text-center text-white/35 gap-2 animate-hero-enter">
+        <div className="flex flex-col items-center justify-center py-8 text-center mc-text-muted gap-2 animate-hero-enter">
           <div className="size-9 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
             <Check className="size-4.5" />
           </div>
@@ -149,11 +149,11 @@ export default function InboxCard({ onNavigate }: Props) {
 
                 {/* Content */}
                 <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-medium text-white/80 leading-snug truncate">
+                  <span className="text-sm font-medium mc-text leading-snug truncate">
                     {item.title}
                   </span>
                   {item.description && (
-                    <span className="text-[11px] text-white/40 leading-none truncate">
+                    <span className="text-[11px] mc-text-muted leading-none truncate">
                       {item.description}
                     </span>
                   )}
@@ -163,7 +163,7 @@ export default function InboxCard({ onNavigate }: Props) {
                 {item.action && (
                   <button
                     onClick={item.action.onClick}
-                    className="text-xs font-semibold text-blue-300 hover:text-blue-200 transition-colors"
+                    className="text-xs font-semibold text-blue-600 dark:text-blue-400 transition-colors"
                   >
                     {item.action.label}
                   </button>
