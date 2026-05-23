@@ -275,6 +275,7 @@ function AppContent() {
                   <SummaryPage
                     openExportPdf={exportPdfTrigger}
                     onExportPdfOpened={() => setExportPdfTrigger(false)}
+                    onNavigate={navigate}
                   />
                 )}
                 {activePage === "charts"     && <ChartsPage />}

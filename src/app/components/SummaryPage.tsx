@@ -45,6 +45,7 @@ import {
   TooltipTrigger,
 } from "./ui/tooltip";
 import ExportPdfDrawer from "./ExportPdfDrawer";
+import PlayerDetailDrawer from "./PlayerDetailDrawer";
 
 type Trend = "up" | "down" | "stable";
 type PlayerFilter = "all" | "active" | "attention";
@@ -120,6 +121,8 @@ function TrendBadge({ trend }: { trend: Trend }) {
     </span>
   );
 }
+
+// ── Practice Bar ─────────────────────────────────────────────────────────────
 
 function PracticeBar({ value, total }: { value: number; total: number }) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
@@ -233,13 +236,15 @@ function SummaryPageSkeleton() {
 interface SummaryPageProps {
   openExportPdf?: boolean;
   onExportPdfOpened?: () => void;
+  onNavigate?: (page: string) => void;
 }
 
-export default function SummaryPage({ openExportPdf, onExportPdfOpened }: SummaryPageProps = {}) {
+export default function SummaryPage({ openExportPdf, onExportPdfOpened, onNavigate = () => {} }: SummaryPageProps = {}) {
   const { state, archiveEvents, isLoading } = useTeamStore();
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [showExportDrawer, setShowExportDrawer] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
 
   useEffect(() => {
     if (openExportPdf) {
@@ -906,7 +911,8 @@ export default function SummaryPage({ openExportPdf, onExportPdfOpened }: Summar
                   return (
                     <tr
                       key={player}
-                      className={`border-b border-white/[0.04] transition-colors cursor-default group ${
+                      onClick={() => setSelectedPlayer(player)}
+                      className={`border-b border-white/[0.04] transition-colors cursor-pointer group ${
                         idx % 2 !== 0 ? "bg-white/[0.015]" : ""
                       } hover:bg-purple-500/[0.06]`}
                     >
@@ -972,47 +978,6 @@ export default function SummaryPage({ openExportPdf, onExportPdfOpened }: Summar
         </div>
       </div>
 
-      {/* Logged Events */}
-      <div
-        className="rounded-2xl border border-white/[0.08] overflow-hidden"
-        style={{ backgroundColor: "var(--mc-surface)" }}
-      >
-        <div className="px-5 py-4 border-b border-white/[0.08]">
-          <h3 className="text-xs font-bold text-white/60 uppercase tracking-widest">
-            Logged Events
-          </h3>
-        </div>
-
-        {filteredEvents.length === 0 ? (
-          <div className="px-5 py-10 text-center text-white/40 text-sm">
-            No events in this date range.
-          </div>
-        ) : (
-          <div className="divide-y divide-white/[0.04]">
-            {filteredEvents.map((event) => (
-              <div
-                key={event.id}
-                className="flex items-center justify-between gap-4 px-5 py-3.5 hover:bg-white/[0.03] transition-colors"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-white/75 text-sm">
-                    {event.type} • {formatDate(event.date)}
-                  </div>
-                  <div className="text-xs text-white/40 mt-0.5">
-                    {event.duration}{" "}
-                    {event.duration === 1 ? "hour" : "hours"} •{" "}
-                    {event.players.length} present
-                  </div>
-                </div>
-                <div className="text-xs text-white/35 text-right truncate max-w-xs hidden sm:block">
-                  {event.players.join(", ") || "No players"}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Export PDF Drawer */}
       <ExportPdfDrawer
         open={showExportDrawer}
@@ -1027,6 +992,14 @@ export default function SummaryPage({ openExportPdf, onExportPdfOpened }: Summar
         sortCol={sortCol}
         sortDir={sortDir}
         archivedEventsBundles={state.archivedEvents}
+      />
+
+      {/* Player Detail Drawer */}
+      <PlayerDetailDrawer
+        playerName={selectedPlayer}
+        onClose={() => setSelectedPlayer(null)}
+        onNavigate={onNavigate}
+        filteredEvents={filteredEvents}
       />
 
       {/* Archive Confirmation Dialog */}
