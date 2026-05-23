@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Save, UserPlus, Edit, Trophy } from "lucide-react";
+import { Save, UserPlus, Edit, Flame, UserCircle, Check } from "lucide-react";
 import { useTeamStore } from "../hooks/useTeamStore";
 import PlayerTypeDialog from "./PlayerTypeDialog";
 import LeaderboardTicker from "./LeaderboardTicker";
@@ -219,31 +219,12 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
                 }`}
               >
                 {hasStreak && (
-                  <div className="absolute -top-1 -right-1 size-8 rounded-full bg-orange-500 flex items-center justify-center border border-white/[0.08]">
-                    <span className="text-lg" title="5 event streak!">🔥</span>
-                  </div>
-                )}
-                {playerIsGuest ? (
-                  <span
-                    className="absolute -top-1 -left-1 text-[28px] leading-none drop-shadow-md"
-                    title="Guest"
+                  <div
+                    className="absolute -top-1.5 -right-1.5 size-7 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center"
+                    title="5-session attendance streak"
                   >
-                    🏀
-                  </span>
-                ) : (
-                  <>
-                    {state.teamLogo ? (
-                      <img
-                        src={state.teamLogo}
-                        alt="Team"
-                        className="absolute -top-1 -left-1 size-7 rounded-full object-cover drop-shadow-md"
-                      />
-                    ) : (
-                      <div className="absolute -top-1 -left-1 size-7 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center">
-                        <Trophy className="size-3.5 text-blue-400" />
-                      </div>
-                    )}
-                  </>
+                    <Flame className="size-3.5 text-emerald-300" />
+                  </div>
                 )}
                 <div className={`size-14 rounded-full flex items-center justify-center font-bold text-base transition-all ${
                   isPresent
@@ -252,13 +233,22 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
                 }`}>
                   {getInitials(player)}
                 </div>
-                <div className="text-center space-y-0.5">
+                <div className="text-center flex flex-col items-center justify-center gap-1">
                   <div className="text-sm font-semibold leading-tight">
                     {player}
                   </div>
-                  <div className="text-xs opacity-60">
-                    {isPresent ? "✓ Present" : "Tap to mark"}
-                  </div>
+                  {playerIsGuest && (
+                    <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-[10px] font-medium tracking-wider uppercase text-blue-400">
+                      <UserCircle className="size-3" />
+                      <span>Guest</span>
+                    </div>
+                  )}
+                  {isPresent && (
+                    <div className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400">
+                      <Check className="size-3.5" />
+                      <span>Present</span>
+                    </div>
+                  )}
                 </div>
               </button>
             );
