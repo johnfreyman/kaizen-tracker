@@ -1,246 +1,145 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import {
-  Calendar,
-  Clock,
-  Archive,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Download,
-  ChevronUp,
-  ChevronDown,
-  ChevronsUpDown,
-  Users,
-  Info,
-  Search,
-  FileText,
-  Award,
-  Flame,
-  CheckCircle2,
-  CircleDot,
-  AlertCircle,
-} from "lucide-react";
-import {
-  PieChart,
-  Pie,
-  Cell,
   BarChart,
   Bar,
   XAxis,
   YAxis,
-  ResponsiveContainer,
-  Tooltip as ChartTooltip,
-} from "recharts";
-import { useTeamStore, EVENT_TYPES, type TeamEvent } from "../hooks/useTeamStore";
-import { formatDate } from "@/lib/dates";
-import { calculateTotals, percent } from "@/lib/stats";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "./ui/alert-dialog";
-import {
+  CartesianGrid,
   Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "./ui/tooltip";
-import ExportPdfDrawer from "./ExportPdfDrawer";
-import PlayerDetailDrawer from "./PlayerDetailDrawer";
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  Legend,
+} from "recharts";
+import {
+  Award,
+  Flame,
+  AlertTriangle,
+  Download,
+  TrendingUp,
+  Clock,
+  Users,
+  Calendar,
+  BarChart3,
+} from "lucide-react";
+import { useTeamStore, EVENT_TYPES } from "../hooks/useTeamStore";
+import {
+  filterEventsByRange,
+  playerAttendance,
+  monthlyTrend,
+  dayOfWeekBreakdown,
+  insightsFromAttendance,
+  type PlayerAttendanceRecord,
+} from "@/lib/stats";
 
-type Trend = "up" | "down" | "stable";
-type PlayerFilter = "all" | "active" | "attention";
-type SortColumn =
-  | "player"
-  | "practice"
-  | "practicePercent"
-  | "optional"
-  | "optPercent"
-  | "lastAttended";
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Range = "30" | "90" | "180" | "all";
+type SortKey = "name" | "rate" | "practice" | "training" | "streak";
 type SortDir = "asc" | "desc";
-type DateRange = "7d" | "30d" | "season" | "custom";
 
-const TIER_COLORS = {
-  full: "#10b981",  // emerald-500
-  mid:  "#f59e0b",  // amber-400
-  low:  "#f87171",  // red-400
-};
+// ─── Tooltip style ────────────────────────────────────────────────────────────
 
-function tierColor(pct: number) {
-  if (pct >= 100) return TIER_COLORS.full;
-  if (pct >= 50)  return TIER_COLORS.mid;
-  return TIER_COLORS.low;
-}
-
-// ── Trend helpers ────────────────────────────────────────────────────────────
-
-function computeAttendanceTrend(events: TeamEvent[], rosterSize: number): Trend {
-  const sorted = [...events]
-    .filter((e) => e.type === EVENT_TYPES.PRACTICE)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  if (sorted.length < 2) return "stable";
-  const mid = Math.floor(sorted.length / 2);
-  const avgFirst  = sorted.slice(0, mid).reduce((s, e) => s + e.players.length, 0) / mid;
-  const avgSecond = sorted.slice(mid).reduce((s, e) => s + e.players.length, 0) / (sorted.length - mid);
-  const threshold = Math.max(rosterSize * 0.05, 0.5);
-  if (avgSecond - avgFirst > threshold) return "up";
-  if (avgFirst - avgSecond > threshold) return "down";
-  return "stable";
-}
-
-function computeHoursTrend(events: TeamEvent[]): Trend {
-  const sorted = [...events]
-    .filter((e) => e.type === EVENT_TYPES.PRACTICE)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  if (sorted.length < 2) return "stable";
-  const mid = Math.floor(sorted.length / 2);
-  const avgFirst  = sorted.slice(0, mid).reduce((s, e) => s + e.duration, 0) / mid;
-  const avgSecond = sorted.slice(mid).reduce((s, e) => s + e.duration, 0) / (sorted.length - mid);
-  if (avgSecond - avgFirst > 0.1)  return "up";
-  if (avgFirst - avgSecond > 0.1)  return "down";
-  return "stable";
-}
-
-// ── Sub-components ───────────────────────────────────────────────────────────
-
-function TrendBadge({ trend }: { trend: Trend }) {
-  if (trend === "up")
-    return (
-      <span className="flex items-center gap-0.5 text-emerald-400 text-xs font-semibold">
-        <TrendingUp className="size-3.5" />↑
-      </span>
-    );
-  if (trend === "down")
-    return (
-      <span className="flex items-center gap-0.5 text-red-400 text-xs font-semibold">
-        <TrendingDown className="size-3.5" />↓
-      </span>
-    );
-  return (
-    <span className="flex items-center gap-0.5 text-white/25 text-xs font-semibold">
-      <Minus className="size-3.5" />→
-    </span>
-  );
-}
-
-// ── Practice Bar ─────────────────────────────────────────────────────────────
-
-function PracticeBar({ value, total }: { value: number; total: number }) {
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-  const barColor =
-    pct >= 100 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-red-400";
-  const textColor =
-    pct >= 100 ? "text-emerald-400" : pct >= 50 ? "text-amber-400" : "text-red-400";
-  const Icon = pct >= 100 ? CheckCircle2 : pct >= 50 ? CircleDot : AlertCircle;
-  return (
-    <div className="flex items-center gap-2 min-w-[100px]">
-      <div className="flex-1 h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
-        <div
-          className={`h-full rounded-full ${barColor} transition-all`}
-          style={{ width: `${Math.min(pct, 100)}%` }}
-        />
-      </div>
-      <span className={`text-xs font-semibold tabular-nums ${textColor} flex items-center gap-1`}>
-        <Icon className="size-3.5 flex-shrink-0" />
-        {pct}%
-      </span>
-    </div>
-  );
-}
-
-function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
-  if (!active) return <ChevronsUpDown className="size-3 opacity-30 ml-1 inline-block" />;
-  return dir === "asc" ? (
-    <ChevronUp className="size-3 text-purple-300 ml-1 inline-block" />
-  ) : (
-    <ChevronDown className="size-3 text-purple-300 ml-1 inline-block" />
-  );
-}
-
-function ColTooltip({ text }: { text: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          className="inline-flex items-center ml-1 cursor-default"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Info className="size-3 text-white/20 hover:text-white/50 transition-colors" />
-        </span>
-      </TooltipTrigger>
-      <TooltipContent
-        side="top"
-        sideOffset={6}
-        className="max-w-[180px] px-2.5 py-1.5 text-[11px] font-normal normal-case tracking-normal leading-snug rounded-lg bg-[#1e2333] text-white/80 border border-white/[0.10] shadow-xl"
-      >
-        {text}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-const DARK_TOOLTIP = {
+const TOOLTIP_STYLE = {
   borderRadius: 10,
   fontSize: 12,
-  backgroundColor: "#1e2333",
-  border: "1px solid rgba(255,255,255,0.08)",
-  color: "rgba(255,255,255,0.75)",
+  border: "1px solid #e5e7eb",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
 };
 
-// ── Skeleton loaders ─────────────────────────────────────────────────────────
+// ─── Small atoms ─────────────────────────────────────────────────────────────
 
-function Skeleton({ className }: { className?: string }) {
+function Pill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <div className={`rounded-lg bg-white/[0.06] animate-pulse ${className ?? ""}`} />
+    <button
+      onClick={onClick}
+      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+        active
+          ? "bg-gray-900 text-white"
+          : "bg-white text-gray-600 hover:bg-gray-100"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
-function SummaryPageSkeleton() {
+function Kpi({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  accent: string;
+}) {
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-56" />
-          <Skeleton className="h-4 w-80 max-w-full" />
-        </div>
-        <Skeleton className="h-9 w-64 max-w-full" />
+    <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4">
+      <div className="flex items-center gap-2">
+        <span className={`size-1.5 rounded-full ${accent}`} />
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+          {label}
+        </span>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className="rounded-2xl p-5 border border-white/[0.08]"
-            style={{ backgroundColor: "var(--mc-surface)" }}
-          >
-            <Skeleton className="h-4 w-28 mb-3" />
-            <Skeleton className="h-9 w-20" />
-          </div>
-        ))}
-      </div>
-      <div
-        className="rounded-2xl border border-white/[0.08] overflow-hidden"
-        style={{ backgroundColor: "var(--mc-surface)" }}
-      >
-        <div className="px-5 py-4 border-b border-white/[0.08]">
-          <Skeleton className="h-4 w-28" />
-        </div>
-        <div className="p-4 space-y-2">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} style={{ opacity: 1 - i * 0.15 }}>
-              <Skeleton className="h-12 w-full" />
-            </div>
-          ))}
-        </div>
+      <div className="mt-2 flex items-baseline gap-2">
+        <span className="text-3xl font-bold text-gray-900 tabular-nums">
+          {value}
+        </span>
+        {sub && <span className="text-xs text-gray-500">{sub}</span>}
       </div>
     </div>
   );
 }
 
-// ── Main component ───────────────────────────────────────────────────────────
+function InsightCard({
+  icon,
+  label,
+  name,
+  detail,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  name: string;
+  detail: string;
+  tone: "good" | "info" | "warn";
+}) {
+  const tones = {
+    good: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    warn: "bg-amber-50 text-amber-700 ring-amber-200",
+    info: "bg-indigo-50 text-indigo-700 ring-indigo-200",
+  };
+  return (
+    <div className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-white p-4">
+      <div
+        className={`grid size-9 shrink-0 place-items-center rounded-xl ring-1 ring-inset ${tones[tone]}`}
+      >
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+          {label}
+        </div>
+        <div className="mt-0.5 truncate text-base font-semibold text-gray-900">
+          {name}
+        </div>
+        <div className="mt-0.5 text-xs text-gray-500">{detail}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 interface SummaryPageProps {
   openExportPdf?: boolean;
@@ -248,969 +147,620 @@ interface SummaryPageProps {
   onNavigate?: (page: string) => void;
 }
 
-export default function SummaryPage({ openExportPdf, onExportPdfOpened, onNavigate = () => {} }: SummaryPageProps = {}) {
-  const { state, archiveEvents, isLoading } = useTeamStore();
-  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
-  const [isArchiving, setIsArchiving] = useState(false);
-  const [showExportDrawer, setShowExportDrawer] = useState(false);
+export default function SummaryPage({
+  onNavigate: _onNavigate,
+}: SummaryPageProps = {}) {
+  const { state } = useTeamStore();
+  const { events, roster, guestPlayers } = state;
+
+  const [range, setRange] = useState<Range>("all");
+  const [sortKey, setSortKey] = useState<SortKey>("rate");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
-  const [expandedSessions, setExpandedSessions] = useState<Record<string, boolean>>({});
 
-  const toggleSessionExpand = (sessionId: string) => {
-    setExpandedSessions((prev) => ({
-      ...prev,
-      [sessionId]: !prev[sessionId],
-    }));
-  };
+  // ── Scoped events ──────────────────────────────────────────────────────────
+  const scoped = useMemo(
+    () => filterEventsByRange(events, range === "all" ? "all" : Number(range)),
+    [events, range]
+  );
 
-  useEffect(() => {
-    if (openExportPdf) {
-      setShowExportDrawer(true);
-      onExportPdfOpened?.();
-    }
-  }, [openExportPdf, onExportPdfOpened]);
-  const [sortCol, setSortCol] = useState<SortColumn>("player");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
-  const [dateRange, setDateRange] = useState<DateRange>("season");
-  const [customStart, setCustomStart] = useState("");
-  const [customEnd, setCustomEnd] = useState("");
-  const [playerSearch, setPlayerSearch] = useState("");
-  const [playerFilter, setPlayerFilter] = useState<PlayerFilter>("all");
+  const practices = useMemo(
+    () => scoped.filter((e) => e.type === EVENT_TYPES.PRACTICE),
+    [scoped]
+  );
+  const optional = useMemo(
+    () => scoped.filter((e) => e.type === EVENT_TYPES.OPTIONAL_TRAINING),
+    [scoped]
+  );
+  const practiceHrs = practices.reduce((s, e) => s + e.duration, 0);
+  const optionalHrs = optional.reduce((s, e) => s + e.duration, 0);
 
-  // ── Date filtering ─────────────────────────────────────────────────────────
-  const filteredEvents = useMemo(() => {
-    const now = new Date();
-    if (dateRange === "7d") {
-      const cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      return state.events.filter((e) => new Date(e.date) >= cutoff);
-    }
-    if (dateRange === "30d") {
-      const cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      return state.events.filter((e) => new Date(e.date) >= cutoff);
-    }
-    if (dateRange === "custom" && customStart && customEnd) {
-      const start = new Date(customStart);
-      const end   = new Date(customEnd + "T23:59:59");
-      return state.events.filter((e) => {
-        const d = new Date(e.date);
-        return d >= start && d <= end;
-      });
-    }
-    return state.events;
-  }, [state.events, dateRange, customStart, customEnd]);
+  // ── Player attendance ──────────────────────────────────────────────────────
+  const att = useMemo(
+    () => playerAttendance(scoped, roster, guestPlayers),
+    [scoped, roster, guestPlayers]
+  );
 
-  // ── Derived stats ──────────────────────────────────────────────────────────
-  const totals = calculateTotals(filteredEvents, state.roster);
-  const totalPracticePossible = filteredEvents
-    .filter((e) => e.type === EVENT_TYPES.PRACTICE)
-    .reduce((sum, e) => sum + e.duration, 0);
-  const totalTrainingPossible = filteredEvents
-    .filter((e) => e.type === EVENT_TYPES.OPTIONAL_TRAINING)
-    .reduce((sum, e) => sum + e.duration, 0);
+  const teamAvg = att.length
+    ? att.reduce((s, p) => s + p.rate, 0) / att.length
+    : 0;
 
-  const attendanceTrend = computeAttendanceTrend(filteredEvents, state.roster.length);
-  const hoursTrend      = computeHoursTrend(filteredEvents);
+  const guestCount = useMemo(
+    () =>
+      scoped.flatMap((e) => e.players).filter((p) => guestPlayers.includes(p))
+        .length,
+    [scoped, guestPlayers]
+  );
 
-  const practiceEvents = filteredEvents.filter((e) => e.type === EVENT_TYPES.PRACTICE);
-  const avgAttendanceRate =
-    practiceEvents.length > 0 && state.roster.length > 0
-      ? Math.round(
-          (practiceEvents.reduce((sum, e) => sum + e.players.length, 0) /
-            (practiceEvents.length * state.roster.length)) *
-            100
-        )
-      : 0;
+  const insights = useMemo(() => insightsFromAttendance(att), [att]);
 
-  // ── Last attended map ──────────────────────────────────────────────────────
-  const lastAttended = useMemo(() => {
-    const map: Record<string, string> = {};
-    filteredEvents.forEach((event) => {
-      event.players.forEach((player) => {
-        if (!map[player] || event.date > map[player]) map[player] = event.date;
-      });
+  // ── Charts data ────────────────────────────────────────────────────────────
+  const trend = useMemo(
+    () => monthlyTrend(scoped, roster, guestPlayers),
+    [scoped, roster, guestPlayers]
+  );
+
+  const dowData = useMemo(
+    () => dayOfWeekBreakdown(scoped, roster, guestPlayers),
+    [scoped, roster, guestPlayers]
+  );
+
+  // DoW insight callout
+  const dowInsightDay = useMemo(() => {
+    if (!dowData.length) return null;
+    const teamAvgPct = Math.round(teamAvg * 100);
+    return (
+      dowData.find((d) => d.attendance <= teamAvgPct - 10) ?? null
+    );
+  }, [dowData, teamAvg]);
+
+  // ── Sorted player table ────────────────────────────────────────────────────
+  const sortedAtt = useMemo(() => {
+    const arr = [...att];
+    arr.sort((a, b) => {
+      const av = a[sortKey as keyof PlayerAttendanceRecord] ?? 0;
+      const bv = b[sortKey as keyof PlayerAttendanceRecord] ?? 0;
+      if (typeof av === "string")
+        return sortDir === "asc"
+          ? (av as string).localeCompare(bv as string)
+          : (bv as string).localeCompare(av as string);
+      return sortDir === "asc"
+        ? (av as number) - (bv as number)
+        : (bv as number) - (av as number);
     });
-    return map;
-  }, [filteredEvents]);
+    return arr;
+  }, [att, sortKey, sortDir]);
 
-  // ── Sort ───────────────────────────────────────────────────────────────────
-  const players = Object.keys(totals);
+  const sortedPractices = useMemo(
+    () => [...practices].sort((a, b) => a.date.localeCompare(b.date)),
+    [practices]
+  );
 
-  const sortedPlayers = useMemo(() => {
-    return [...players].sort((a, b) => {
-      const pt_a = totals[a] ?? { practice: 0, training: 0 };
-      const pt_b = totals[b] ?? { practice: 0, training: 0 };
-      let diff = 0;
-      switch (sortCol) {
-        case "player":
-          diff = a.localeCompare(b);
-          break;
-        case "practice":
-          diff = pt_a.practice - pt_b.practice;
-          break;
-        case "practicePercent":
-          diff =
-            (totalPracticePossible > 0 ? pt_a.practice / totalPracticePossible : 0) -
-            (totalPracticePossible > 0 ? pt_b.practice / totalPracticePossible : 0);
-          break;
-        case "optional":
-          diff = pt_a.training - pt_b.training;
-          break;
-        case "optPercent":
-          diff =
-            (totalTrainingPossible > 0 ? pt_a.training / totalTrainingPossible : 0) -
-            (totalTrainingPossible > 0 ? pt_b.training / totalTrainingPossible : 0);
-          break;
-        case "lastAttended": {
-          const aDate = lastAttended[a] ?? "";
-          const bDate = lastAttended[b] ?? "";
-          diff = aDate.localeCompare(bDate);
-          break;
-        }
-      }
-      return sortDir === "asc" ? diff : -diff;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [players.join(","), sortCol, sortDir, totalPracticePossible, totalTrainingPossible, lastAttended]);
-
-  // ── Player filter (search + chips) ────────────────────────────────────────
-  const filteredPlayers = useMemo(() => {
-    const today = new Date();
-    const cutoffStr = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0];
-    return sortedPlayers.filter((player) => {
-      if (playerSearch && !player.toLowerCase().includes(playerSearch.toLowerCase()))
-        return false;
-      if (playerFilter === "active") {
-        const last = lastAttended[player];
-        return !!last && last >= cutoffStr;
-      }
-      if (playerFilter === "attention") {
-        const pt = totals[player] ?? { practice: 0 };
-        const pct =
-          totalPracticePossible > 0
-            ? Math.round((pt.practice / totalPracticePossible) * 100)
-            : 0;
-        return pct < 80;
-      }
-      return true;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sortedPlayers, playerSearch, playerFilter, lastAttended, totalPracticePossible]);
-
-  // ── Chart data ─────────────────────────────────────────────────────────────
-  const barChartData = useMemo(() => {
-    return players
-      .map((player) => {
-        const pt  = totals[player] ?? { practice: 0 };
-        const pct = totalPracticePossible > 0
-          ? Math.round((pt.practice / totalPracticePossible) * 100)
-          : 0;
-        return { player, pct };
-      })
-      .sort((a, b) => b.pct - a.pct);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [players.join(","), totalPracticePossible]);
-
-  const donutData = useMemo(() => {
-    const buckets = { full: 0, mid: 0, low: 0 };
-    players.forEach((player) => {
-      const pt  = totals[player] ?? { practice: 0 };
-      const pct = totalPracticePossible > 0
-        ? Math.round((pt.practice / totalPracticePossible) * 100)
-        : 0;
-      if (pct >= 100) buckets.full++;
-      else if (pct >= 50) buckets.mid++;
-      else buckets.low++;
-    });
-    return [
-      { name: "100% attendance",  value: buckets.full, color: TIER_COLORS.full, tier: "full" },
-      { name: "50–99% attendance", value: buckets.mid,  color: TIER_COLORS.mid,  tier: "mid" },
-      { name: "<50% attendance",  value: buckets.low,  color: TIER_COLORS.low,  tier: "low" },
-    ].filter((d) => d.value > 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [players.join(","), totalPracticePossible]);
-
-  const barYAxisWidth = useMemo(() => {
-    if (barChartData.length === 0) return 60;
-    const maxLen = Math.max(...barChartData.map((d) => d.player.length));
-    return Math.min(Math.max(maxLen * 7, 60), 140);
-  }, [barChartData]);
-
-  const barChartHeight = Math.max(200, barChartData.length * 32 + 40);
-
-  // ── Averages row ───────────────────────────────────────────────────────────
-  const playerCount   = sortedPlayers.length;
-  const avgPracticeHours =
-    playerCount > 0
-      ? sortedPlayers.reduce((s, p) => s + (totals[p]?.practice ?? 0), 0) / playerCount
-      : 0;
-  const avgOptHours =
-    playerCount > 0
-      ? sortedPlayers.reduce((s, p) => s + (totals[p]?.training ?? 0), 0) / playerCount
-      : 0;
-  const _sortedDates      = Object.values(lastAttended).sort();
-  const latestAttendanceDate =
-    _sortedDates.length > 0 ? _sortedDates[_sortedDates.length - 1] : null;
-
-  // ── Handlers ───────────────────────────────────────────────────────────────
-  function handleSort(col: SortColumn) {
-    if (sortCol === col) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortCol(col);
-      setSortDir("asc");
+  function handleSortBy(key: SortKey) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDir("desc");
     }
   }
 
-  function handleExport() {
-    const header = [
-      "Player",
-      "Practice Hours",
-      "Practice %",
-      "Optional Hours",
-      "Optional %",
-      "Last Attended",
-    ];
-    const rows = sortedPlayers.map((player) => {
-      const pt = totals[player] ?? { practice: 0, training: 0 };
-      const practPct =
-        totalPracticePossible > 0
-          ? Math.round((pt.practice / totalPracticePossible) * 100)
-          : 0;
-      const optPct =
-        totalTrainingPossible > 0
-          ? Math.round((pt.training / totalTrainingPossible) * 100)
-          : 0;
-      return [
-        player,
-        pt.practice,
-        `${practPct}%`,
-        pt.training,
-        `${optPct}%`,
-        lastAttended[player] ? formatDate(lastAttended[player]) : "—",
-      ];
-    });
-    const csv = [header, ...rows]
-      .map((r) => r.map((v) => `"${v}"`).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href     = url;
-    a.download = "participation-summary.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+  function sortIcon(key: SortKey) {
+    if (sortKey !== key) return " ↕";
+    return sortDir === "asc" ? " ↑" : " ↓";
   }
 
-  const handleArchiveEvents = () => {
-    if (state.events.length === 0) return;
-    setShowArchiveConfirm(true);
-  };
+  // ── Att % cell colour ──────────────────────────────────────────────────────
+  function attColor(rate: number) {
+    if (rate >= 0.8) return "bg-emerald-50 text-emerald-700";
+    if (rate >= 0.5) return "bg-amber-50 text-amber-700";
+    return "bg-rose-50 text-rose-700";
+  }
 
-  // ── Column config ──────────────────────────────────────────────────────────
-  const columns: { label: string; col: SortColumn; tooltip: string }[] = [
-    { label: "Player", col: "player", tooltip: "Athlete name" },
-    {
-      label: "Practice Hrs",
-      col: "practice",
-      tooltip: "Total practice hours attended within the selected date range",
-    },
-    {
-      label: "Practice %",
-      col: "practicePercent",
-      tooltip: "Percentage of total scheduled practice hours the athlete attended",
-    },
-    {
-      label: "Optional",
-      col: "optional",
-      tooltip: "Hours attended in optional training sessions",
-    },
-    {
-      label: "Opt %",
-      col: "optPercent",
-      tooltip: "Percentage of total optional training hours the athlete attended",
-    },
-    {
-      label: "Last Attended",
-      col: "lastAttended",
-      tooltip: "Date of the athlete's most recent session attendance",
-    },
-  ];
-
-  const DATE_RANGE_LABELS: Record<DateRange, string> = {
-    "7d":    "Last 7 days",
-    "30d":   "Last 30 days",
-    season:  "This season",
-    custom:  "Custom",
-  };
-
-  const showCharts = players.length > 0 && totalPracticePossible > 0;
-
-  if (isLoading) return <SummaryPageSkeleton />;
-
-  // ── Render ─────────────────────────────────────────────────────────────────
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-        <div>
-          <h2 className="text-2xl md:text-3xl font-bold text-white">
-            Team participation summary
-          </h2>
-          <p className="mt-1 text-white/40 text-sm">
-            Review practice hours, optional training, and participation percentages.
+  // ─── Empty state ───────────────────────────────────────────────────────────
+  if (!events.length) {
+    return (
+      <div className="space-y-6">
+        <div className="rounded-3xl border border-gray-200 bg-white p-8 text-center shadow-xl">
+          <BarChart3 className="mx-auto mb-4 size-12 text-gray-300" />
+          <p className="text-lg font-semibold text-gray-600">
+            No events logged yet.
+          </p>
+          <p className="mt-1 text-sm text-gray-400">
+            Log practice and training sessions to see reports here.
           </p>
         </div>
+      </div>
+    );
+  }
 
-        {/* Date range selector */}
-        <div className="flex flex-col gap-2 sm:items-end flex-shrink-0">
-          <div
-            className="flex rounded-xl border border-white/[0.08] overflow-hidden"
-            style={{ backgroundColor: "var(--mc-surface)" }}
-          >
-            {(["7d", "30d", "season", "custom"] as DateRange[]).map((r) => (
-              <button
-                key={r}
-                onClick={() => setDateRange(r)}
-                className={`px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap ${
-                  dateRange === r
-                    ? "bg-purple-600/30 text-purple-300 border-x border-purple-500/30"
-                    : "text-white/40 hover:text-white/70 hover:bg-white/[0.04]"
-                }`}
-              >
-                {DATE_RANGE_LABELS[r]}
-              </button>
+  // ─── Render ───────────────────────────────────────────────────────────────
+  return (
+    <div className="mx-auto max-w-7xl space-y-6">
+      {/* ── 1. Header bar ──────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-indigo-600">
+            Reports
+          </div>
+          <h1 className="mt-1 text-2xl font-bold text-gray-900">
+            Team performance
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            {scoped.length} events · {roster.length} players ·{" "}
+            {range === "all" ? "all time" : `last ${range} days`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
+            {(
+              [
+                ["30", "30d"],
+                ["90", "90d"],
+                ["180", "6m"],
+                ["all", "All"],
+              ] as [Range, string][]
+            ).map(([v, l]) => (
+              <Pill key={v} active={range === v} onClick={() => setRange(v)}>
+                {l}
+              </Pill>
             ))}
           </div>
+          <button className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+            <Download className="size-3.5" />
+            Export
+          </button>
+        </div>
+      </div>
 
-          {dateRange === "custom" && (
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={customStart}
-                onChange={(e) => setCustomStart(e.target.value)}
-                className="px-2.5 py-1.5 rounded-lg text-xs text-white/70 border border-white/[0.08] bg-white/[0.04] focus:outline-none focus:border-purple-500/50"
-              />
-              <span className="text-white/25 text-xs">to</span>
-              <input
-                type="date"
-                value={customEnd}
-                onChange={(e) => setCustomEnd(e.target.value)}
-                className="px-2.5 py-1.5 rounded-lg text-xs text-white/70 border border-white/[0.08] bg-white/[0.04] focus:outline-none focus:border-purple-500/50"
-              />
+      {/* ── 2. KPI strip ───────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <Kpi
+          label="Events"
+          value={scoped.length}
+          sub={`${practices.length} practice`}
+          accent="bg-indigo-500"
+        />
+        <Kpi
+          label="Practice hrs"
+          value={practiceHrs.toFixed(1)}
+          sub="logged"
+          accent="bg-blue-500"
+        />
+        <Kpi
+          label="Optional hrs"
+          value={optionalHrs.toFixed(1)}
+          sub="logged"
+          accent="bg-purple-500"
+        />
+        <Kpi
+          label="Avg attendance"
+          value={`${Math.round(teamAvg * 100)}%`}
+          sub="across roster"
+          accent="bg-emerald-500"
+        />
+        <Kpi
+          label="Guest appearances"
+          value={guestCount}
+          sub={`${guestPlayers.length} on roster`}
+          accent="bg-amber-500"
+        />
+      </div>
+
+      {/* ── 3. Insights row ────────────────────────────────────────────────── */}
+      {att.length > 0 && insights.topAttendee && (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <InsightCard
+            tone="good"
+            icon={<Award className="size-4" />}
+            label="Top attendee"
+            name={insights.topAttendee.name}
+            detail={`${Math.round(insights.topAttendee.rate * 100)}% practice attendance · ${insights.topAttendee.attended} of ${practices.length}`}
+          />
+          <InsightCard
+            tone="info"
+            icon={<Flame className="size-4" />}
+            label="Longest streak"
+            name={insights.longestStreak!.name}
+            detail={`${insights.longestStreak!.bestStreak} practices in a row${insights.longestStreak!.streak >= 3 ? " · still going" : ""}`}
+          />
+          <InsightCard
+            tone="warn"
+            icon={<AlertTriangle className="size-4" />}
+            label="Needs follow-up"
+            name={insights.needsLove!.name}
+            detail={`${Math.round(insights.needsLove!.rate * 100)}% attendance · missed ${insights.needsLove!.missed} of ${practices.length}`}
+          />
+        </div>
+      )}
+
+      {/* ── 4. Trends + Day-of-week ────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Trends over time */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <TrendingUp className="size-4 text-gray-400" />
+            <h3 className="text-base font-bold text-gray-900">
+              Trends over time
+            </h3>
+          </div>
+          {trend.length < 2 ? (
+            <div className="flex h-56 items-center justify-center text-sm italic text-gray-400">
+              Log events across at least two months to see trends.
             </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <AreaChart
+                data={trend}
+                margin={{ left: 0, right: 16, top: 4, bottom: 4 }}
+              >
+                <defs>
+                  <linearGradient id="gHrs" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.25} />
+                    <stop
+                      offset="100%"
+                      stopColor="#3b82f6"
+                      stopOpacity={0}
+                    />
+                  </linearGradient>
+                  <linearGradient id="gAtt" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.22} />
+                    <stop
+                      offset="100%"
+                      stopColor="#10b981"
+                      stopOpacity={0}
+                    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis
+                  yAxisId="L"
+                  tickFormatter={(v) => `${v}h`}
+                  tick={{ fontSize: 11 }}
+                />
+                <YAxis
+                  yAxisId="R"
+                  orientation="right"
+                  tickFormatter={(v) => `${v}%`}
+                  domain={[0, 100]}
+                  tick={{ fontSize: 11 }}
+                />
+                <Tooltip
+                  contentStyle={TOOLTIP_STYLE}
+                  formatter={(v, name) =>
+                    name === "Attendance %" ? [`${v}%`, name] : [`${v}h`, name]
+                  }
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Area
+                  yAxisId="L"
+                  type="monotone"
+                  dataKey="hours"
+                  name="Hours"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  fill="url(#gHrs)"
+                />
+                <Area
+                  yAxisId="R"
+                  type="monotone"
+                  dataKey="attendance"
+                  name="Attendance %"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  fill="url(#gAtt)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Day-of-week breakdown */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <Calendar className="size-4 text-gray-400" />
+            <h3 className="text-base font-bold text-gray-900">
+              Practice by day of week
+            </h3>
+          </div>
+          {!dowData.length ? (
+            <div className="flex h-56 items-center justify-center text-sm italic text-gray-400">
+              No practice sessions logged yet.
+            </div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart
+                  data={dowData}
+                  margin={{ left: 0, right: 16, top: 4, bottom: 4 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="#f1f5f9"
+                    vertical={false}
+                  />
+                  <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                  <YAxis
+                    yAxisId="L"
+                    tick={{ fontSize: 11 }}
+                    allowDecimals={false}
+                  />
+                  <YAxis
+                    yAxisId="R"
+                    orientation="right"
+                    tickFormatter={(v) => `${v}%`}
+                    domain={[0, 100]}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
+                  <Bar
+                    yAxisId="L"
+                    dataKey="sessions"
+                    name="Sessions"
+                    fill="#c7d2fe"
+                    radius={[6, 6, 0, 0]}
+                  />
+                  <Bar
+                    yAxisId="R"
+                    dataKey="attendance"
+                    name="Attendance %"
+                    fill="#6366f1"
+                    radius={[6, 6, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+              {dowInsightDay && (
+                <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <strong>Insight:</strong> {dowInsightDay.day} sessions average{" "}
+                  {dowInsightDay.attendance}% attendance vs.{" "}
+                  {Math.round(teamAvg * 100)}% team average — worth a look.
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* Stats Grid — 3 cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div
-          className="rounded-2xl p-5 border border-white/[0.08]"
-          style={{ backgroundColor: "var(--mc-surface)" }}
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <Calendar className="size-4 text-purple-400" />
-            <span className="text-xs font-semibold text-white/50 uppercase tracking-wider">
-              Total Events
+      {/* ── 5. Players ─────────────────────────────────────────────────────── */}
+      <div className="rounded-2xl border border-gray-200 bg-white">
+        {/* card header */}
+        <div className="flex items-center justify-between border-b border-gray-100 p-5">
+          <div className="flex items-center gap-2">
+            <Users className="size-4 text-gray-400" />
+            <h3 className="text-base font-bold text-gray-900">Players</h3>
+            <span className="ml-1 rounded-md bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-500">
+              {att.length}
             </span>
           </div>
-          <div className="flex items-end justify-between gap-2">
-            <strong className="text-3xl font-bold text-white">
-              {filteredEvents.length}
-            </strong>
-            <TrendBadge trend={attendanceTrend} />
-          </div>
+          <div className="text-xs text-gray-500">Click a row to drill in</div>
         </div>
 
-        <div
-          className="rounded-2xl p-5 border border-white/[0.08]"
-          style={{ backgroundColor: "var(--mc-surface)" }}
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <Clock className="size-4 text-purple-400" />
-            <span className="text-xs font-semibold text-white/50 uppercase tracking-wider">
-              Practice Hours
-            </span>
-          </div>
-          <div className="flex items-end justify-between gap-2">
-            <strong className="text-3xl font-bold text-white">
-              {totalPracticePossible.toLocaleString(undefined, {
-                maximumFractionDigits: 1,
-              })}
-            </strong>
-            <TrendBadge trend={hoursTrend} />
-          </div>
-        </div>
-
-        <div
-          className="rounded-2xl p-5 border border-white/[0.08]"
-          style={{ backgroundColor: "var(--mc-surface)" }}
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <Users className="size-4 text-purple-400" />
-            <span className="text-xs font-semibold text-white/50 uppercase tracking-wider">
-              Avg Attendance
-            </span>
-          </div>
-          <div className="flex items-end justify-between gap-2">
-            <strong className="text-3xl font-bold text-white">
-              {avgAttendanceRate}%
-            </strong>
-            <TrendBadge trend={attendanceTrend} />
-          </div>
-        </div>
-      </div>
-
-      {/* ── Attendance Overview Charts ──────────────────────────────────────── */}
-      {showCharts && (
-        <div
-          className="rounded-2xl border border-white/[0.08] overflow-hidden"
-          style={{ backgroundColor: "var(--mc-surface)" }}
-        >
-          <div className="px-5 py-4 border-b border-white/[0.08]">
-            <h3 className="text-xs font-bold text-white/60 uppercase tracking-widest">
-              Attendance Overview
-            </h3>
-          </div>
-
-          <div className="p-5 flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
-            {/* Left — donut chart + legend */}
-            <div className="flex flex-col items-center gap-5 lg:w-52 flex-shrink-0 w-full">
-              <div className="relative w-44 h-44">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={donutData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={48}
-                      outerRadius={72}
-                      dataKey="value"
-                      paddingAngle={donutData.length > 1 ? 3 : 0}
-                      startAngle={90}
-                      endAngle={-270}
-                      stroke="none"
-                    >
-                      {donutData.map((entry, i) => (
-                        <Cell key={i} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <ChartTooltip
-                      contentStyle={DARK_TOOLTIP}
-                      formatter={(value: number, name: string) => [
-                        `${value} player${value !== 1 ? "s" : ""}`,
-                        name,
-                      ]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                {/* Center label */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-2xl font-bold text-white leading-none">
-                    {avgAttendanceRate}%
-                  </span>
-                  <span className="text-[10px] text-white/35 uppercase tracking-wider mt-0.5">
-                    avg
-                  </span>
-                </div>
-              </div>
-
-              {/* Legend */}
-              <div className="flex flex-col gap-2 w-full">
-                {donutData.map((d) => {
-                  const Icon = d.tier === "full" ? CheckCircle2 : d.tier === "mid" ? CircleDot : AlertCircle;
-                  const iconColor = d.tier === "full" ? "text-emerald-400" : d.tier === "mid" ? "text-amber-400" : "text-red-400";
-                  return (
-                    <div key={d.name} className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className="size-2.5 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: d.color }}
-                        />
-                        <Icon className={`size-3.5 flex-shrink-0 ${iconColor}`} />
-                        <span className="text-xs text-white/50 truncate">{d.name}</span>
-                      </div>
-                      <span className="text-xs font-semibold text-white/70 tabular-nums flex-shrink-0">
-                        {d.value}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr]">
+          {/* Left: bar chart */}
+          <div className="border-b border-gray-100 p-5 lg:border-b-0 lg:border-r">
+            <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-500">
+              <span className="size-2 rounded-sm bg-indigo-500" /> Attendance %
             </div>
-
-            {/* Divider */}
-            <div className="hidden lg:block w-px self-stretch bg-white/[0.06]" />
-            <div className="lg:hidden w-full h-px bg-white/[0.06]" />
-
-            {/* Right — horizontal bar chart */}
-            <div className="flex-1 min-w-0 w-full">
-              <p className="text-[11px] font-semibold text-white/30 uppercase tracking-widest mb-3">
-                Practice % by player
-              </p>
-              <ResponsiveContainer width="100%" height={barChartHeight}>
+            {att.length === 0 ? (
+              <div className="flex h-40 items-center justify-center text-sm italic text-gray-400">
+                No player data yet.
+              </div>
+            ) : (
+              <ResponsiveContainer
+                width="100%"
+                height={Math.max(220, sortedAtt.length * 28)}
+              >
                 <BarChart
-                  data={barChartData}
+                  data={sortedAtt.map((p) => ({
+                    player: p.name,
+                    "Attendance %": Math.round(p.rate * 100),
+                  }))}
                   layout="vertical"
-                  margin={{ top: 0, right: 48, bottom: 0, left: 0 }}
-                  barCategoryGap="25%"
+                  margin={{ left: 8, right: 16, top: 4, bottom: 4 }}
                 >
-                  <XAxis
-                    type="number"
-                    domain={[0, 100]}
-                    tickFormatter={(v) => `${v}%`}
-                    tick={{ fill: "rgba(255,255,255,0.25)", fontSize: 11 }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickCount={6}
+                  <CartesianGrid
+                    horizontal={false}
+                    strokeDasharray="3 3"
+                    stroke="#f1f5f9"
                   />
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
                   <YAxis
                     type="category"
                     dataKey="player"
-                    width={barYAxisWidth}
-                    tick={{ fill: "rgba(255,255,255,0.55)", fontSize: 12 }}
-                    axisLine={false}
-                    tickLine={false}
+                    width={80}
+                    tick={{ fontSize: 11 }}
                   />
-                  <ChartTooltip
-                    contentStyle={DARK_TOOLTIP}
-                    cursor={{ fill: "rgba(255,255,255,0.03)" }}
-                    formatter={(value: number) => [`${value}%`, "Practice attendance"]}
-                  />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
                   <Bar
-                    dataKey="pct"
+                    dataKey="Attendance %"
+                    fill="#6366f1"
                     radius={[0, 4, 4, 0]}
-                    background={{ fill: "rgba(255,255,255,0.03)", radius: 4 }}
-                    label={{
-                      position: "right",
-                      fill: "rgba(255,255,255,0.35)",
-                      fontSize: 11,
-                      formatter: (v: number) => `${v}%`,
-                    }}
-                  >
-                    {barChartData.map((entry, i) => (
-                      <Cell key={i} fill={tierColor(entry.pct)} />
-                    ))}
-                  </Bar>
+                  />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
-          </div>
-          
-          <table className="sr-only">
-            <caption>Attendance breakdown by player</caption>
-            <thead>
-              <tr>
-                <th scope="col">Player</th>
-                <th scope="col">Practice Attendance %</th>
-                <th scope="col">Optional Training Attendance %</th>
-              </tr>
-            </thead>
-            <tbody>
-              {players.map((player) => {
-                const pt = totals[player] ?? { practice: 0, training: 0 };
-                const practPct = totalPracticePossible > 0 ? Math.round((pt.practice / totalPracticePossible) * 100) : 0;
-                const optPct = totalTrainingPossible > 0 ? Math.round((pt.training / totalTrainingPossible) * 100) : 0;
-                return (
-                  <tr key={player}>
-                    <td>{player}</td>
-                    <td>{practPct}%</td>
-                    <td>{optPct}%</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Player Totals Table */}
-      <div
-        className="rounded-2xl border border-white/[0.08] overflow-hidden"
-        style={{ backgroundColor: "var(--mc-surface)" }}
-      >
-        <div className="px-5 py-4 border-b border-white/[0.08] space-y-3">
-          {/* Row 1: title + action buttons */}
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-xs font-bold text-white/60 uppercase tracking-widest">
-              Player Totals
-            </h3>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleExport}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/35 hover:text-white/65 hover:bg-white/[0.06] border border-white/[0.08] transition-all"
-              >
-                <Download className="size-3.5" />
-                Export CSV
-              </button>
-              <button
-                onClick={() => setShowExportDrawer(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/35 hover:text-white/65 hover:bg-white/[0.06] border border-white/[0.08] transition-all"
-              >
-                <FileText className="size-3.5" />
-                Export PDF
-              </button>
-              <button
-                onClick={handleArchiveEvents}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/35 hover:text-white/65 hover:bg-white/[0.06] border border-white/[0.08] transition-all"
-              >
-                <Archive className="size-3.5" />
-                Archive Events
-              </button>
-            </div>
-          </div>
-
-          {/* Row 2: search + filter chips + count */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Search */}
-            <div className="relative">
-              <label htmlFor="player-search" className="sr-only">Search players</label>
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-white/25 pointer-events-none" />
-              <input
-                id="player-search"
-                type="text"
-                placeholder="Search players…"
-                aria-label="Search players"
-                value={playerSearch}
-                onChange={(e) => setPlayerSearch(e.target.value)}
-                className="pl-8 pr-3 py-1.5 rounded-lg text-xs text-white/70 placeholder-white/25 border border-white/[0.08] bg-white/[0.04] focus:outline-none focus:border-purple-500/50 w-36 sm:w-44"
-              />
-            </div>
-
-            {/* Filter chips */}
-            {(
-              [
-                { value: "all"       as PlayerFilter, label: "All"             },
-                { value: "active"    as PlayerFilter, label: "Active"          },
-                { value: "attention" as PlayerFilter, label: "Needs attention" },
-              ] as const
-            ).map(({ value, label }) => (
-              <button
-                key={value}
-                onClick={() => setPlayerFilter(value)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                  playerFilter === value
-                    ? "bg-purple-600/30 text-purple-300 border-purple-500/30"
-                    : "text-white/40 hover:text-white/60 border-white/[0.08] hover:bg-white/[0.04]"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-
-            {/* Count */}
-            <span className="ml-auto text-[11px] text-white/25 tabular-nums">
-              {filteredPlayers.length === sortedPlayers.length
-                ? `${sortedPlayers.length} player${sortedPlayers.length !== 1 ? "s" : ""}`
-                : `Showing ${filteredPlayers.length} of ${sortedPlayers.length} players`}
-            </span>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px]">
-            <thead>
-              <tr className="border-b border-white/[0.06]">
-                {columns.map(({ label, col, tooltip }) => (
-                  <th
-                    key={col}
-                    scope="col"
-                    aria-sort={sortCol === col
-                      ? (sortDir === "asc" ? "ascending" : "descending")
-                      : "none"}
-                    className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-purple-400/80 select-none whitespace-nowrap"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleSort(col)}
-                      className="flex items-center gap-0.5 hover:text-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/40 rounded-md px-1 py-0.5 -mx-1 -my-0.5 cursor-pointer"
-                    >
-                      {label}
-                      <SortIcon active={sortCol === col} dir={sortDir} />
-                      <ColTooltip text={tooltip} />
-                    </button>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody key={`${sortCol}:${sortDir}:${playerSearch}:${playerFilter}`} className="animate-fade-in">
-              {sortedPlayers.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-14 text-center">
-                    <div className="flex flex-col items-center gap-2.5">
-                      <Users className="size-8 text-white/10" />
-                      <p className="text-white/50 text-sm font-medium">
-                        {state.roster.length === 0 ? "No players added yet" : "No sessions logged yet"}
-                      </p>
-                      <p className="text-white/30 text-xs max-w-xs leading-relaxed">
-                        {state.roster.length === 0
-                          ? "Add players in Settings, then log a session to see participation data."
-                          : "Start a session in Session Setup to begin tracking attendance."}
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : filteredPlayers.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-14 text-center">
-                    <div className="flex flex-col items-center gap-2.5">
-                      <Search className="size-8 text-white/10" />
-                      <p className="text-white/50 text-sm font-medium">No players match your filters</p>
-                      <p className="text-white/30 text-xs">
-                        Try adjusting your search or filter selection.
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                filteredPlayers.map((player, idx) => {
-                  const playerTotals = totals[player] ?? { practice: 0, training: 0 };
-                  return (
-                    <tr
-                      key={player}
-                      onClick={() => setSelectedPlayer(player)}
-                      className={`border-b border-white/[0.04] transition-colors cursor-pointer group ${
-                        idx % 2 !== 0 ? "bg-white/[0.015]" : ""
-                      } hover:bg-purple-500/[0.06]`}
-                    >
-                      <td className="px-5 py-3.5 font-semibold text-white/85 text-sm group-hover:text-white transition-colors">
-                        {player}
-                      </td>
-                      <td className="px-5 py-3.5 text-white/55 text-sm tabular-nums">
-                        {playerTotals.practice.toLocaleString(undefined, {
-                          maximumFractionDigits: 1,
-                        })}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <PracticeBar
-                          value={playerTotals.practice}
-                          total={totalPracticePossible}
-                        />
-                      </td>
-                      <td className="px-5 py-3.5 text-white/55 text-sm tabular-nums">
-                        {playerTotals.training.toLocaleString(undefined, {
-                          maximumFractionDigits: 1,
-                        })}
-                      </td>
-                      <td className="px-5 py-3.5 text-white/55 text-sm tabular-nums">
-                        {percent(playerTotals.training, totalTrainingPossible)}
-                      </td>
-                      <td className="px-5 py-3.5 text-white/40 text-sm">
-                        {lastAttended[player] ? formatDate(lastAttended[player]) : "—"}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-
-            {/* Averages footer row */}
-            {sortedPlayers.length > 0 && (
-              <tfoot>
-                <tr className="border-t-2 border-white/[0.08] bg-white/[0.03]">
-                  <td className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-white/45">
-                    Team Avg
-                  </td>
-                  <td className="px-5 py-3 text-white/40 text-sm tabular-nums">
-                    {avgPracticeHours.toLocaleString(undefined, {
-                      maximumFractionDigits: 1,
-                    })}
-                  </td>
-                  <td className="px-5 py-3">
-                    <PracticeBar value={avgPracticeHours} total={totalPracticePossible} />
-                  </td>
-                  <td className="px-5 py-3 text-white/40 text-sm tabular-nums">
-                    {avgOptHours.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                  </td>
-                  <td className="px-5 py-3 text-white/40 text-sm tabular-nums">
-                    {percent(avgOptHours, totalTrainingPossible)}
-                  </td>
-                  <td className="px-5 py-3 text-white/30 text-sm">
-                    {latestAttendanceDate ? formatDate(latestAttendanceDate) : "—"}
-                  </td>
-                </tr>
-              </tfoot>
             )}
-          </table>
+          </div>
+
+          {/* Right: sortable table */}
+          <div className="overflow-x-auto p-5">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                  {(
+                    [
+                      ["name", "Player"],
+                      ["rate", "Att %"],
+                      ["practice", "Prac h"],
+                      ["training", "Opt h"],
+                      ["streak", "Streak"],
+                    ] as [SortKey, string][]
+                  ).map(([k, l]) => (
+                    <th
+                      key={k}
+                      onClick={() => handleSortBy(k)}
+                      className="cursor-pointer px-2 py-2 hover:text-gray-900"
+                    >
+                      {l}
+                      {sortIcon(k)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedAtt.map((p) => {
+                  const active = selectedPlayer === p.name;
+                  return (
+                    <>
+                      <tr
+                        key={p.name}
+                        onClick={() =>
+                          setSelectedPlayer(active ? null : p.name)
+                        }
+                        className={`cursor-pointer border-b border-gray-100 last:border-b-0 ${
+                          active ? "bg-indigo-50" : "hover:bg-gray-50"
+                        }`}
+                      >
+                        <td className="px-2 py-2 font-medium text-gray-900">
+                          {p.name}
+                        </td>
+                        <td className="px-2 py-2 tabular-nums">
+                          <span
+                            className={`rounded-md px-1.5 py-0.5 text-xs font-semibold ${attColor(p.rate)}`}
+                          >
+                            {Math.round(p.rate * 100)}%
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 tabular-nums text-gray-700">
+                          {p.practice.toFixed(1)}
+                        </td>
+                        <td className="px-2 py-2 tabular-nums text-gray-700">
+                          {p.training.toFixed(1)}
+                        </td>
+                        <td className="px-2 py-2 tabular-nums text-gray-700">
+                          {p.streak > 0 ? (
+                            <span className="text-emerald-700">
+                              ↑ {p.streak}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                      </tr>
+                      {/* Expanded timeline strip */}
+                      {active && (
+                        <tr key={`${p.name}-expand`}>
+                          <td
+                            colSpan={5}
+                            className="border-b border-gray-100 bg-gray-50 px-4 py-3"
+                          >
+                            <div className="mb-1 text-[11px] font-semibold text-gray-500">
+                              {p.name} · session history
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {sortedPractices.map((ev) => {
+                                const present = ev.players.includes(p.name);
+                                return (
+                                  <div
+                                    key={ev.id}
+                                    title={`${ev.date} · ${present ? "present" : "absent"}`}
+                                    className={`size-4 rounded ${present ? "bg-indigo-500" : "bg-gray-200"}`}
+                                  />
+                                );
+                              })}
+                            </div>
+                            <div className="mt-1.5 text-[11px] text-gray-400">
+                              Each square = one practice, chronological. Indigo
+                              = attended.
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
-      {/* Logged Sessions */}
-      <div
-        className="rounded-2xl border border-white/[0.08] overflow-hidden"
-        style={{ backgroundColor: "var(--mc-surface)" }}
-      >
-        <div className="px-5 py-4 border-b border-white/[0.08] flex items-center justify-between">
-          <h3 className="text-xs font-bold text-white/60 uppercase tracking-widest">
-            Logged Sessions
-          </h3>
-          <span className="text-[11px] text-white/25 tabular-nums">
-            {filteredEvents.length} session{filteredEvents.length !== 1 ? "s" : ""}
-          </span>
-        </div>
-
-        {filteredEvents.length === 0 ? (
-          <div className="px-5 py-14 text-center">
-            <div className="flex flex-col items-center gap-2.5">
-              <Calendar className="size-8 text-white/10" />
-              <p className="text-white/50 text-sm font-medium">No sessions logged in this range</p>
-              <p className="text-white/30 text-xs">
-                Select a different date range or start a new session.
-              </p>
+      {/* ── 6. Session log ─────────────────────────────────────────────────── */}
+      <div className="rounded-2xl border border-gray-200 bg-white">
+        <details>
+          <summary className="flex cursor-pointer list-none items-center justify-between p-5 hover:bg-gray-50">
+            <div className="flex items-center gap-2">
+              <Clock className="size-4 text-gray-400" />
+              <h3 className="text-base font-bold text-gray-900">Session log</h3>
+              <span className="ml-1 rounded-md bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-500">
+                {scoped.length}
+              </span>
             </div>
-          </div>
-        ) : (
-          <div className="divide-y divide-white/[0.04]">
-            {filteredEvents.map((event) => {
-              const isExpanded = !!expandedSessions[event.id];
-              const isPractice = event.type === EVENT_TYPES.PRACTICE;
-              const typeColor = isPractice
-                ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
-                : "bg-purple-500/10 text-purple-400 border-purple-500/20";
-              const Icon = isPractice ? Flame : Award;
+            <span className="text-xs text-gray-500">Expand ↓</span>
+          </summary>
 
-              return (
-                <div
-                  key={event.id}
-                  className="hover:bg-white/[0.01] transition-all duration-200"
-                >
-                  {/* Session Header / Row */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4">
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div className={`size-9 rounded-xl flex items-center justify-center border shrink-0 ${typeColor}`}>
-                        <Icon className="size-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-white/85 text-sm">
-                            {formatDate(event.date)}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${typeColor}`}>
-                            {event.type}
-                          </span>
+          <div className="border-t border-gray-100 p-5">
+            <div className="space-y-2">
+              {scoped
+                .slice()
+                .sort((a, b) => b.date.localeCompare(a.date))
+                .slice(0, 20)
+                .map((ev) => (
+                  <div
+                    key={ev.id}
+                    className="rounded-xl border border-gray-100 bg-white px-4 py-3 hover:bg-gray-50"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {ev.type} ·{" "}
+                          {new Date(
+                            ev.date.includes("T")
+                              ? ev.date
+                              : `${ev.date}T12:00:00`
+                          ).toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
                         </div>
-                        <div className="text-xs text-white/40 mt-1 flex items-center gap-1.5 flex-wrap">
-                          <span className="tabular-nums font-medium text-white/50">
-                            {event.duration} {event.duration === 1 ? "hour" : "hours"}
-                          </span>
-                          <span className="text-white/15">•</span>
-                          <button
-                            onClick={() => toggleSessionExpand(event.id)}
-                            className="text-purple-400/80 hover:text-purple-300 font-semibold flex items-center gap-1 cursor-pointer transition-colors text-[11px]"
-                          >
-                            <span>{event.players.length} present</span>
-                            {isExpanded ? (
-                              <ChevronUp className="size-3" />
-                            ) : (
-                              <ChevronDown className="size-3" />
-                            )}
-                          </button>
+                        <div className="text-xs text-gray-500">
+                          {ev.duration}h · {ev.players.length} present
                         </div>
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 sm:self-center">
                       <button
-                        onClick={() => toggleSessionExpand(event.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/45 hover:text-white/75 hover:bg-white/[0.05] border border-white/[0.08] transition-all cursor-pointer"
+                        onClick={() => {
+                          const text = ev.players.join(", ");
+                          navigator.clipboard.writeText(text).catch(() => {});
+                        }}
+                        className="shrink-0 text-[11px] font-semibold text-gray-500 hover:text-indigo-600"
                       >
-                        {isExpanded ? "Hide Attendees" : "Show Attendees"}
-                        {isExpanded ? (
-                          <ChevronUp className="size-3.5" />
-                        ) : (
-                          <ChevronDown className="size-3.5" />
-                        )}
+                        Copy roster
                       </button>
                     </div>
-                  </div>
-
-                  {/* Expanded Attendees Accordion */}
-                  {isExpanded && (
-                    <div className="px-5 pb-5 pt-1 border-t border-white/[0.02] bg-white/[0.005] animate-fade-in">
-                      <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2.5">
-                        Attended Players ({event.players.length})
-                      </p>
-                      {event.players.length === 0 ? (
-                        <p className="text-xs text-white/30 italic">No players recorded for this session.</p>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {event.players.map((player) => (
-                            <button
-                              key={player}
-                              onClick={() => setSelectedPlayer(player)}
-                              className="group flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-500/8 text-purple-300 border border-purple-500/15 hover:bg-purple-500/15 hover:text-purple-200 hover:border-purple-500/25 transition-all cursor-pointer active:scale-[0.97]"
-                            >
-                              <span>{player}</span>
-                              <span className="text-[10px] text-purple-400/40 group-hover:text-purple-300/60 transition-colors">→</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                    {/* Player chips */}
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {ev.players.map((player) => {
+                        const isGuest = guestPlayers.includes(player);
+                        return (
+                          <span
+                            key={player}
+                            className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
+                              isGuest
+                                ? "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200"
+                                : "bg-gray-100 text-gray-700"
+                            }`}
+                          >
+                            {player}
+                          </span>
+                        );
+                      })}
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                  </div>
+                ))}
+            </div>
           </div>
-        )}
+        </details>
       </div>
-
-      {/* Export PDF Drawer */}
-      <ExportPdfDrawer
-        open={showExportDrawer}
-        onClose={() => setShowExportDrawer(false)}
-        teamName={state.teamName}
-        teamLogo={state.teamLogo}
-        events={filteredEvents}
-        roster={state.roster}
-        dateRange={dateRange}
-        customStart={customStart}
-        customEnd={customEnd}
-        sortCol={sortCol}
-        sortDir={sortDir}
-        archivedEventsBundles={state.archivedEvents}
-      />
-
-      {/* Player Detail Drawer */}
-      <PlayerDetailDrawer
-        playerName={selectedPlayer}
-        onClose={() => setSelectedPlayer(null)}
-        onNavigate={onNavigate}
-        filteredEvents={filteredEvents}
-      />
-
-      {/* Archive Confirmation Dialog */}
-      <AlertDialog open={showArchiveConfirm} onOpenChange={setShowArchiveConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Archive logged events?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Archive all logged events? You can restore them later from Settings.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isArchiving}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-purple-600 hover:bg-purple-700"
-              disabled={isArchiving}
-              onClick={async (e) => {
-                e.preventDefault();
-                setIsArchiving(true);
-                try {
-                  await archiveEvents();
-                  setShowArchiveConfirm(false);
-                } finally {
-                  setIsArchiving(false);
-                }
-              }}
-            >
-              {isArchiving ? "Archiving..." : "Archive"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

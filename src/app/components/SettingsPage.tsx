@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Save, UserPlus, X, Upload, Gift, FileText, Archive, RotateCcw, Trash2, Trophy, Sun, Moon, Monitor } from "lucide-react";
+import { Save, UserPlus, X, Gift, FileText, Archive, RotateCcw, Trash2, Trophy, Sun, Moon, Monitor } from "lucide-react";
 import ExportPdfDrawer from "./ExportPdfDrawer";
 import { useTeamStore, ConflictResolutionStrategy } from "../hooks/useTeamStore";
 import { useTheme, type Theme } from "../hooks/useTheme";
@@ -29,7 +29,7 @@ import { Button } from "./ui/button";
 import { Alert, AlertTitle, AlertDescription } from "./ui/alert";
 
 export default function SettingsPage() {
-  const { state, updateSettings, addPlayer, removePlayer, restoreArchive, deleteArchive, isGuest, uploadLogo } = useTeamStore();
+  const { state, updateSettings, addPlayer, removePlayer, archiveEvents, restoreArchive, deleteArchive, isGuest, uploadLogo } = useTeamStore();
   const { theme, setTheme } = useTheme();
   const [teamName, setTeamName] = useState(state.teamName);
   const [raffleEnabled, setRaffleEnabled] = useState(state.raffleEnabled);
@@ -145,6 +145,8 @@ export default function SettingsPage() {
   const [playerToRemove, setPlayerToRemove] = useState<string | null>(null);
   const [isAddingPlayer, setIsAddingPlayer] = useState(false);
   const [isRemovingPlayer, setIsRemovingPlayer] = useState(false);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
 
   const handleRestoreArchive = (archiveId: string) => {
     setRestoreReviewArchiveId(archiveId);
@@ -418,6 +420,26 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+
+      {/* Archive Logged Events action card */}
+      {state.events.length > 0 && (
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 md:p-8 shadow-xl border border-gray-200">
+          <div className="flex items-center gap-3 mb-2">
+            <Archive className="size-5 text-indigo-600" />
+            <h3 className="text-lg font-bold text-gray-900">Archive logged events</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            Move all {state.events.length} current event{state.events.length !== 1 ? "s" : ""} into an archive set so you can start a fresh season. Archived events can be restored from the panel below.
+          </p>
+          <button
+            onClick={() => setShowArchiveConfirm(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-50 text-indigo-700 font-semibold rounded-xl hover:bg-indigo-100 transition-all"
+          >
+            <Archive className="size-4" />
+            Archive events
+          </button>
+        </div>
+      )}
 
       {/* Archived Events */}
       {state.archivedEvents.length > 0 && (
@@ -882,6 +904,37 @@ export default function SettingsPage() {
               }}
             >
               {isRemovingPlayer ? "Removing..." : "Remove Player"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Archive Confirm Dialog */}
+      <AlertDialog open={showArchiveConfirm} onOpenChange={setShowArchiveConfirm}>
+        <AlertDialogContent className="bg-white rounded-3xl p-6 md:p-8 shadow-xl border border-gray-200">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold text-gray-900">Archive all events?</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600">
+              This will move all {state.events.length} logged event{state.events.length !== 1 ? "s" : ""} into an archive set. You can restore them at any time from the Archived Events section.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel disabled={isArchiving} className="rounded-xl border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isArchiving}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition-all shadow-md"
+              onClick={async (e) => {
+                e.preventDefault();
+                setIsArchiving(true);
+                try {
+                  await archiveEvents();
+                  setShowArchiveConfirm(false);
+                } finally {
+                  setIsArchiving(false);
+                }
+              }}
+            >
+              {isArchiving ? "Archiving…" : "Archive events"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
