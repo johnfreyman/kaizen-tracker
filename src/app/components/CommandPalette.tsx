@@ -4,7 +4,6 @@ import {
   Calendar,
   Users,
   BarChart2,
-  TrendingUp,
   Gift,
   Settings,
   Play,
@@ -110,15 +109,7 @@ export default function CommandPalette({ open, onClose, onNavigate, onExportPdf 
       keywords: ["summary", "history", "stats"],
       action: () => handleNavigate("summary"),
     },
-    {
-      id: "nav-charts",
-      label: "Analytics",
-      description: "Charts and trends",
-      icon: <TrendingUp className="size-4" />,
-      group: "navigate",
-      keywords: ["charts", "trends", "graphs"],
-      action: () => handleNavigate("charts"),
-    },
+
     {
       id: "nav-settings",
       label: "Settings",

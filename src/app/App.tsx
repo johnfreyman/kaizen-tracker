@@ -4,7 +4,6 @@ import {
   Calendar,
   Users,
   BarChart2,
-  TrendingUp,
   Gift,
   Settings as SettingsIcon,
   LogOut,
@@ -18,7 +17,7 @@ import AttendancePage from "./components/AttendancePage";
 import SummaryPage from "./components/SummaryPage";
 import SettingsPage from "./components/SettingsPage";
 import RafflePage from "./components/RafflePage";
-import ChartsPage from "./components/ChartsPage";
+
 import SessionStatusBar from "./components/SessionStatusBar";
 import SidebarLeaderboard from "./components/SidebarLeaderboard";
 import LoginPage from "./components/LoginPage";
@@ -34,14 +33,13 @@ import { useSwipeNavigation } from "./hooks/useSwipeNavigation";
 import { useTheme } from "./hooks/useTheme";
 import { Drawer, DrawerContent } from "./components/ui/drawer";
 
-type Page = "dashboard" | "launch" | "attendance" | "summary" | "charts" | "settings" | "raffle";
+type Page = "dashboard" | "launch" | "attendance" | "summary" | "settings" | "raffle";
 
 const PAGE_TITLES: Record<Page, string> = {
   dashboard:  "Mission Control",
   launch:     "Session Setup",
   attendance: "Attendance",
   summary:    "Reports",
-  charts:     "Analytics",
   raffle:     "Raffle",
   settings:   "Settings",
 };
@@ -64,7 +62,7 @@ function AppContent() {
   useKeyboardShortcuts({ onNavigate: navigate, onOpenPalette: openPalette });
 
   // Mobile swipe — left advances, right goes back through the main nav order
-  const NAV_ORDER: Page[] = ["dashboard", "launch", "attendance", "summary", "charts"];
+  const NAV_ORDER: Page[] = ["dashboard", "launch", "attendance", "summary"];
   useSwipeNavigation({
     targetRef: mainRef,
     onSwipeLeft: () => {
@@ -100,7 +98,6 @@ function AppContent() {
     { id: "launch"    as Page, label: "Session",    icon: Calendar },
     { id: "attendance"as Page, label: "Attendance", icon: Users },
     { id: "summary"   as Page, label: "Reports",    icon: BarChart2 },
-    { id: "charts"    as Page, label: "Analytics",  icon: TrendingUp },
     ...(state.raffleEnabled ? [{ id: "raffle" as Page, label: "Raffle", icon: Gift }] : []),
   ];
 
@@ -113,7 +110,6 @@ function AppContent() {
   ];
 
   const moreNavItems = [
-    { id: "charts" as Page, label: "Analytics", icon: TrendingUp },
     ...(state.raffleEnabled ? [{ id: "raffle" as Page, label: "Raffle", icon: Gift }] : []),
     { id: "settings" as Page, label: "Settings", icon: SettingsIcon },
     { id: "logout" as Page, label: "Log out", icon: LogOut, action: logout },
@@ -289,7 +285,7 @@ function AppContent() {
                     onNavigate={navigate}
                   />
                 )}
-                {activePage === "charts"     && <ChartsPage />}
+
                 {activePage === "raffle"     && <RafflePage />}
                 {activePage === "settings"   && <SettingsPage />}
               </ErrorBoundary>
@@ -303,12 +299,12 @@ function AppContent() {
         <div className="flex items-center justify-around h-full px-1">
           {bottomNavItems.map(({ id, label, icon: Icon }) => {
             const isActive = id === "more"
-              ? (activePage === "charts" || activePage === "raffle" || activePage === "settings")
+              ? (activePage === "raffle" || activePage === "settings")
               : activePage === id;
             const showDot = id === "attendance"
               ? isSessionActive
               : id === "more"
-              ? (activePage === "charts" || activePage === "raffle" || activePage === "settings")
+              ? (activePage === "raffle" || activePage === "settings")
               : false;
             return (
               <button
