@@ -16,6 +16,9 @@ import {
   FileText,
   Award,
   Flame,
+  CheckCircle2,
+  CircleDot,
+  AlertCircle,
 } from "lucide-react";
 import {
   PieChart,
@@ -132,6 +135,7 @@ function PracticeBar({ value, total }: { value: number; total: number }) {
     pct >= 100 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-red-400";
   const textColor =
     pct >= 100 ? "text-emerald-400" : pct >= 50 ? "text-amber-400" : "text-red-400";
+  const Icon = pct >= 100 ? CheckCircle2 : pct >= 50 ? CircleDot : AlertCircle;
   return (
     <div className="flex items-center gap-2 min-w-[100px]">
       <div className="flex-1 h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
@@ -140,7 +144,10 @@ function PracticeBar({ value, total }: { value: number; total: number }) {
           style={{ width: `${Math.min(pct, 100)}%` }}
         />
       </div>
-      <span className={`text-xs font-semibold tabular-nums ${textColor}`}>{pct}%</span>
+      <span className={`text-xs font-semibold tabular-nums ${textColor} flex items-center gap-1`}>
+        <Icon className="size-3.5 flex-shrink-0" />
+        {pct}%
+      </span>
     </div>
   );
 }
@@ -417,9 +424,9 @@ export default function SummaryPage({ openExportPdf, onExportPdfOpened, onNaviga
       else buckets.low++;
     });
     return [
-      { name: "100% attendance",  value: buckets.full, color: TIER_COLORS.full },
-      { name: "50–99% attendance", value: buckets.mid,  color: TIER_COLORS.mid },
-      { name: "<50% attendance",  value: buckets.low,  color: TIER_COLORS.low },
+      { name: "100% attendance",  value: buckets.full, color: TIER_COLORS.full, tier: "full" },
+      { name: "50–99% attendance", value: buckets.mid,  color: TIER_COLORS.mid,  tier: "mid" },
+      { name: "<50% attendance",  value: buckets.low,  color: TIER_COLORS.low,  tier: "low" },
     ].filter((d) => d.value > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [players.join(","), totalPracticePossible]);
@@ -712,20 +719,25 @@ export default function SummaryPage({ openExportPdf, onExportPdfOpened, onNaviga
 
               {/* Legend */}
               <div className="flex flex-col gap-2 w-full">
-                {donutData.map((d) => (
-                  <div key={d.name} className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span
-                        className="size-2.5 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: d.color }}
-                      />
-                      <span className="text-xs text-white/50 truncate">{d.name}</span>
+                {donutData.map((d) => {
+                  const Icon = d.tier === "full" ? CheckCircle2 : d.tier === "mid" ? CircleDot : AlertCircle;
+                  const iconColor = d.tier === "full" ? "text-emerald-400" : d.tier === "mid" ? "text-amber-400" : "text-red-400";
+                  return (
+                    <div key={d.name} className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="size-2.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: d.color }}
+                        />
+                        <Icon className={`size-3.5 flex-shrink-0 ${iconColor}`} />
+                        <span className="text-xs text-white/50 truncate">{d.name}</span>
+                      </div>
+                      <span className="text-xs font-semibold text-white/70 tabular-nums flex-shrink-0">
+                        {d.value}
+                      </span>
                     </div>
-                    <span className="text-xs font-semibold text-white/70 tabular-nums flex-shrink-0">
-                      {d.value}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -786,6 +798,31 @@ export default function SummaryPage({ openExportPdf, onExportPdfOpened, onNaviga
               </ResponsiveContainer>
             </div>
           </div>
+          
+          <table className="sr-only">
+            <caption>Attendance breakdown by player</caption>
+            <thead>
+              <tr>
+                <th scope="col">Player</th>
+                <th scope="col">Practice Attendance %</th>
+                <th scope="col">Optional Training Attendance %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {players.map((player) => {
+                const pt = totals[player] ?? { practice: 0, training: 0 };
+                const practPct = totalPracticePossible > 0 ? Math.round((pt.practice / totalPracticePossible) * 100) : 0;
+                const optPct = totalTrainingPossible > 0 ? Math.round((pt.training / totalTrainingPossible) * 100) : 0;
+                return (
+                  <tr key={player}>
+                    <td>{player}</td>
+                    <td>{practPct}%</td>
+                    <td>{optPct}%</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -829,10 +866,13 @@ export default function SummaryPage({ openExportPdf, onExportPdfOpened, onNaviga
           <div className="flex flex-wrap items-center gap-2">
             {/* Search */}
             <div className="relative">
+              <label htmlFor="player-search" className="sr-only">Search players</label>
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-white/25 pointer-events-none" />
               <input
+                id="player-search"
                 type="text"
                 placeholder="Search players…"
+                aria-label="Search players"
                 value={playerSearch}
                 onChange={(e) => setPlayerSearch(e.target.value)}
                 className="pl-8 pr-3 py-1.5 rounded-lg text-xs text-white/70 placeholder-white/25 border border-white/[0.08] bg-white/[0.04] focus:outline-none focus:border-purple-500/50 w-36 sm:w-44"
@@ -876,12 +916,21 @@ export default function SummaryPage({ openExportPdf, onExportPdfOpened, onNaviga
                 {columns.map(({ label, col, tooltip }) => (
                   <th
                     key={col}
-                    onClick={() => handleSort(col)}
-                    className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-purple-400/80 cursor-pointer select-none hover:text-purple-300 transition-colors whitespace-nowrap"
+                    scope="col"
+                    aria-sort={sortCol === col
+                      ? (sortDir === "asc" ? "ascending" : "descending")
+                      : "none"}
+                    className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-purple-400/80 select-none whitespace-nowrap"
                   >
-                    {label}
-                    <SortIcon active={sortCol === col} dir={sortDir} />
-                    <ColTooltip text={tooltip} />
+                    <button
+                      type="button"
+                      onClick={() => handleSort(col)}
+                      className="flex items-center gap-0.5 hover:text-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/40 rounded-md px-1 py-0.5 -mx-1 -my-0.5 cursor-pointer"
+                    >
+                      {label}
+                      <SortIcon active={sortCol === col} dir={sortDir} />
+                      <ColTooltip text={tooltip} />
+                    </button>
                   </th>
                 ))}
               </tr>

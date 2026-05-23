@@ -203,112 +203,158 @@ export default function ChartsPage() {
       {/* Row 1: Attendance Rate + Hours by Player */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Chart 1: Practice Attendance Rate */}
-        <div className="rounded-3xl border border-gray-200 bg-white/90 p-6 shadow-xl backdrop-blur-sm">
+        <div
+          className="rounded-3xl border border-gray-200 bg-white/90 p-6 shadow-xl backdrop-blur-sm"
+          aria-labelledby="heading-attendance-rate"
+        >
           <div className="mb-4 flex items-center gap-2">
             <UserCheck className="size-5 text-indigo-500" />
-            <h3 className="text-lg font-bold text-gray-900">
+            <h3 id="heading-attendance-rate" className="text-lg font-bold text-gray-900">
               Practice Attendance Rate
             </h3>
           </div>
           {!hasPractice || !attendanceData.length ? (
             <EmptyChart message="No practice events logged." />
           ) : (
-            <ResponsiveContainer
-              width="100%"
-              height={chartHeight(attendanceData.length)}
-            >
-              <BarChart
-                layout="vertical"
-                data={attendanceData}
-                margin={{ left: 8, right: 24, top: 4, bottom: 4 }}
+            <>
+              <ResponsiveContainer
+                width="100%"
+                height={chartHeight(attendanceData.length)}
               >
-                <CartesianGrid
-                  horizontal={false}
-                  strokeDasharray="3 3"
-                  stroke="#f3f4f6"
-                />
-                <XAxis
-                  type="number"
-                  domain={[0, 100]}
-                  tickFormatter={(v) => `${v}%`}
-                  tick={{ fontSize: 11 }}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="player"
-                  width={yAxisWidth}
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip
-                  formatter={(v: number) => [`${v}%`, "Attendance"]}
-                  contentStyle={tooltipStyle}
-                />
-                <Bar
-                  dataKey="Attendance %"
-                  fill={COLORS.attendance}
-                  radius={[0, 6, 6, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+                <BarChart
+                  layout="vertical"
+                  data={attendanceData}
+                  margin={{ left: 8, right: 24, top: 4, bottom: 4 }}
+                >
+                  <CartesianGrid
+                    horizontal={false}
+                    strokeDasharray="3 3"
+                    stroke="#f3f4f6"
+                  />
+                  <XAxis
+                    type="number"
+                    domain={[0, 100]}
+                    tickFormatter={(v) => `${v}%`}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="player"
+                    width={yAxisWidth}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <Tooltip
+                    formatter={(v: number) => [`${v}%`, "Attendance"]}
+                    contentStyle={tooltipStyle}
+                  />
+                  <Bar
+                    dataKey="Attendance %"
+                    fill={COLORS.attendance}
+                    radius={[0, 6, 6, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+              <table className="sr-only">
+                <caption>Practice Attendance Rate Data</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Player</th>
+                    <th scope="col">Attendance Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {attendanceData.map((d) => (
+                    <tr key={d.player}>
+                      <td>{d.player}</td>
+                      <td>{d["Attendance %"]}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
 
         {/* Chart 2: Training Hours by Player */}
-        <div className="rounded-3xl border border-gray-200 bg-white/90 p-6 shadow-xl backdrop-blur-sm">
+        <div
+          className="rounded-3xl border border-gray-200 bg-white/90 p-6 shadow-xl backdrop-blur-sm"
+          aria-labelledby="heading-training-hours"
+        >
           <div className="mb-4 flex items-center gap-2">
             <Clock className="size-5 text-purple-500" />
-            <h3 className="text-lg font-bold text-gray-900">
+            <h3 id="heading-training-hours" className="text-lg font-bold text-gray-900">
               Training Hours by Player
             </h3>
           </div>
           {!hoursData.length ? (
             <EmptyChart message="No hours logged yet." />
           ) : (
-            <ResponsiveContainer
-              width="100%"
-              height={chartHeight(hoursData.length)}
-            >
-              <BarChart
-                layout="vertical"
-                data={hoursData}
-                margin={{ left: 8, right: 24, top: 4, bottom: 4 }}
+            <>
+              <ResponsiveContainer
+                width="100%"
+                height={chartHeight(hoursData.length)}
               >
-                <CartesianGrid
-                  horizontal={false}
-                  strokeDasharray="3 3"
-                  stroke="#f3f4f6"
-                />
-                <XAxis
-                  type="number"
-                  tickFormatter={(v) => `${v}h`}
-                  tick={{ fontSize: 11 }}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="player"
-                  width={yAxisWidth}
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip
-                  formatter={(v: number, name: string) => [`${v}h`, name]}
-                  contentStyle={tooltipStyle}
-                />
-                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-                <Bar
-                  dataKey="Practice"
-                  stackId="hrs"
-                  fill={COLORS.practice}
-                  name="Practice"
-                />
-                <Bar
-                  dataKey="Optional Training"
-                  stackId="hrs"
-                  fill={COLORS.training}
-                  name="Optional Training"
-                  radius={[0, 6, 6, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+                <BarChart
+                  layout="vertical"
+                  data={hoursData}
+                  margin={{ left: 8, right: 24, top: 4, bottom: 4 }}
+                >
+                  <CartesianGrid
+                    horizontal={false}
+                    strokeDasharray="3 3"
+                    stroke="#f3f4f6"
+                  />
+                  <XAxis
+                    type="number"
+                    tickFormatter={(v) => `${v}h`}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="player"
+                    width={yAxisWidth}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <Tooltip
+                    formatter={(v: number, name: string) => [`${v}h`, name]}
+                    contentStyle={tooltipStyle}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                  <Bar
+                    dataKey="Practice"
+                    stackId="hrs"
+                    fill={COLORS.practice}
+                    name="Practice"
+                  />
+                  <Bar
+                    dataKey="Optional Training"
+                    stackId="hrs"
+                    fill={COLORS.training}
+                    name="Optional Training"
+                    radius={[0, 6, 6, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+              <table className="sr-only">
+                <caption>Training Hours Data</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Player</th>
+                    <th scope="col">Practice Hours</th>
+                    <th scope="col">Optional Training Hours</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {hoursData.map((d) => (
+                    <tr key={d.player}>
+                      <td>{d.player}</td>
+                      <td>{d.Practice}h</td>
+                      <td>{d["Optional Training"]}h</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
       </div>
@@ -316,198 +362,266 @@ export default function ChartsPage() {
       {/* Row 2: Missed Sessions + Guest Participation */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Chart 3: Missed Sessions */}
-        <div className="rounded-3xl border border-gray-200 bg-white/90 p-6 shadow-xl backdrop-blur-sm">
+        <div
+          className="rounded-3xl border border-gray-200 bg-white/90 p-6 shadow-xl backdrop-blur-sm"
+          aria-labelledby="heading-missed-sessions"
+        >
           <div className="mb-4 flex items-center gap-2">
             <UserX className="size-5 text-red-500" />
-            <h3 className="text-lg font-bold text-gray-900">
+            <h3 id="heading-missed-sessions" className="text-lg font-bold text-gray-900">
               Missed Practice Sessions
             </h3>
           </div>
           {!hasPractice || !missedData.length ? (
             <EmptyChart message="No practice events logged." />
           ) : (
-            <ResponsiveContainer
-              width="100%"
-              height={chartHeight(missedData.length)}
-            >
-              <BarChart
-                layout="vertical"
-                data={missedData}
-                margin={{ left: 8, right: 24, top: 4, bottom: 4 }}
+            <>
+              <ResponsiveContainer
+                width="100%"
+                height={chartHeight(missedData.length)}
               >
-                <CartesianGrid
-                  horizontal={false}
-                  strokeDasharray="3 3"
-                  stroke="#f3f4f6"
-                />
-                <XAxis
-                  type="number"
-                  allowDecimals={false}
-                  tick={{ fontSize: 11 }}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="player"
-                  width={yAxisWidth}
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip
-                  formatter={(v: number) => [v, "Sessions Missed"]}
-                  contentStyle={tooltipStyle}
-                />
-                <Bar
-                  dataKey="Missed"
-                  fill={COLORS.missed}
-                  radius={[0, 6, 6, 0]}
-                  name="Sessions Missed"
-                />
-              </BarChart>
-            </ResponsiveContainer>
+                <BarChart
+                  layout="vertical"
+                  data={missedData}
+                  margin={{ left: 8, right: 24, top: 4, bottom: 4 }}
+                >
+                  <CartesianGrid
+                    horizontal={false}
+                    strokeDasharray="3 3"
+                    stroke="#f3f4f6"
+                  />
+                  <XAxis
+                    type="number"
+                    allowDecimals={false}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="player"
+                    width={yAxisWidth}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <Tooltip
+                    formatter={(v: number) => [v, "Sessions Missed"]}
+                    contentStyle={tooltipStyle}
+                  />
+                  <Bar
+                    dataKey="Missed"
+                    fill={COLORS.missed}
+                    radius={[0, 6, 6, 0]}
+                    name="Sessions Missed"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+              <table className="sr-only">
+                <caption>Missed Practice Sessions Data</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Player</th>
+                    <th scope="col">Sessions Missed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {missedData.map((d) => (
+                    <tr key={d.player}>
+                      <td>{d.player}</td>
+                      <td>{d.Missed}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
 
         {/* Chart 4: Guest Participation */}
-        <div className="rounded-3xl border border-gray-200 bg-white/90 p-6 shadow-xl backdrop-blur-sm">
+        <div
+          className="rounded-3xl border border-gray-200 bg-white/90 p-6 shadow-xl backdrop-blur-sm"
+          aria-labelledby="heading-guest-participation"
+        >
           <div className="mb-4 flex items-center gap-2">
             <Users className="size-5 text-green-600" />
-            <h3 className="text-lg font-bold text-gray-900">
+            <h3 id="heading-guest-participation" className="text-lg font-bold text-gray-900">
               Guest Participation
             </h3>
           </div>
           {!guestData.length ? (
             <EmptyChart message="No guest players on the roster." />
           ) : (
-            <ResponsiveContainer
-              width="100%"
-              height={chartHeight(guestData.length)}
-            >
-              <BarChart
-                layout="vertical"
-                data={guestData}
-                margin={{ left: 8, right: 24, top: 4, bottom: 4 }}
+            <>
+              <ResponsiveContainer
+                width="100%"
+                height={chartHeight(guestData.length)}
               >
-                <CartesianGrid
-                  horizontal={false}
-                  strokeDasharray="3 3"
-                  stroke="#f3f4f6"
-                />
-                <XAxis
-                  type="number"
-                  allowDecimals={false}
-                  tick={{ fontSize: 11 }}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="player"
-                  width={yAxisWidth}
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip
-                  formatter={(v: number) => [v, "Sessions Attended"]}
-                  contentStyle={tooltipStyle}
-                />
-                <Bar
-                  dataKey="Sessions Attended"
-                  fill={COLORS.guest}
-                  radius={[0, 6, 6, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+                <BarChart
+                  layout="vertical"
+                  data={guestData}
+                  margin={{ left: 8, right: 24, top: 4, bottom: 4 }}
+                >
+                  <CartesianGrid
+                    horizontal={false}
+                    strokeDasharray="3 3"
+                    stroke="#f3f4f6"
+                  />
+                  <XAxis
+                    type="number"
+                    allowDecimals={false}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="player"
+                    width={yAxisWidth}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <Tooltip
+                    formatter={(v: number) => [v, "Sessions Attended"]}
+                    contentStyle={tooltipStyle}
+                  />
+                  <Bar
+                    dataKey="Sessions Attended"
+                    fill={COLORS.guest}
+                    radius={[0, 6, 6, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+              <table className="sr-only">
+                <caption>Guest Participation Data</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Player</th>
+                    <th scope="col">Sessions Attended</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {guestData.map((d) => (
+                    <tr key={d.player}>
+                      <td>{d.player}</td>
+                      <td>{d["Sessions Attended"]}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
       </div>
 
       {/* Row 3: Trends Over Time */}
-      <div className="rounded-3xl border border-gray-200 bg-white/90 p-6 shadow-xl backdrop-blur-sm">
+      <div
+        className="rounded-3xl border border-gray-200 bg-white/90 p-6 shadow-xl backdrop-blur-sm"
+        aria-labelledby="heading-trends"
+      >
         <div className="mb-4 flex items-center gap-2">
           <TrendingUp className="size-5 text-blue-600" />
-          <h3 className="text-lg font-bold text-gray-900">Trends Over Time</h3>
+          <h3 id="heading-trends" className="text-lg font-bold text-gray-900">Trends Over Time</h3>
         </div>
         {trendsData.length < 2 ? (
           <EmptyChart message="Log events across at least 2 months to see trends." />
         ) : (
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart
-              data={trendsData}
-              margin={{ left: 0, right: 24, top: 4, bottom: 4 }}
-            >
-              <defs>
-                <linearGradient id="gradHours" x1="0" y1="0" x2="0" y2="1">
-                  <stop
-                    offset="5%"
-                    stopColor={COLORS.practice}
-                    stopOpacity={0.15}
-                  />
-                  <stop
-                    offset="95%"
-                    stopColor={COLORS.practice}
-                    stopOpacity={0}
-                  />
-                </linearGradient>
-                <linearGradient
-                  id="gradAttendance"
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-                >
-                  <stop
-                    offset="5%"
-                    stopColor={COLORS.training}
-                    stopOpacity={0.15}
-                  />
-                  <stop
-                    offset="95%"
-                    stopColor={COLORS.training}
-                    stopOpacity={0}
-                  />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis
-                yAxisId="left"
-                tick={{ fontSize: 11 }}
-                tickFormatter={(v) => `${v}h`}
-              />
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                tick={{ fontSize: 11 }}
-                tickFormatter={(v) => `${v}%`}
-                domain={[0, 100]}
-              />
-              <Tooltip
-                formatter={(v: number, name: string) =>
-                  name === "Avg Attendance %"
-                    ? [`${v}%`, name]
-                    : [`${v}h`, name]
-                }
-                contentStyle={tooltipStyle}
-              />
-              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-              <Area
-                yAxisId="left"
-                type="monotone"
-                dataKey="Total Hours"
-                stroke={COLORS.practice}
-                strokeWidth={2}
-                fill="url(#gradHours)"
-                dot={{ r: 4, fill: COLORS.practice }}
-                activeDot={{ r: 6 }}
-              />
-              <Area
-                yAxisId="right"
-                type="monotone"
-                dataKey="Avg Attendance %"
-                stroke={COLORS.training}
-                strokeWidth={2}
-                fill="url(#gradAttendance)"
-                dot={{ r: 4, fill: COLORS.training }}
-                activeDot={{ r: 6 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <>
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart
+                data={trendsData}
+                margin={{ left: 0, right: 24, top: 4, bottom: 4 }}
+              >
+                <defs>
+                  <linearGradient id="gradHours" x1="0" y1="0" x2="0" y2="1">
+                    <stop
+                      offset="5%"
+                      stopColor={COLORS.practice}
+                      stopOpacity={0.15}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor={COLORS.practice}
+                      stopOpacity={0}
+                    />
+                  </linearGradient>
+                  <linearGradient
+                    id="gradAttendance"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop
+                      offset="5%"
+                      stopColor={COLORS.training}
+                      stopOpacity={0.15}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor={COLORS.training}
+                      stopOpacity={0}
+                    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis
+                  yAxisId="left"
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(v) => `${v}h`}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(v) => `${v}%`}
+                  domain={[0, 100]}
+                />
+                <Tooltip
+                  formatter={(v: number, name: string) =>
+                    name === "Avg Attendance %"
+                      ? [`${v}%`, name]
+                      : [`${v}h`, name]
+                  }
+                  contentStyle={tooltipStyle}
+                />
+                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                <Area
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="Total Hours"
+                  stroke={COLORS.practice}
+                  strokeWidth={2}
+                  fill="url(#gradHours)"
+                  dot={{ r: 4, fill: COLORS.practice }}
+                  activeDot={{ r: 6 }}
+                />
+                <Area
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="Avg Attendance %"
+                  stroke={COLORS.training}
+                  strokeWidth={2}
+                  fill="url(#gradAttendance)"
+                  dot={{ r: 4, fill: COLORS.training }}
+                  activeDot={{ r: 6 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+            <table className="sr-only">
+              <caption>Monthly Trends Data</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Month</th>
+                  <th scope="col">Total Hours</th>
+                  <th scope="col">Average Attendance Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trendsData.map((d) => (
+                  <tr key={d.label}>
+                    <td>{d.label}</td>
+                    <td>{d["Total Hours"]}h</td>
+                    <td>{d["Avg Attendance %"]}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
       </div>
     </div>
