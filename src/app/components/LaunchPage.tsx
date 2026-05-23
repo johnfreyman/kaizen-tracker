@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Play, Calendar as CalendarIcon, Clock, ChevronRight, Users, Target, CalendarDays, Info } from "lucide-react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
-import { useTeamStore, ActiveSession, EventType, EVENT_TYPES } from "../hooks/useTeamStore";
+import { useTeamStore, ActiveSession, EventType, EVENT_TYPES, TeamEvent } from "../hooks/useTeamStore";
 
 interface LaunchPageProps {
   onNavigate: (page: string) => void;
@@ -507,6 +507,118 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
           <ChevronRight className="size-4 ml-0.5 transition-transform group-hover:translate-x-1 duration-200" />
         </button>
       </form>
+
+      {/* ── Past Sessions ─────────────────────────────────────────── */}
+      <PastSessions events={state.events} guestPlayers={state.guestPlayers} />
+    </div>
+  );
+}
+
+// ─── Past Sessions sub-component ──────────────────────────────────────────────
+
+const PAGE_SIZE = 20;
+
+function PastSessions({
+  events,
+  guestPlayers,
+}: {
+  events: TeamEvent[];
+  guestPlayers: string[];
+}) {
+  const [page, setPage] = useState(1);
+
+  const sorted = [...events].sort((a, b) => b.date.localeCompare(a.date));
+  const visible = sorted.slice(0, page * PAGE_SIZE);
+  const hasMore = sorted.length > visible.length;
+
+  if (!sorted.length) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <Clock className="size-4 text-white/40" />
+        <h3 className="text-xs font-bold uppercase tracking-widest text-white/55">
+          Past sessions
+        </h3>
+        <span className="ml-1 rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-medium text-white/40">
+          {sorted.length}
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        {visible.map((ev) => (
+          <SessionCard key={ev.id} ev={ev} guestPlayers={guestPlayers} />
+        ))}
+      </div>
+
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setPage((p) => p + 1)}
+          className="w-full py-2.5 rounded-xl border border-white/[0.08] bg-white/[0.03] text-xs font-semibold text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-all"
+        >
+          Load more ({sorted.length - visible.length} remaining)
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SessionCard({
+  ev,
+  guestPlayers,
+}: {
+  ev: TeamEvent;
+  guestPlayers: string[];
+}) {
+  const dateLabel = new Date(
+    ev.date.includes("T") ? ev.date : `${ev.date}T12:00:00`
+  ).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 hover:bg-white/[0.05] transition-colors">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="text-sm font-semibold text-white/90">
+            {ev.type} · {dateLabel}
+          </div>
+          <div className="text-xs text-white/40">
+            {ev.duration}h · {ev.players.length} present
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            navigator.clipboard.writeText(ev.players.join(", ")).catch(() => {});
+          }}
+          className="shrink-0 text-[11px] font-semibold text-white/35 hover:text-blue-400 transition-colors"
+        >
+          Copy roster
+        </button>
+      </div>
+      {ev.players.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {ev.players.map((player) => {
+            const isGuest = guestPlayers.includes(player);
+            return (
+              <span
+                key={player}
+                className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
+                  isGuest
+                    ? "bg-amber-500/15 text-amber-300 ring-1 ring-inset ring-amber-500/25"
+                    : "bg-white/[0.06] text-white/55"
+                }`}
+              >
+                {player}
+              </span>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

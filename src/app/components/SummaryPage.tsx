@@ -21,6 +21,7 @@ import {
   Users,
   Calendar,
   BarChart3,
+  ArrowRight,
 } from "lucide-react";
 import { useTeamStore, EVENT_TYPES } from "../hooks/useTeamStore";
 import {
@@ -148,7 +149,7 @@ interface SummaryPageProps {
 }
 
 export default function SummaryPage({
-  onNavigate: _onNavigate,
+  onNavigate,
 }: SummaryPageProps = {}) {
   const { state } = useTeamStore();
   const { events, roster, guestPlayers } = state;
@@ -703,7 +704,7 @@ export default function SummaryPage({
               {scoped
                 .slice()
                 .sort((a, b) => b.date.localeCompare(a.date))
-                .slice(0, 20)
+                .slice(0, 10)
                 .map((ev) => (
                   <div
                     key={ev.id}
@@ -758,6 +759,17 @@ export default function SummaryPage({
                   </div>
                 ))}
             </div>
+            {scoped.length > 10 && (
+              <div className="mt-3 flex justify-end">
+                <button
+                  onClick={() => onNavigate?.("launch")}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 transition-colors"
+                >
+                  View all sessions
+                  <ArrowRight className="size-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         </details>
       </div>
