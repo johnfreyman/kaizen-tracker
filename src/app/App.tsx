@@ -132,10 +132,10 @@ function AppContent() {
       <div className="flex h-screen overflow-hidden" style={{ backgroundColor: "var(--mc-bg)" }}>
 
         {/* ── Sidebar (desktop only) ─────────────────────────────── */}
-        <aside className="hidden md:flex flex-col md:w-14 lg:w-56 flex-shrink-0 border-r border-white/[0.07]" style={{ backgroundColor: "var(--mc-surface)" }}>
+        <aside className="hidden md:flex flex-col md:w-14 lg:w-56 flex-shrink-0 border-r mc-border" style={{ backgroundColor: "var(--mc-surface)" }}>
 
           {/* Logo + team */}
-          <div className="flex items-center md:justify-center lg:justify-start md:gap-0 lg:gap-3 md:px-0 lg:px-4 h-14 border-b border-white/[0.07] flex-shrink-0">
+          <div className="flex items-center md:justify-center lg:justify-start md:gap-0 lg:gap-3 md:px-0 lg:px-4 h-14 border-b mc-border flex-shrink-0">
             <div className="size-8 rounded-lg overflow-hidden flex items-center justify-center bg-blue-600/20 flex-shrink-0">
               {state.teamLogo ? (
                 <img src={state.teamLogo} alt="Team logo" className="size-full object-cover" />
@@ -144,10 +144,10 @@ function AppContent() {
               )}
             </div>
             <div className="hidden lg:block min-w-0">
-              <div className="text-white/85 text-sm font-semibold truncate leading-tight">
+              <div className="mc-text text-sm font-semibold truncate leading-tight">
                 {state.teamName || "My Team"}
               </div>
-              <div className="text-white/25 text-[10px] uppercase tracking-wider">Mission Control</div>
+              <div className="mc-text-muted text-[10px] uppercase tracking-wider">Mission Control</div>
             </div>
           </div>
 
@@ -164,7 +164,7 @@ function AppContent() {
                   className={`group relative w-full flex items-center md:justify-center lg:justify-start gap-3 md:px-2 lg:px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                     isActive
                       ? "bg-blue-600/12 text-blue-300"
-                      : "text-white/45 hover:text-white/75 hover:bg-white/[0.05]"
+                      : "mc-text-secondary hover:mc-text hover:bg-white/[0.05]"
                   }`}
                 >
                   {isActive && (
@@ -191,7 +191,7 @@ function AppContent() {
           </div>
 
           {/* Footer: Settings + Logout */}
-          <div className="flex-shrink-0 px-2.5 py-3 border-t border-white/[0.07] space-y-0.5">
+          <div className="flex-shrink-0 px-2.5 py-3 border-t mc-border space-y-0.5">
             <button
               onClick={() => setActivePage("settings")}
               title="Settings"
@@ -200,7 +200,7 @@ function AppContent() {
                   ? "bg-blue-600/12 text-blue-300"
                   : isNewAccount
                   ? "text-amber-400/80 hover:text-amber-300 hover:bg-amber-500/8 animate-pulse"
-                  : "text-white/45 hover:text-white/75 hover:bg-white/[0.05]"
+                  : "mc-text-secondary hover:mc-text hover:bg-white/[0.05]"
               }`}
             >
               {activePage === "settings" && (
@@ -213,7 +213,7 @@ function AppContent() {
             <button
               onClick={logout}
               title="Log out"
-              className="w-full flex items-center md:justify-center lg:justify-start gap-3 md:px-2 lg:px-3 py-2 rounded-lg text-sm font-medium text-white/30 hover:text-red-400 hover:bg-red-500/8 transition-all"
+              className="w-full flex items-center md:justify-center lg:justify-start gap-3 md:px-2 lg:px-3 py-2 rounded-lg text-sm font-medium mc-text-muted hover:text-red-400 hover:bg-red-500/8 transition-all"
             >
               <LogOut className="size-4 flex-shrink-0" />
               <span className="hidden lg:block">Log out</span>
@@ -225,7 +225,7 @@ function AppContent() {
         <div className="flex-1 flex flex-col min-h-0">
 
           {/* TopBar */}
-          <header className="flex-shrink-0 flex items-center justify-between h-14 px-4 md:px-6 backdrop-blur-sm border-b border-white/[0.07] z-40" style={{ backgroundColor: "color-mix(in srgb, var(--mc-bg) 90%, transparent)" }}>
+          <header className="flex-shrink-0 flex items-center justify-between h-14 px-4 md:px-6 backdrop-blur-sm border-b mc-border z-40" style={{ backgroundColor: "color-mix(in srgb, var(--mc-bg) 90%, transparent)" }}>
             {/* Mobile: team logo + name | Desktop: page title */}
             <div className="flex items-center gap-3">
               {/* Mobile logo */}
@@ -237,12 +237,12 @@ function AppContent() {
                     <Trophy className="size-3.5 text-blue-400" />
                   )}
                 </div>
-                <span className="text-white/80 text-sm font-semibold">
+                <span className="mc-text text-sm font-semibold">
                   {state.teamName || "My Team"}
                 </span>
               </div>
               {/* Desktop page title */}
-              <h1 className="hidden md:block text-white/70 text-sm font-semibold">
+              <h1 className="hidden md:block mc-text-secondary text-sm font-semibold">
                 {PAGE_TITLES[activePage]}
               </h1>
             </div>
@@ -261,7 +261,7 @@ function AppContent() {
               <button
                 onClick={logout}
                 title="Log out"
-                className="md:hidden size-9 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/8 transition-all"
+                className="md:hidden size-9 rounded-lg flex items-center justify-center mc-text-muted hover:text-red-400 hover:bg-red-500/8 transition-all"
               >
                 <LogOut className="size-4" />
               </button>
@@ -295,7 +295,7 @@ function AppContent() {
       </div>
 
       {/* ── Mobile bottom nav ──────────────────────────────────── */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 h-16 backdrop-blur-md border-t border-white/[0.07]" style={{ backgroundColor: "color-mix(in srgb, var(--mc-surface) 96%, transparent)" }}>
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 h-16 backdrop-blur-md border-t mc-border" style={{ backgroundColor: "color-mix(in srgb, var(--mc-surface) 96%, transparent)" }}>
         <div className="flex items-center justify-around h-full px-1">
           {bottomNavItems.map(({ id, label, icon: Icon }) => {
             const isActive = id === "more"
@@ -317,7 +317,7 @@ function AppContent() {
                   }
                 }}
                 className={`relative flex flex-col items-center justify-center gap-1 px-3 h-full min-w-[56px] transition-colors ${
-                  isActive ? "text-blue-400" : "text-white/35 hover:text-white/60"
+                  isActive ? "text-blue-400" : "mc-text-muted hover:mc-text-secondary"
                 }`}
               >
                 {isActive && (
@@ -338,7 +338,7 @@ function AppContent() {
 
       {/* ── More Drawer ───────────────────────────────────────── */}
       <Drawer open={moreOpen} onOpenChange={setMoreOpen}>
-        <DrawerContent className="border-t border-white/[0.08] bg-[var(--mc-surface)] px-4 pb-8 rounded-t-3xl outline-none">
+        <DrawerContent className="border-t mc-border bg-[var(--mc-surface)] px-4 pb-8 rounded-t-3xl outline-none">
           <div className="space-y-1.5 py-4">
             {moreNavItems.map(({ id, label, icon: Icon, action }) => (
               <button
@@ -351,15 +351,15 @@ function AppContent() {
                     setActivePage(id as Page);
                   }
                 }}
-                className="w-full h-[56px] flex items-center justify-between px-4 py-2 rounded-xl text-white/80 hover:text-white hover:bg-white/[0.05] active:bg-white/[0.08] transition-all cursor-pointer animate-fade-in"
+                className="w-full h-[56px] flex items-center justify-between px-4 py-2 rounded-xl mc-text hover:mc-text hover:bg-white/[0.05] active:bg-white/[0.08] transition-all cursor-pointer animate-fade-in"
               >
                 <div className="flex items-center gap-3.5">
-                  <div className="size-9 rounded-lg bg-white/[0.03] flex items-center justify-center border border-white/[0.06]">
-                    <Icon className="size-4.5 text-white/70" />
+                  <div className="size-9 rounded-lg bg-white/[0.03] flex items-center justify-center border mc-border">
+                    <Icon className="size-4.5 mc-text-secondary" />
                   </div>
                   <span className="text-sm font-semibold">{label}</span>
                 </div>
-                <ChevronRight className="size-4 text-white/30" />
+                <ChevronRight className="size-4 mc-text-muted" />
               </button>
             ))}
           </div>
