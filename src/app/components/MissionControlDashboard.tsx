@@ -3,8 +3,7 @@ import { Play, Users, Activity, Target, Clock } from "lucide-react";
 import { useTeamStore, EVENT_TYPES, ActiveSession } from "../hooks/useTeamStore";
 import { useSessionTimer, formatElapsed } from "../hooks/useSessionTimer";
 import { formatDate } from "@/lib/dates";
-import AlertSurface from "./AlertSurface";
-import WorkflowChecklist from "./WorkflowChecklist";
+import InboxCard from "./InboxCard";
 import TrainingSummaryCard from "./TrainingSummaryCard";
 import LeaderboardStrip from "./LeaderboardStrip";
 import RecentActivityFeed from "./RecentActivityFeed";
@@ -87,14 +86,9 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
         )}
       </div>
 
-      {/* ── Alert Surface ──────────────────────────────────────── */}
+      {/* ── Unified Inbox Card ─────────────────────────────────── */}
       <div className="stagger-3">
-        <AlertSurface onNavigate={onNavigate} />
-      </div>
-
-      {/* ── Workflow Checklist ─────────────────────────────────── */}
-      <div className="stagger-4">
-        <WorkflowChecklist onNavigate={onNavigate} />
+        <InboxCard onNavigate={onNavigate} />
       </div>
 
       {/* ── Stats Tiles ────────────────────────────────────────── */}
