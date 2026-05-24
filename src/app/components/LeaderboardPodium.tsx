@@ -71,7 +71,7 @@ export function LeaderboardPodium() {
         <div className="flex items-center gap-2">
           <Trophy className="size-3.5 mc-text-secondary" aria-hidden />
           <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] mc-text-secondary">
-            Puttin' in the Work · This week
+            Puttin' in the Work · Season Total
           </h2>
         </div>
         {lastUpdated && (

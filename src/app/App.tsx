@@ -19,7 +19,6 @@ import SettingsPage from "./components/SettingsPage";
 import RafflePage from "./components/RafflePage";
 
 import SessionStatusBar from "./components/SessionStatusBar";
-import SidebarLeaderboard from "./components/SidebarLeaderboard";
 import LoginPage from "./components/LoginPage";
 import ResetPasswordPage from "./components/ResetPasswordPage";
 import { TeamStoreProvider, useTeamStore } from "./hooks/useTeamStore";
@@ -185,11 +184,6 @@ function AppContent() {
               );
             })}
           </nav>
-
-          {/* Leaderboard — full sidebar only */}
-          <div className="hidden lg:block">
-            <SidebarLeaderboard onNavigate={navigate} />
-          </div>
 
           {/* Footer: Settings + Logout */}
           <div className="flex-shrink-0 px-2.5 py-3 border-t mc-border space-y-0.5">
