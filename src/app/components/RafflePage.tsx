@@ -110,17 +110,28 @@ export default function RafflePage() {
       const mid = start + sliceAngle / 2;
       ctx.save();
       ctx.rotate(mid);
-      ctx.textAlign = "right";
+
+      // Normalize mid to [-π, π] for the flip check. After our `-Math.PI/2`
+      // offset, `mid` runs from -π/2 (top) clockwise; labels need flipping
+      // when the slice midpoint angle (in the rotated frame) points "down".
+      const flip = Math.cos(mid) < 0;
+      if (flip) {
+        ctx.translate(radius - 24, 0);
+        ctx.rotate(Math.PI);
+        ctx.textAlign = "left";
+      } else {
+        ctx.textAlign = "right";
+      }
       ctx.fillStyle = "#ffffff";
-      ctx.font =
-        entries.length > 18
-          ? "700 18px Inter, sans-serif"
-          : "800 24px Inter, sans-serif";
+      ctx.font = entries.length > 18
+        ? "700 18px Inter, sans-serif"
+        : "800 24px Inter, sans-serif";
       ctx.shadowColor = "rgba(0,0,0,0.35)";
       ctx.shadowBlur = 3;
-      const label =
-        entry.label.length > 14 ? `${entry.label.slice(0, 12)}…` : entry.label;
-      ctx.fillText(label, radius - 24, 8);
+      const label = entry.label.length > 14
+        ? `${entry.label.slice(0, 12)}…`
+        : entry.label;
+      ctx.fillText(label, flip ? 0 : radius - 24, 8);
       ctx.restore();
     });
 
