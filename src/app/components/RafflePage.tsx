@@ -4,6 +4,16 @@ import confetti from "canvas-confetti";
 import { useTeamStore, EVENT_TYPES } from "../hooks/useTeamStore";
 import { formatRelativeTime } from "@/lib/dates";
 import DevSpinConsole from "./DevSpinConsole";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
 
 interface WheelEntry {
   player: string;
@@ -13,7 +23,7 @@ interface WheelEntry {
 }
 
 export default function RafflePage() {
-  const { state, raffleWinners, recordRaffleWinner, undoLastRaffleWinner } = useTeamStore();
+  const { state, raffleWinners, recordRaffleWinner, undoLastRaffleWinner, clearActiveEvents } = useTeamStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
@@ -28,6 +38,8 @@ export default function RafflePage() {
   });
   const [pulsingEntry, setPulsingEntry] = useState<string | null>(null);
   const [rawEntryCount, setRawEntryCount] = useState(0);
+
+  const [confirmReset, setConfirmReset] = useState(false);
 
   // Dev visual testing states
   const [testWinnerIndex, setTestWinnerIndex] = useState<number | null>(null);
@@ -318,6 +330,15 @@ export default function RafflePage() {
             className="mt-3 w-full max-w-sm rounded-xl border mc-border bg-white/[0.04] px-3 py-2 text-sm mc-text placeholder:mc-text-muted focus:outline-none focus:ring-2 focus:ring-amber-400/40"
           />
         </div>
+        <button
+          type="button"
+          onClick={() => setConfirmReset(true)}
+          disabled={getEntryCounts().length === 0}
+          className="text-xs font-semibold mc-text-secondary hover:mc-text disabled:opacity-40 disabled:cursor-not-allowed"
+          title="Clear all entries from this week's wheel"
+        >
+          ↺ Reset wheel
+        </button>
       </div>
 
       {/* Raffle Layout */}
@@ -509,6 +530,32 @@ export default function RafflePage() {
           </div>
         </div>
       )}
+
+      {/* Reset wheel confirm dialog */}
+      <AlertDialog open={confirmReset} onOpenChange={setConfirmReset}>
+        <AlertDialogContent className="rounded-3xl border mc-border bg-[#11161d] shadow-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="mc-text">Reset the wheel?</AlertDialogTitle>
+            <AlertDialogDescription className="mc-text-secondary">
+              This removes every player's current entries from the wheel. Past winners and season totals are not affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl border mc-border bg-white/[0.04] mc-text hover:bg-white/[0.08]">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-rose-600 text-white hover:bg-rose-500 font-semibold"
+              onClick={() => {
+                clearActiveEvents({ type: EVENT_TYPES.OPTIONAL_TRAINING });
+                setConfirmReset(false);
+              }}
+            >
+              Reset wheel
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {import.meta.env.DEV && (
         <DevSpinConsole
