@@ -64,6 +64,7 @@ export default function RafflePage() {
   };
 
   const drawWheel = (entries: WheelEntry[], rotationDegrees: number = 0) => {
+    const rotationRadians = (rotationDegrees * Math.PI) / 180;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -113,10 +114,10 @@ export default function RafflePage() {
       ctx.save();
       ctx.rotate(mid);
 
-      // Normalize mid to [-π, π] for the flip check. After our `-Math.PI/2`
-      // offset, `mid` runs from -π/2 (top) clockwise; labels need flipping
-      // when the slice midpoint angle (in the rotated frame) points "down".
-      const flip = Math.cos(mid) < 0;
+      // The screen-space direction of this slice is (wheel rotation + local mid).
+      // A label points left on screen when cos of that combined angle is < 0 —
+      // those labels need a 180° flip so they read forward instead of upside-down.
+      const flip = Math.cos(rotationRadians + mid) < 0;
       if (flip) {
         ctx.translate(radius - 24, 0);
         ctx.rotate(Math.PI);
