@@ -195,14 +195,14 @@ export default function ExportPdfDrawer({
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-[520px] flex flex-col gap-0 p-0 border-white/[0.08]"
-        style={{ backgroundColor: "var(--mc-surface)", color: "var(--mc-text-1)" }}
+        className="w-full sm:max-w-[520px] flex flex-col gap-0 p-0 mc-border"
+        style={{ backgroundColor: "var(--mc-surface)", color: "var(--mc-text-primary)" }}
       >
         {/* Header */}
-        <SheetHeader className="px-6 py-5 border-b border-white/[0.08] shrink-0">
+        <SheetHeader className="px-6 py-5 border-b mc-border shrink-0">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <SheetTitle className="text-base font-semibold text-white">
+              <SheetTitle className="text-base font-semibold mc-text">
                 Export report as PDF
               </SheetTitle>
               <SheetDescription className="text-xs mc-text-muted mt-0.5">
@@ -211,7 +211,7 @@ export default function ExportPdfDrawer({
             </div>
             <button
               onClick={onClose}
-              className="size-7 rounded-lg flex items-center justify-center mc-text-muted hover:mc-text-secondary border border-white/[0.08] hover:bg-white/[0.06] transition-all shrink-0"
+              className="size-7 rounded-lg flex items-center justify-center mc-text-muted hover:mc-text-secondary border mc-border hover:bg-[var(--mc-card-hover)] transition-all shrink-0"
             >
               <X className="size-3.5" />
             </button>
@@ -222,23 +222,23 @@ export default function ExportPdfDrawer({
         <div className="flex-1 overflow-y-auto">
 
           {/* File settings */}
-          <div className="px-6 py-5 border-b border-white/[0.04]">
+          <div className="px-6 py-5 border-b mc-border">
             <p className="text-[10px] font-bold uppercase tracking-widest mc-text-muted mb-3">File</p>
             <div className="mb-3">
               <label className="text-xs mc-text-secondary font-medium mb-1.5 block">Filename</label>
-              <div className="flex items-center gap-0 rounded-lg border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+              <div className="flex items-center gap-0 rounded-lg border mc-border overflow-hidden" style={{ background: "var(--mc-card)" }}>
                 <input
                   value={filename}
                   onChange={(e) => setFilename(e.target.value)}
                   className="flex-1 px-3 py-2 text-xs mc-text bg-transparent focus:outline-none font-mono"
                 />
-                <span className="px-3 py-2 text-xs mc-text-muted font-mono border-l border-white/[0.06] shrink-0">.pdf</span>
+                <span className="px-3 py-2 text-xs mc-text-muted font-mono border-l mc-border shrink-0">.pdf</span>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs mc-text-secondary font-medium mb-1.5 block">Paper size</label>
-                <div className="flex rounded-lg border border-white/[0.08] overflow-hidden bg-white/[0.02] h-9">
+                <div className="flex rounded-lg border mc-border overflow-hidden h-9" style={{ background: "var(--mc-card)" }}>
                   {(["letter", "a4", "legal"] as const).map((s) => (
                     <button
                       key={s}
@@ -256,7 +256,7 @@ export default function ExportPdfDrawer({
               </div>
               <div>
                 <label className="text-xs mc-text-secondary font-medium mb-1.5 block">Orientation</label>
-                <div className="flex rounded-lg border border-white/[0.08] overflow-hidden bg-white/[0.02] h-9">
+                <div className="flex rounded-lg border mc-border overflow-hidden h-9" style={{ background: "var(--mc-card)" }}>
                   {(["portrait", "landscape"] as const).map((o) => (
                     <button
                       key={o}
@@ -276,7 +276,7 @@ export default function ExportPdfDrawer({
           </div>
 
           {/* Sections */}
-          <div className="px-6 py-5 border-b border-white/[0.04]">
+          <div className="px-6 py-5 border-b mc-border">
             <p className="text-[10px] font-bold uppercase tracking-widest mc-text-muted mb-3">Sections</p>
             <div className="space-y-2">
               {sectionItems.map(({ key, label, desc, pages, disabled }) => {
@@ -288,14 +288,14 @@ export default function ExportPdfDrawer({
                     onClick={() => !disabled && toggle(key)}
                     className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border text-left transition-all ${
                       disabled
-                        ? "opacity-40 cursor-not-allowed border-white/[0.06] bg-transparent"
+                        ? "opacity-40 cursor-not-allowed mc-border bg-transparent"
                         : checked
                         ? "border-blue-500/30 bg-blue-500/[0.07]"
-                        : "border-white/[0.06] hover:border-white/[0.1] hover:bg-white/[0.02]"
+                        : "mc-border hover:bg-[var(--mc-card-hover)]"
                     }`}
                   >
                     <div className={`size-4 rounded flex items-center justify-center shrink-0 border ${
-                      checked ? "bg-blue-500 border-blue-500" : "border-white/20"
+                      checked ? "bg-blue-500 border-blue-500" : "mc-border"
                     }`}>
                       {checked && (
                         <svg className="size-2.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -365,10 +365,10 @@ export default function ExportPdfDrawer({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/[0.08] shrink-0 flex gap-3" style={{ backgroundColor: "var(--mc-elev, #11161f)" }}>
+        <div className="px-6 py-4 border-t mc-border shrink-0 flex gap-3" style={{ backgroundColor: "var(--mc-surface)" }}>
           <button
             onClick={onClose}
-            className="h-10 px-4 rounded-xl text-sm font-semibold mc-text-muted border border-white/[0.08] hover:mc-text-secondary hover:bg-white/[0.04] transition-all"
+            className="h-10 px-4 rounded-xl text-sm font-semibold mc-text-muted border mc-border hover:mc-text-secondary hover:bg-[var(--mc-card-hover)] transition-all"
           >
             Cancel
           </button>

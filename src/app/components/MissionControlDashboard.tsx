@@ -146,7 +146,7 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
           {state.events.length > 0 ? (
             <RecentActivityFeed onNavigate={onNavigate} />
           ) : (
-            <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-8 mc-text-muted text-sm text-center">
+            <div className="rounded-2xl border mc-border px-5 py-8 mc-text-muted text-sm text-center" style={{ background: "var(--mc-card)" }}>
               No sessions logged yet. Start your first session above.
             </div>
           )}
@@ -308,7 +308,7 @@ function StatTile({
   const p = palettes[color];
 
   return (
-    <div className="rounded-xl border mc-border bg-white/[0.03] p-5 flex flex-col gap-3 hover:bg-white/[0.05] transition-colors">
+    <div className="rounded-xl border mc-border p-5 flex flex-col gap-3 mc-card-hover transition-colors" style={{ background: "var(--mc-card)" }}>
       <div className={`size-8 rounded-lg flex items-center justify-center ${p.icon}`}>{icon}</div>
       <div>
         <div className={`mc-mono text-3xl font-bold tabular-nums leading-none ${p.val}`}>{value}</div>
@@ -332,8 +332,8 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+    <div className="rounded-2xl border mc-border overflow-hidden" style={{ background: "var(--mc-card)" }}>
+      <div className="flex items-center justify-between px-5 py-3.5 border-b mc-border">
         <h3 className="mc-text-secondary text-xs font-bold uppercase tracking-widest">{title}</h3>
         {action && (
           <button
@@ -355,9 +355,9 @@ function SectionCard({
 
 function InfoChip({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 min-w-[120px]">
-      <div className="text-white/35 text-[10px] font-semibold uppercase tracking-wider">{label}</div>
-      <div className="text-white/80 text-sm font-semibold mt-0.5">{value}</div>
+    <div className="border mc-border rounded-xl px-4 py-3 min-w-[120px]" style={{ background: "var(--mc-card)" }}>
+      <div className="mc-text-muted text-[10px] font-semibold uppercase tracking-wider">{label}</div>
+      <div className="mc-text-secondary text-sm font-semibold mt-0.5">{value}</div>
     </div>
   );
 }

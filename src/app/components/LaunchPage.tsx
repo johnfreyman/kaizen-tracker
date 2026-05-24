@@ -274,7 +274,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                     className="fixed inset-0 z-40"
                     onClick={() => setShowCalendar(false)}
                   />
-                  <div className="absolute top-full left-0 mt-2 z-50 bg-[#1e2333] rounded-xl border border-white/[0.1] p-4 text-white shadow-2xl">
+                  <div className="absolute top-full left-0 mt-2 z-50 rounded-xl border mc-border p-4 mc-text shadow-2xl" style={{ background: "var(--mc-surface)" }}>
                     <DayPicker
                       mode="single"
                       selected={selectedDate}

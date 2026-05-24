@@ -45,9 +45,14 @@ type SortDir = "asc" | "desc";
 const TOOLTIP_STYLE = {
   borderRadius: 10,
   fontSize: 12,
-  border: "1px solid #e5e7eb",
-  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+  border: "1px solid var(--mc-card-border)",
+  background: "var(--mc-surface)",
+  color: "var(--mc-text-primary)",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
 };
+
+// Chart grid stroke — neutral mid-gray visible on both light and dark backgrounds
+const GRID_STROKE = "rgba(128,128,128,0.18)";
 
 // ─── Small atoms ─────────────────────────────────────────────────────────────
 
@@ -65,9 +70,10 @@ function Pill({
       onClick={onClick}
       className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
         active
-          ? "bg-gray-900 text-white"
-          : "bg-white text-gray-600 hover:bg-gray-100"
+          ? "bg-gray-800 dark:bg-white text-white dark:text-gray-900"
+          : "mc-text-secondary hover:bg-[var(--mc-card-hover)]"
       }`}
+      style={active ? undefined : { background: "var(--mc-card)" }}
     >
       {children}
     </button>
@@ -86,18 +92,18 @@ function Kpi({
   accent: string;
 }) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4">
+    <div className="rounded-2xl border mc-border px-5 py-4" style={{ background: "var(--mc-card)" }}>
       <div className="flex items-center gap-2">
         <span className={`size-1.5 rounded-full ${accent}`} />
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+        <span className="text-[11px] font-semibold uppercase tracking-wider mc-text-muted">
           {label}
         </span>
       </div>
       <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-3xl font-bold text-gray-900 tabular-nums">
+        <span className="text-3xl font-bold mc-text tabular-nums">
           {value}
         </span>
-        {sub && <span className="text-xs text-gray-500">{sub}</span>}
+        {sub && <span className="text-xs mc-text-muted">{sub}</span>}
       </div>
     </div>
   );
@@ -117,25 +123,25 @@ function InsightCard({
   tone: "good" | "info" | "warn";
 }) {
   const tones = {
-    good: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    warn: "bg-amber-50 text-amber-700 ring-amber-200",
-    info: "bg-indigo-50 text-indigo-700 ring-indigo-200",
+    good: "bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 ring-emerald-200 dark:ring-emerald-500/30",
+    warn: "bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 ring-amber-200 dark:ring-amber-500/30",
+    info: "bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 ring-indigo-200 dark:ring-indigo-500/30",
   };
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-white p-4">
+    <div className="flex items-start gap-3 rounded-2xl border mc-border p-4" style={{ background: "var(--mc-card)" }}>
       <div
         className={`grid size-9 shrink-0 place-items-center rounded-xl ring-1 ring-inset ${tones[tone]}`}
       >
         {icon}
       </div>
       <div className="min-w-0">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+        <div className="text-[11px] font-semibold uppercase tracking-wider mc-text-muted">
           {label}
         </div>
-        <div className="mt-0.5 truncate text-base font-semibold text-gray-900">
+        <div className="mt-0.5 truncate text-base font-semibold mc-text">
           {name}
         </div>
-        <div className="mt-0.5 text-xs text-gray-500">{detail}</div>
+        <div className="mt-0.5 text-xs mc-text-secondary">{detail}</div>
       </div>
     </div>
   );
@@ -253,21 +259,21 @@ export default function SummaryPage({
 
   // ── Att % cell colour ──────────────────────────────────────────────────────
   function attColor(rate: number) {
-    if (rate >= 0.8) return "bg-emerald-50 text-emerald-700";
-    if (rate >= 0.5) return "bg-amber-50 text-amber-700";
-    return "bg-rose-50 text-rose-700";
+    if (rate >= 0.8) return "bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400";
+    if (rate >= 0.5) return "bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400";
+    return "bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400";
   }
 
   // ─── Empty state ───────────────────────────────────────────────────────────
   if (!events.length) {
     return (
       <div className="space-y-6">
-        <div className="rounded-3xl border border-gray-200 bg-white p-8 text-center shadow-xl">
-          <BarChart3 className="mx-auto mb-4 size-12 text-gray-300" />
-          <p className="text-lg font-semibold text-gray-600">
+        <div className="rounded-3xl border mc-border p-8 text-center shadow-xl" style={{ background: "var(--mc-card)" }}>
+          <BarChart3 className="mx-auto mb-4 size-12 mc-text-muted" />
+          <p className="text-lg font-semibold mc-text-secondary">
             No events logged yet.
           </p>
-          <p className="mt-1 text-sm text-gray-400">
+          <p className="mt-1 text-sm mc-text-muted">
             Log practice and training sessions to see reports here.
           </p>
         </div>
@@ -281,19 +287,19 @@ export default function SummaryPage({
       {/* ── 1. Header bar ──────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-indigo-600">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
             Reports
           </div>
-          <h1 className="mt-1 text-2xl font-bold text-gray-900">
+          <h1 className="mt-1 text-2xl font-bold mc-text">
             Team performance
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm mc-text-muted">
             {scoped.length} events · {roster.length} players ·{" "}
             {range === "all" ? "all time" : `last ${range} days`}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
+          <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: "var(--mc-surface)" }}>
             {(
               [
                 ["30", "30d"],
@@ -311,7 +317,8 @@ export default function SummaryPage({
             onClick={() =>
               exportReportCSV({ events: scoped, roster, guestPlayers, range })
             }
-            className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+            className="flex items-center gap-1.5 rounded-xl border mc-border px-3 py-2 text-xs font-semibold mc-text-secondary hover:bg-[var(--mc-card-hover)] transition-colors"
+            style={{ background: "var(--mc-card)" }}
           >
             <Download className="size-3.5" />
             Export
@@ -383,15 +390,15 @@ export default function SummaryPage({
       {/* ── 4. Trends + Day-of-week ────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Trends over time */}
-        <div className="rounded-2xl border border-gray-200 bg-white p-5">
+        <div className="rounded-2xl border mc-border p-5" style={{ background: "var(--mc-card)" }}>
           <div className="mb-4 flex items-center gap-2">
-            <TrendingUp className="size-4 text-gray-400" />
-            <h3 className="text-base font-bold text-gray-900">
+            <TrendingUp className="size-4 mc-text-muted" />
+            <h3 className="text-base font-bold mc-text">
               Trends over time
             </h3>
           </div>
           {trend.length < 2 ? (
-            <div className="flex h-56 items-center justify-center text-sm italic text-gray-400">
+            <div className="flex h-56 items-center justify-center text-sm italic mc-text-muted">
               Log events across at least two months to see trends.
             </div>
           ) : (
@@ -403,22 +410,14 @@ export default function SummaryPage({
                 <defs>
                   <linearGradient id="gHrs" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.25} />
-                    <stop
-                      offset="100%"
-                      stopColor="#3b82f6"
-                      stopOpacity={0}
-                    />
+                    <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="gAtt" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#10b981" stopOpacity={0.22} />
-                    <stop
-                      offset="100%"
-                      stopColor="#10b981"
-                      stopOpacity={0}
-                    />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                 <YAxis
                   yAxisId="L"
@@ -463,15 +462,15 @@ export default function SummaryPage({
         </div>
 
         {/* Day-of-week breakdown */}
-        <div className="rounded-2xl border border-gray-200 bg-white p-5">
+        <div className="rounded-2xl border mc-border p-5" style={{ background: "var(--mc-card)" }}>
           <div className="mb-4 flex items-center gap-2">
-            <Calendar className="size-4 text-gray-400" />
-            <h3 className="text-base font-bold text-gray-900">
+            <Calendar className="size-4 mc-text-muted" />
+            <h3 className="text-base font-bold mc-text">
               Practice by day of week
             </h3>
           </div>
           {!dowData.length ? (
-            <div className="flex h-56 items-center justify-center text-sm italic text-gray-400">
+            <div className="flex h-56 items-center justify-center text-sm italic mc-text-muted">
               No practice sessions logged yet.
             </div>
           ) : (
@@ -483,7 +482,7 @@ export default function SummaryPage({
                 >
                   <CartesianGrid
                     strokeDasharray="3 3"
-                    stroke="#f1f5f9"
+                    stroke={GRID_STROKE}
                     vertical={false}
                   />
                   <XAxis dataKey="day" tick={{ fontSize: 11 }} />
@@ -517,7 +516,7 @@ export default function SummaryPage({
                 </BarChart>
               </ResponsiveContainer>
               {dowInsightDay && (
-                <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <div className="mt-3 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
                   <strong>Insight:</strong> {dowInsightDay.day} sessions average{" "}
                   {dowInsightDay.attendance}% attendance vs.{" "}
                   {Math.round(teamAvg * 100)}% team average — worth a look.
@@ -529,27 +528,27 @@ export default function SummaryPage({
       </div>
 
       {/* ── 5. Players ─────────────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-gray-200 bg-white">
+      <div className="rounded-2xl border mc-border overflow-hidden" style={{ background: "var(--mc-card)" }}>
         {/* card header */}
-        <div className="flex items-center justify-between border-b border-gray-100 p-5">
+        <div className="flex items-center justify-between border-b mc-border p-5">
           <div className="flex items-center gap-2">
-            <Users className="size-4 text-gray-400" />
-            <h3 className="text-base font-bold text-gray-900">Players</h3>
-            <span className="ml-1 rounded-md bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-500">
+            <Users className="size-4 mc-text-muted" />
+            <h3 className="text-base font-bold mc-text">Players</h3>
+            <span className="ml-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium mc-text-muted" style={{ background: "var(--mc-surface)" }}>
               {att.length}
             </span>
           </div>
-          <div className="text-xs text-gray-500">Click a row to drill in</div>
+          <div className="text-xs mc-text-muted">Click a row to drill in</div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr]">
           {/* Left: bar chart */}
-          <div className="border-b border-gray-100 p-5 lg:border-b-0 lg:border-r">
-            <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-500">
+          <div className="border-b mc-border p-5 lg:border-b-0 lg:border-r">
+            <div className="mb-3 flex items-center gap-2 text-xs font-semibold mc-text-muted">
               <span className="size-2 rounded-sm bg-indigo-500" /> Attendance %
             </div>
             {att.length === 0 ? (
-              <div className="flex h-40 items-center justify-center text-sm italic text-gray-400">
+              <div className="flex h-40 items-center justify-center text-sm italic mc-text-muted">
                 No player data yet.
               </div>
             ) : (
@@ -568,7 +567,7 @@ export default function SummaryPage({
                   <CartesianGrid
                     horizontal={false}
                     strokeDasharray="3 3"
-                    stroke="#f1f5f9"
+                    stroke={GRID_STROKE}
                   />
                   <XAxis type="number" tick={{ fontSize: 11 }} />
                   <YAxis
@@ -592,7 +591,7 @@ export default function SummaryPage({
           <div className="overflow-x-auto p-5">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-200 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                <tr className="border-b mc-border text-left text-[11px] font-semibold uppercase tracking-wider mc-text-muted">
                   {(
                     [
                       ["name", "Player"],
@@ -605,7 +604,7 @@ export default function SummaryPage({
                     <th
                       key={k}
                       onClick={() => handleSortBy(k)}
-                      className="cursor-pointer px-2 py-2 hover:text-gray-900"
+                      className="cursor-pointer px-2 py-2 hover:mc-text"
                     >
                       {l}
                       {sortIcon(k)}
@@ -623,11 +622,13 @@ export default function SummaryPage({
                         onClick={() =>
                           setSelectedPlayer(active ? null : p.name)
                         }
-                        className={`cursor-pointer border-b border-gray-100 last:border-b-0 ${
-                          active ? "bg-indigo-50" : "hover:bg-gray-50"
+                        className={`cursor-pointer border-b mc-border last:border-b-0 transition-colors ${
+                          active
+                            ? "bg-indigo-50 dark:bg-indigo-500/10"
+                            : "hover:bg-[var(--mc-card-hover)]"
                         }`}
                       >
-                        <td className="px-2 py-2 font-medium text-gray-900">
+                        <td className="px-2 py-2 font-medium mc-text">
                           {p.name}
                         </td>
                         <td className="px-2 py-2 tabular-nums">
@@ -637,19 +638,19 @@ export default function SummaryPage({
                             {Math.round(p.rate * 100)}%
                           </span>
                         </td>
-                        <td className="px-2 py-2 tabular-nums text-gray-700">
+                        <td className="px-2 py-2 tabular-nums mc-text-secondary">
                           {p.practice.toFixed(1)}
                         </td>
-                        <td className="px-2 py-2 tabular-nums text-gray-700">
+                        <td className="px-2 py-2 tabular-nums mc-text-secondary">
                           {p.training.toFixed(1)}
                         </td>
-                        <td className="px-2 py-2 tabular-nums text-gray-700">
+                        <td className="px-2 py-2 tabular-nums mc-text-secondary">
                           {p.streak > 0 ? (
-                            <span className="text-emerald-700">
+                            <span className="text-emerald-600 dark:text-emerald-400">
                               ↑ {p.streak}
                             </span>
                           ) : (
-                            <span className="text-gray-400">—</span>
+                            <span className="mc-text-muted">—</span>
                           )}
                         </td>
                       </tr>
@@ -658,9 +659,10 @@ export default function SummaryPage({
                         <tr key={`${p.name}-expand`}>
                           <td
                             colSpan={5}
-                            className="border-b border-gray-100 bg-gray-50 px-4 py-3"
+                            className="border-b mc-border px-4 py-3"
+                            style={{ background: "var(--mc-surface)" }}
                           >
-                            <div className="mb-1 text-[11px] font-semibold text-gray-500">
+                            <div className="mb-1 text-[11px] font-semibold mc-text-muted">
                               {p.name} · session history
                             </div>
                             <div className="flex flex-wrap gap-1">
@@ -670,12 +672,12 @@ export default function SummaryPage({
                                   <div
                                     key={ev.id}
                                     title={`${ev.date} · ${present ? "present" : "absent"}`}
-                                    className={`size-4 rounded ${present ? "bg-indigo-500" : "bg-gray-200"}`}
+                                    className={`size-4 rounded ${present ? "bg-indigo-500" : "bg-gray-200 dark:bg-white/15"}`}
                                   />
                                 );
                               })}
                             </div>
-                            <div className="mt-1.5 text-[11px] text-gray-400">
+                            <div className="mt-1.5 text-[11px] mc-text-muted">
                               Each square = one practice, chronological. Indigo
                               = attended.
                             </div>
@@ -692,20 +694,20 @@ export default function SummaryPage({
       </div>
 
       {/* ── 6. Session log ─────────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-gray-200 bg-white">
+      <div className="rounded-2xl border mc-border overflow-hidden" style={{ background: "var(--mc-card)" }}>
         <details>
-          <summary className="flex cursor-pointer list-none items-center justify-between p-5 hover:bg-gray-50">
+          <summary className="flex cursor-pointer list-none items-center justify-between p-5 hover:bg-[var(--mc-card-hover)] transition-colors">
             <div className="flex items-center gap-2">
-              <Clock className="size-4 text-gray-400" />
-              <h3 className="text-base font-bold text-gray-900">Session log</h3>
-              <span className="ml-1 rounded-md bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-500">
+              <Clock className="size-4 mc-text-muted" />
+              <h3 className="text-base font-bold mc-text">Session log</h3>
+              <span className="ml-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium mc-text-muted" style={{ background: "var(--mc-surface)" }}>
                 {scoped.length}
               </span>
             </div>
-            <span className="text-xs text-gray-500">Expand ↓</span>
+            <span className="text-xs mc-text-muted">Expand ↓</span>
           </summary>
 
-          <div className="border-t border-gray-100 p-5">
+          <div className="border-t mc-border p-5">
             <div className="space-y-2">
               {scoped
                 .slice()
@@ -714,11 +716,12 @@ export default function SummaryPage({
                 .map((ev) => (
                   <div
                     key={ev.id}
-                    className="rounded-xl border border-gray-100 bg-white px-4 py-3 hover:bg-gray-50"
+                    className="rounded-xl border mc-border px-4 py-3 hover:bg-[var(--mc-card-hover)] transition-colors"
+                    style={{ background: "var(--mc-surface)" }}
                   >
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium mc-text">
                           {ev.type} ·{" "}
                           {new Date(
                             ev.date.includes("T")
@@ -730,7 +733,7 @@ export default function SummaryPage({
                             year: "numeric",
                           })}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs mc-text-muted">
                           {ev.duration}h · {ev.players.length} present
                         </div>
                       </div>
@@ -739,7 +742,7 @@ export default function SummaryPage({
                           const text = ev.players.join(", ");
                           navigator.clipboard.writeText(text).catch(() => {});
                         }}
-                        className="shrink-0 text-[11px] font-semibold text-gray-500 hover:text-indigo-600"
+                        className="shrink-0 text-[11px] font-semibold mc-text-muted hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
                       >
                         Copy roster
                       </button>
@@ -753,9 +756,10 @@ export default function SummaryPage({
                             key={player}
                             className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
                               isGuest
-                                ? "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200"
-                                : "bg-gray-100 text-gray-700"
+                                ? "bg-amber-50 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 ring-1 ring-inset ring-amber-200 dark:ring-amber-500/30"
+                                : "mc-text-secondary"
                             }`}
+                            style={isGuest ? undefined : { background: "var(--mc-surface)" }}
                           >
                             {player}
                           </span>
@@ -769,7 +773,7 @@ export default function SummaryPage({
               <div className="mt-3 flex justify-end">
                 <button
                   onClick={() => onNavigate?.("launch")}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
                 >
                   View all sessions
                   <ArrowRight className="size-3.5" />
