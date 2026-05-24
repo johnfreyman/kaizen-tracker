@@ -821,7 +821,7 @@ export default function SettingsPage() {
               onChange={(e) => setNewPlayerName(e.target.value)}
               placeholder="Player Name"
               autoFocus
-              className="w-full px-4 py-3 rounded-2xl border border-gray-300 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+              className="w-full px-4 py-3 rounded-2xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && newPlayerName.trim()) {
                   setPendingPlayerName(newPlayerName.trim());
