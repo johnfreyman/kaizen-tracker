@@ -340,8 +340,8 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                       step="900"
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
-                      className="w-full px-4 py-3 rounded-lg border mc-border hover:border-blue-400/50 focus:border-blue-500 focus:outline-none mc-text font-semibold text-sm transition-all focus:ring-4 focus:ring-blue-500/10"
-                      style={{ background: "var(--mc-card)" }}
+                      className="w-full px-4 py-3 rounded-lg border mc-border hover:border-blue-400/50 focus:border-blue-500 focus:outline-none font-semibold text-sm transition-all focus:ring-4 focus:ring-blue-500/10"
+                      style={{ background: "var(--mc-card)", color: "var(--mc-text-primary)" }}
                     />
                   </div>
                 </div>
@@ -475,12 +475,12 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                       step="0.5"
                       value={durationInput}
                       onChange={(e) => setDurationInput(e.target.value)}
-                      className={`w-full px-4 py-3 rounded-lg border text-center font-extrabold mc-text transition-all focus:outline-none focus:ring-4 ${
+                      className={`w-full px-4 py-3 rounded-lg border text-center font-extrabold transition-all focus:outline-none focus:ring-4 ${
                         isDurationValid
                           ? "mc-border focus:border-blue-500 focus:ring-blue-500/10"
                           : "border-red-500 bg-red-500/10 focus:border-red-500 focus:ring-red-100"
                       }`}
-                      style={isDurationValid ? { background: "var(--mc-card)" } : undefined}
+                      style={isDurationValid ? { background: "var(--mc-card)", color: "var(--mc-text-primary)" } : { color: "var(--mc-text-primary)" }}
                       placeholder="e.g. 1.5"
                     />
                   </div>
