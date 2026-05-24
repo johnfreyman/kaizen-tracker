@@ -500,7 +500,7 @@ export default function RafflePage() {
           className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setWinner(null); }}
         >
-          <div className="w-full max-w-md rounded-3xl border mc-border bg-[#11161d] p-8 shadow-2xl">
+          <div className="w-full max-w-md rounded-3xl border mc-border bg-[#11161d] p-8 shadow-2xl animate-in zoom-in-95 fade-in duration-200">
             <div className="text-center">
               <div className="text-5xl">🎉</div>
               <h2 id="winner-title" className="mt-3 text-2xl font-bold mc-text">
