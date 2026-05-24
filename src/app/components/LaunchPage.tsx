@@ -332,7 +332,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
               {/* Custom Time Input Reveal */}
               {timeMode === "custom" && (
-                <div className="p-5 bg-white/[0.02] border border-white/[0.08] rounded-xl animate-fade-in max-w-sm mt-3">
+                <div className="p-5 border mc-border rounded-xl animate-fade-in max-w-sm mt-3" style={{ background: "var(--mc-card)" }}>
                   <div className="relative group">
                     <input
                       type="time"
@@ -340,7 +340,8 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                       step="900"
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
-                      className="w-full px-4 py-3 rounded-lg border border-white/[0.08] bg-white/[0.03] hover:border-white/[0.15] focus:border-blue-500 focus:outline-none text-white font-semibold text-sm transition-all focus:ring-4 focus:ring-blue-500/10"
+                      className="w-full px-4 py-3 rounded-lg border mc-border hover:border-blue-400/50 focus:border-blue-500 focus:outline-none mc-text font-semibold text-sm transition-all focus:ring-4 focus:ring-blue-500/10"
+                      style={{ background: "var(--mc-card)" }}
                     />
                   </div>
                 </div>
