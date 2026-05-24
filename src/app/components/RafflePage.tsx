@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Gift, Sparkles, RefreshCw } from "lucide-react";
+import { Gift, RefreshCw } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useTeamStore, EVENT_TYPES } from "../hooks/useTeamStore";
 import { formatDate } from "@/lib/dates";
@@ -80,10 +80,10 @@ export default function RafflePage() {
     if (!entries.length) {
       ctx.beginPath();
       ctx.arc(0, 0, radius, 0, Math.PI * 2);
-      ctx.fillStyle = "#eef3f8";
+      ctx.fillStyle = "rgba(255,255,255,0.04)";
       ctx.fill();
       ctx.lineWidth = 14;
-      ctx.strokeStyle = "#153e75";
+      ctx.strokeStyle = "rgba(255,255,255,0.12)";
       ctx.stroke();
       ctx.restore();
       drawCenterBadge(ctx, center, center, "🎁");
@@ -127,7 +127,7 @@ export default function RafflePage() {
     ctx.beginPath();
     ctx.arc(0, 0, radius, 0, Math.PI * 2);
     ctx.lineWidth = 14;
-    ctx.strokeStyle = "#122033";
+    ctx.strokeStyle = "rgba(0,0,0,0.5)";
     ctx.stroke();
     ctx.restore();
 
@@ -276,24 +276,20 @@ export default function RafflePage() {
 
   return (
     <div className="space-y-6">
-      {/* Hero Card */}
-      <div className="bg-gradient-to-br from-white to-yellow-50 rounded-3xl p-6 md:p-8 shadow-xl border border-yellow-100">
-        <span className="text-xs font-bold uppercase tracking-wider text-yellow-600">
-          Optional Training Raffle
-        </span>
-        <h2 className="mt-2 text-3xl md:text-5xl font-bold text-gray-900 leading-tight">
-          Spin the attendance prize wheel.
-        </h2>
-        <p className="mt-3 text-lg text-gray-600 max-w-2xl">
-          Each optional training attendance earns that player one unique slice on
-          the wheel.
-        </p>
+      {/* Slim header */}
+      <div className="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-400">Raffle</div>
+          <h1 className="mt-1 text-2xl font-bold mc-text">Attendance prize wheel</h1>
+          <p className="mt-1 text-sm mc-text-secondary">Each optional training attendance earns one slice.</p>
+        </div>
+        {/* Ticket 3 will add a prize input + last-winner pill here */}
       </div>
 
       {/* Raffle Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Wheel Card */}
-        <div className="lg:col-span-3 bg-white/90 backdrop-blur-sm rounded-3xl p-6 md:p-8 shadow-xl border border-gray-200">
+        <div className="lg:col-span-3 bg-white/[0.03] border mc-border rounded-3xl p-6 md:p-8">
           <div className="flex flex-col items-center gap-6">
             {/* Pointer */}
             <div className="relative w-full max-w-[640px]">
@@ -331,9 +327,9 @@ export default function RafflePage() {
         </div>
 
         {/* Entries List */}
-        <div className="lg:col-span-2 bg-white/90 backdrop-blur-sm rounded-3xl p-6 md:p-8 shadow-xl border border-gray-200">
+        <div className="lg:col-span-2 bg-white/[0.03] border mc-border rounded-3xl p-6 md:p-8">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xl font-bold text-gray-900">Wheel Entries</h3>
+            <h3 className="text-xl font-bold mc-text">Wheel Entries</h3>
             <button
               onClick={refreshWheel}
               className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
@@ -343,12 +339,12 @@ export default function RafflePage() {
             </button>
           </div>
 
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-sm mc-text-secondary mb-4">
             Players appear once for every optional training session they attended.
           </p>
 
           {wheelEntries.length === 0 ? (
-            <div className="bg-gray-50/60 border border-dashed border-gray-300 rounded-2xl p-8 text-center text-gray-500">
+            <div className="bg-white/[0.02] border border-dashed mc-border rounded-2xl p-8 text-center mc-text-muted">
               No raffle entries yet. Save an Optional Training session with players
               marked present.
             </div>
@@ -357,10 +353,10 @@ export default function RafflePage() {
               {getEntryCounts().map(([player, count]) => (
                 <div
                   key={player}
-                  className="flex items-center justify-between gap-4 p-3 border border-gray-200 rounded-2xl bg-white"
+                  className="flex items-center justify-between gap-4 p-3 border mc-border rounded-2xl bg-white/[0.04]"
                 >
-                  <strong className="text-gray-900">{player}</strong>
-                  <span className="text-sm font-bold text-blue-700">
+                  <strong className="mc-text">{player}</strong>
+                  <span className="text-sm font-bold text-amber-400">
                     {count} {count === 1 ? "slice" : "slices"}
                   </span>
                 </div>
