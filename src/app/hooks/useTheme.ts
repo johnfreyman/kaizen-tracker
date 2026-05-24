@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, createElement } from "react";
+import type { ReactNode } from "react";
 
 export type Theme = "dark" | "light" | "system";
 
@@ -11,7 +12,15 @@ function resolveTheme(theme: Theme): "dark" | "light" {
   return theme;
 }
 
-export function useTheme() {
+interface ThemeContextValue {
+  theme: Theme;
+  resolved: "dark" | "light";
+  setTheme: (t: Theme) => void;
+}
+
+const ThemeContext = createContext<ThemeContextValue | null>(null);
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
     try {
       return (localStorage.getItem(STORAGE_KEY) as Theme) ?? "dark";
@@ -25,11 +34,8 @@ export function useTheme() {
   useEffect(() => {
     const root = document.documentElement;
     root.classList.toggle("mc-light", resolved === "light");
-
-    // Keep Radix/shadcn dark class in sync
     root.classList.toggle("dark", resolved === "dark");
 
-    // Sync system theme changes when in "system" mode
     if (theme !== "system") return;
     const mq = window.matchMedia("(prefers-color-scheme: light)");
     const handler = () => {
@@ -48,5 +54,11 @@ export function useTheme() {
     } catch { /* ignore */ }
   };
 
-  return { theme, resolved, setTheme };
+  return createElement(ThemeContext.Provider, { value: { theme, resolved, setTheme } }, children);
+}
+
+export function useTheme() {
+  const ctx = useContext(ThemeContext);
+  if (!ctx) throw new Error("useTheme must be used within ThemeProvider");
+  return ctx;
 }

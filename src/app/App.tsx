@@ -30,7 +30,7 @@ import { Toaster } from "./components/ui/sonner";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useSwipeNavigation } from "./hooks/useSwipeNavigation";
-import { useTheme } from "./hooks/useTheme";
+import { ThemeProvider, useTheme } from "./hooks/useTheme";
 import { Drawer, DrawerContent } from "./components/ui/drawer";
 
 type Page = "dashboard" | "launch" | "attendance" | "summary" | "settings" | "raffle";
@@ -376,11 +376,13 @@ function AppContent() {
 
 export default function App() {
   return (
-    <TeamStoreProvider>
-      <ErrorBoundary>
-        <AppContent />
-      </ErrorBoundary>
-      <Toaster />
-    </TeamStoreProvider>
+    <ThemeProvider>
+      <TeamStoreProvider>
+        <ErrorBoundary>
+          <AppContent />
+        </ErrorBoundary>
+        <Toaster />
+      </TeamStoreProvider>
+    </ThemeProvider>
   );
 }
