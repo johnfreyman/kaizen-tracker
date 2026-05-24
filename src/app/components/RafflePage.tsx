@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Gift, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useTeamStore, EVENT_TYPES } from "../hooks/useTeamStore";
 import { formatDate, formatRelativeTime } from "@/lib/dates";
@@ -337,8 +337,7 @@ export default function RafflePage() {
               disabled={isSpinning || wheelEntries.length === 0}
               className="w-full max-w-xs flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold text-lg rounded-2xl hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed focus:ring-4 focus:ring-blue-200 transition-all shadow-lg hover:shadow-xl"
             >
-              <Gift className="w-6 h-6" />
-              {isSpinning ? "Spinning..." : "🎁 Spin the Wheel"}
+              {isSpinning ? "Spinning..." : "Spin the Wheel"}
             </button>
 
             {/* Winner Display */}
