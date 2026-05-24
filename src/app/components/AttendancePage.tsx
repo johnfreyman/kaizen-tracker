@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Save, UserPlus, Edit, Flame, UserCircle, Check } from "lucide-react";
 import { useTeamStore } from "../hooks/useTeamStore";
 import PlayerTypeDialog from "./PlayerTypeDialog";
-import LeaderboardTicker from "./LeaderboardTicker";
+import { LeaderboardPodium } from "./LeaderboardPodium";
 import { formatDate } from "@/lib/dates";
 import { toast } from "sonner";
 import {
@@ -125,7 +125,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
   return (
     <div className={`space-y-6 ${state.activeSession ? "pb-24 md:pb-20" : ""}`}>
       {/* Leaderboard Ticker */}
-      <LeaderboardTicker onNavigate={onNavigate} />
+      <LeaderboardPodium />
 
       {/* Session Banner */}
       <div
