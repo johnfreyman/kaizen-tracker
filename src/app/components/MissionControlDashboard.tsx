@@ -8,6 +8,7 @@ import TrainingSummaryCard from "./TrainingSummaryCard";
 import LeaderboardStrip from "./LeaderboardStrip";
 import RecentActivityFeed from "./RecentActivityFeed";
 import RewardsCard from "./RewardsCard";
+import { LeaderboardPodium } from "./LeaderboardPodium";
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -63,6 +64,11 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
       {/* ── Mobile Leaderboard Strip (mobile only) ──────────────── */}
       <div className="md:hidden stagger-1">
         <LeaderboardStrip onNavigate={onNavigate} />
+      </div>
+
+      {/* ── Leaderboard Podium (temporary: side-by-side with ticker for review) ── */}
+      <div className="stagger-1">
+        <LeaderboardPodium />
       </div>
 
       {/* ── Hero Panel — key forces re-animation on state change ── */}
