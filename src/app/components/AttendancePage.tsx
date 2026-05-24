@@ -371,10 +371,10 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
           state.activeSession ? "translate-y-0" : "translate-y-full"
         }`}
       >
-        <div className="max-w-5xl mx-auto w-full pointer-events-auto bg-[var(--mc-elev)] border border-white/[0.08] rounded-2xl px-4 py-3 shadow-2xl backdrop-blur flex items-center justify-between gap-4">
+        <div className="max-w-5xl mx-auto w-full pointer-events-auto bg-[var(--mc-elev)] border mc-border rounded-2xl px-4 py-3 shadow-2xl backdrop-blur flex items-center justify-between gap-4">
           <div className="mc-text text-sm md:text-base">
             <span className="opacity-80">
-              <b className="font-bold text-white">{presentPlayers.size}</b> of {state.roster.length} present
+              <b className="font-bold mc-text">{presentPlayers.size}</b> of {state.roster.length} present
             </span>
           </div>
           <button
