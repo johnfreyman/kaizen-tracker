@@ -7,6 +7,15 @@ import {
   clearPendingEvent as clearPendingEventFromStorage,
 } from "@/lib/attendance-draft";
 
+const RAFFLE_WINNERS_KEY = "kaizen.raffle.winners";
+
+export interface RaffleWinner {
+  id: string;
+  player: string;
+  prize: string;
+  wonAt: string;
+}
+
 export const EVENT_TYPES = {
   PRACTICE: "Practice",
   OPTIONAL_TRAINING: "Optional Training",
@@ -159,6 +168,9 @@ interface TeamStoreContextType {
   editLastSession: () => TeamEvent | null;
   isGuest: (playerName: string) => boolean;
   completeOnboarding: () => void;
+  raffleWinners: RaffleWinner[];
+  recordRaffleWinner: (winner: Omit<RaffleWinner, "id" | "wonAt">) => void;
+  clearRaffleHistory: () => void;
 }
 
 const TeamStoreContext = createContext<TeamStoreContextType | null>(null);
@@ -176,6 +188,14 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
   const currentUserIdRef = useRef<string | null>(null);
   const [pendingEvent, setPendingEvent] = useState<TeamEvent | null>(null);
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [raffleWinners, setRaffleWinners] = useState<RaffleWinner[]>(() => {
+    try {
+      const stored = localStorage.getItem(RAFFLE_WINNERS_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
   const pendingEventRef = useRef<TeamEvent | null>(null);
   const retrySaveFnRef = useRef<() => Promise<void>>(async () => {});
 
@@ -773,6 +793,24 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const recordRaffleWinner = (winner: Omit<RaffleWinner, "id" | "wonAt">) => {
+    const newWinner: RaffleWinner = {
+      ...winner,
+      id: crypto.randomUUID(),
+      wonAt: new Date().toISOString(),
+    };
+    setRaffleWinners((prev) => {
+      const updated = [newWinner, ...prev];
+      localStorage.setItem(RAFFLE_WINNERS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const clearRaffleHistory = () => {
+    setRaffleWinners([]);
+    localStorage.removeItem(RAFFLE_WINNERS_KEY);
+  };
+
   const completeOnboarding = () => setIsNewCoach(false);
 
   return (
@@ -804,6 +842,9 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
         editLastSession,
         isGuest,
         completeOnboarding,
+        raffleWinners,
+        recordRaffleWinner,
+        clearRaffleHistory,
       }}
     >
       {children}

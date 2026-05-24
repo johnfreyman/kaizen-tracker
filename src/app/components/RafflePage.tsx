@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Gift, RefreshCw } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useTeamStore, EVENT_TYPES } from "../hooks/useTeamStore";
-import { formatDate } from "@/lib/dates";
+import { formatDate, formatRelativeTime } from "@/lib/dates";
 import DevSpinConsole from "./DevSpinConsole";
 import {
   AlertDialog,
@@ -23,7 +23,7 @@ interface WheelEntry {
 }
 
 export default function RafflePage() {
-  const { state, archiveEvents } = useTeamStore();
+  const { state, archiveEvents, raffleWinners, recordRaffleWinner } = useTeamStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [winner, setWinner] = useState<string>("");
@@ -32,6 +32,8 @@ export default function RafflePage() {
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [pendingWinnerPlayerName, setPendingWinnerPlayerName] = useState<string | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
+
+  const [prize, setPrize] = useState(() => localStorage.getItem("kaizen.raffle.prize") ?? "");
 
   // Dev visual testing states
   const [testWinnerIndex, setTestWinnerIndex] = useState<number | null>(null);
@@ -207,11 +209,11 @@ export default function RafflePage() {
         setIsSpinning(false);
         const winnerEntry = wheelEntries[winningIndex];
         setWinner(
-          `${winnerEntry.player} wins! Entry earned on ${formatDate(
-            winnerEntry.date
-          )}.`
+          `${winnerEntry.player} wins${prize ? " " + prize : ""}! Entry earned ${formatDate(winnerEntry.date)}.`
         );
         drawWheel(wheelEntries, finalRotation);
+
+        recordRaffleWinner({ player: winnerEntry.player, prize });
 
         // Celebrate with confetti!
         confetti({
@@ -293,8 +295,18 @@ export default function RafflePage() {
           <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-400">Raffle</div>
           <h1 className="mt-1 text-2xl font-bold mc-text">Attendance prize wheel</h1>
           <p className="mt-1 text-sm mc-text-secondary">Each optional training attendance earns one slice.</p>
+          <input
+            type="text"
+            value={prize}
+            onChange={(e) => {
+              setPrize(e.target.value);
+              localStorage.setItem("kaizen.raffle.prize", e.target.value);
+            }}
+            placeholder="What's today's prize?"
+            maxLength={60}
+            className="mt-3 w-full max-w-sm rounded-xl border mc-border bg-white/[0.04] px-3 py-2 text-sm mc-text placeholder:mc-text-muted focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+          />
         </div>
-        {/* Ticket 3 will add a prize input + last-winner pill here */}
       </div>
 
       {/* Raffle Layout */}
@@ -337,50 +349,71 @@ export default function RafflePage() {
           </div>
         </div>
 
-        {/* Entries List */}
-        <div className="lg:col-span-2 bg-white/[0.03] border mc-border rounded-3xl p-6 md:p-8">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xl font-bold mc-text">Wheel Entries</h3>
-            <button
-              onClick={refreshWheel}
-              className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
-              title="Refresh wheel"
-            >
-              <RefreshCw className="w-5 h-5" />
-            </button>
-          </div>
-
-          <p className="text-sm mc-text-secondary mb-4">
-            Players appear once for every optional training session they attended.
-          </p>
-
-          {wheelEntries.length === 0 ? (
-            <div className="bg-white/[0.02] border border-dashed mc-border rounded-2xl p-8 text-center mc-text-muted">
-              No raffle entries yet. Save an Optional Training session with players
-              marked present.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {getEntryCounts().map(([player, count]) => (
-                <div
-                  key={player}
-                  className="flex items-center justify-between gap-4 p-3 border mc-border rounded-2xl bg-white/[0.04]"
-                >
-                  <strong className="mc-text">{player}</strong>
-                  <span className="text-sm font-bold text-amber-400">
-                    {count} {count === 1 ? "slice" : "slices"}
-                  </span>
-                </div>
-              ))}
+        {/* Right rail */}
+        <div className="lg:col-span-2 flex flex-col gap-6">
+          {/* Recent Winners Card — hidden when empty */}
+          {raffleWinners.length > 0 && (
+            <div className="bg-white/[0.03] border mc-border rounded-3xl p-6">
+              <h3 className="text-base font-bold mc-text mb-3">Recent winners</h3>
+              <div className="space-y-2">
+                {raffleWinners.slice(0, 5).map((w) => (
+                  <div key={w.id} className="flex items-center justify-between gap-3 p-2.5 border mc-border rounded-xl bg-white/[0.04]">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold mc-text truncate">{w.player}</p>
+                      {w.prize && <p className="text-xs mc-text-secondary truncate">{w.prize}</p>}
+                    </div>
+                    <span className="text-xs mc-text-muted whitespace-nowrap shrink-0">{formatRelativeTime(w.wonAt)}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
+
+          {/* Entries List */}
+          <div className="bg-white/[0.03] border mc-border rounded-3xl p-6 md:p-8">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xl font-bold mc-text">Wheel Entries</h3>
+              <button
+                onClick={refreshWheel}
+                className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                title="Refresh wheel"
+              >
+                <RefreshCw className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-sm mc-text-secondary mb-4">
+              Players appear once for every optional training session they attended.
+            </p>
+
+            {wheelEntries.length === 0 ? (
+              <div className="bg-white/[0.02] border border-dashed mc-border rounded-2xl p-8 text-center mc-text-muted">
+                No raffle entries yet. Save an Optional Training session with players
+                marked present.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {getEntryCounts().map(([player, count]) => (
+                  <div
+                    key={player}
+                    className="flex items-center justify-between gap-4 p-3 border mc-border rounded-2xl bg-white/[0.04]"
+                  >
+                    <strong className="mc-text">{player}</strong>
+                    <span className="text-sm font-bold text-amber-400">
+                      {count} {count === 1 ? "slice" : "slices"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
       {/* Archive Post-Win Confirmation Dialog */}
       <AlertDialog open={showArchiveConfirm} onOpenChange={setShowArchiveConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>🎉 {pendingWinnerPlayerName} wins!</AlertDialogTitle>
+            <AlertDialogTitle>🎉 {pendingWinnerPlayerName} wins{prize ? " " + prize : ""}!</AlertDialogTitle>
             <AlertDialogDescription>
               Would you like to archive the training data now? This will clear the wheel for the next raffle and save the events to Settings.
             </AlertDialogDescription>
