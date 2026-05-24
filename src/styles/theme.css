@@ -35,6 +35,11 @@
   --mc-nav-active-bg:    rgba(59,130,246,0.12);
   --mc-nav-active-text:  #60a5fa;
   --mc-nav-hover-bg:     rgba(255,255,255,0.05);
+
+  /* Medal tokens */
+  --mc-medal-gold:   #d4a017;
+  --mc-medal-silver: #9aa2ad;
+  --mc-medal-bronze: #a06a3a;
 }
 
 /* ─── Light mode overrides ─────────────────────────────────────── */
@@ -52,6 +57,11 @@
   --mc-nav-active-bg:    rgba(59,130,246,0.12);
   --mc-nav-active-text:  #1d4ed8;
   --mc-nav-hover-bg:     rgba(0,0,0,0.05);
+
+  /* Medal tokens */
+  --mc-medal-gold:   #b8860b;   /* slightly deeper on light for contrast */
+  --mc-medal-silver: #6b7280;
+  --mc-medal-bronze: #8b5a2b;
 }
 
 /* Timer/number font — prevents digit-width jitter */
@@ -231,6 +241,9 @@
   --shadow-lg: 0 8px 20px rgba(0, 0, 0, 0.1);
   --shadow-xl: 0 12px 28px rgba(0, 0, 0, 0.1);
   --shadow-2xl: 0 20px 40px rgba(0, 0, 0, 0.12);
+
+  /* Font Family override for condensed numerals */
+  --font-condensed: "Barlow Condensed", sans-serif;
 }
 
 @layer base {
@@ -355,6 +368,14 @@
     .mc-card             { background-color: var(--mc-card); border-color: var(--mc-card-border); }
     .mc-card-hover:hover { background-color: var(--mc-card-hover); }
     .mc-nav-active       { background-color: var(--mc-nav-active-bg); color: var(--mc-nav-active-text); }
+
+    /* Medal utilities */
+    .mc-medal-gold-fg   { color: var(--mc-medal-gold); }
+    .mc-medal-silver-fg { color: var(--mc-medal-silver); }
+    .mc-medal-bronze-fg { color: var(--mc-medal-bronze); }
+    .mc-medal-gold-rail   { border-left-color: var(--mc-medal-gold); }
+    .mc-medal-silver-rail { border-left-color: var(--mc-medal-silver); }
+    .mc-medal-bronze-rail { border-left-color: var(--mc-medal-bronze); }
 
     /* Hover variants — match how the hardcoded `hover:text-white/75` etc. were used */
     .hover\:mc-text:hover           { color: var(--mc-text-primary); }
