@@ -221,7 +221,7 @@ export default function SettingsPage() {
         {/* Team Settings Form */}
         <form
           onSubmit={handleSubmit}
-          className="lg:col-span-2 bg-white/90 backdrop-blur-sm rounded-3xl p-6 md:p-8 shadow-xl border border-gray-200 space-y-6"
+          className="lg:col-span-2 bg-white/90 backdrop-blur-sm rounded-3xl p-6 md:p-8 shadow-xl border border-gray-200 space-y-6 text-[#111827]"
         >
           <div>
             <label className="block mb-2 font-semibold text-gray-900">
@@ -232,7 +232,7 @@ export default function SettingsPage() {
               value={teamName}
               onChange={(e) => setTeamName(e.target.value)}
               placeholder="Enter team name"
-              className="w-full px-4 py-3 rounded-2xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+              className="w-full px-4 py-3 rounded-2xl border border-gray-300 bg-white text-[#111827] placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
             />
           </div>
 
