@@ -250,16 +250,16 @@ function IdleHero({
   onConfigure: () => void;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#0b1329] via-[#111c40] to-[#0b1329] p-6 md:p-8">
+    <div className="relative overflow-hidden rounded-2xl border mc-border p-6 md:p-8" style={{ background: "var(--mc-card)" }}>
       <div className="absolute -top-20 -right-20 size-56 rounded-full blur-3xl bg-blue-600/6 pointer-events-none" />
 
       <div className="relative space-y-5">
         <div>
-          <div className="text-white/35 text-sm font-medium">{today}</div>
-          <h2 className="mt-2 text-white font-bold leading-tight" style={{ fontSize: "clamp(1.5rem,3.5vw,2rem)" }}>
+          <div className="mc-text-muted text-sm font-medium">{today}</div>
+          <h2 className="mt-2 mc-text font-bold leading-tight" style={{ fontSize: "clamp(1.5rem,3.5vw,2rem)" }}>
             Ready for today's session?
           </h2>
-          <p className="mt-1.5 text-white/45 text-sm">
+          <p className="mt-1.5 mc-text-secondary text-sm">
             {rosterSize} {rosterSize === 1 ? "player" : "players"} on roster
             {hasEvents && lastEventDate ? ` · Last session: ${formatDate(lastEventDate)}` : ""}
             {!hasEvents ? " · No sessions logged yet" : ""}
@@ -275,12 +275,11 @@ function IdleHero({
               <Play className="size-4 fill-current" />
               Quick Start
             </button>
-            {/* Show what Quick Start will use so there's no ambiguity */}
-            <span className="text-white/25 text-xs">Practice · 1.5h · starts now</span>
+            <span className="mc-text-muted text-xs">Practice · 1.5h · starts now</span>
           </div>
           <button
             onClick={onConfigure}
-            className="text-blue-400/60 hover:text-blue-400 font-medium text-xs transition-colors"
+            className="text-blue-600 dark:text-blue-400/60 hover:text-blue-500 dark:hover:text-blue-400 font-medium text-xs transition-colors"
           >
             Set up manually →
           </button>
