@@ -163,6 +163,7 @@ interface TeamStoreContextType {
   updateSettings: (settings: { teamName?: string; teamLogo?: string; raffleEnabled?: boolean }) => Promise<void>;
   uploadLogo: (file: File) => Promise<void>;
   archiveEvents: (options?: { type?: EventType }) => Promise<boolean>;
+  clearActiveEvents: (options: { type: EventType }) => Promise<boolean>;
   restoreArchive: (archiveId: string, strategy?: ConflictResolutionStrategy) => Promise<void>;
   deleteArchive: (archiveId: string) => Promise<void>;
   editLastSession: () => TeamEvent | null;
@@ -617,6 +618,36 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const clearActiveEvents = async (options: { type: EventType }): Promise<boolean> => {
+    const current = stateRef.current;
+    const eventsToClear = current.events.filter((e) => e.type === options.type);
+
+    if (eventsToClear.length === 0) return false;
+
+    const previousEvents = current.events;
+    const remainingEvents = current.events.filter((e) => e.type !== options.type);
+
+    updateState({ events: remainingEvents });
+
+    const eventIds = eventsToClear.map((e) => e.id);
+    try {
+      const { error } = await supabase
+        .from("events")
+        .delete()
+        .eq("coach_id", currentUserIdRef.current)
+        .in("id", eventIds);
+      if (error) throw error;
+
+      toast.success("Raffle entries cleared successfully.");
+      return true;
+    } catch (err: any) {
+      console.error("Failed to clear active events:", err);
+      updateState({ events: previousEvents });
+      toast.error(`Failed to clear entries: ${err.message || "Unknown error"}`);
+      return false;
+    }
+  };
+
   const restoreArchive = async (archiveId: string, strategy: ConflictResolutionStrategy = "overwrite") => {
     const current = stateRef.current;
     const archive = current.archivedEvents.find((a) => a.id === archiveId);
@@ -846,6 +877,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
         updateSettings,
         uploadLogo,
         archiveEvents,
+        clearActiveEvents,
         restoreArchive,
         deleteArchive,
         editLastSession,

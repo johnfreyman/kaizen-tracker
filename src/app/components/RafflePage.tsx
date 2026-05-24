@@ -23,7 +23,7 @@ interface WheelEntry {
 }
 
 export default function RafflePage() {
-  const { state, archiveEvents, raffleWinners, recordRaffleWinner, undoLastRaffleWinner } = useTeamStore();
+  const { state, archiveEvents, clearActiveEvents, raffleWinners, recordRaffleWinner, undoLastRaffleWinner } = useTeamStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [winner, setWinner] = useState<string>("");
@@ -32,6 +32,7 @@ export default function RafflePage() {
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [pendingWinnerPlayerName, setPendingWinnerPlayerName] = useState<string | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
   const [prize, setPrize] = useState(() => localStorage.getItem("kaizen.raffle.prize") ?? "");
   const [excludeLastN, setExcludeLastN] = useState(() => {
@@ -500,45 +501,80 @@ export default function RafflePage() {
       </div>
       {/* Archive Post-Win Confirmation Dialog */}
       <AlertDialog open={showArchiveConfirm} onOpenChange={setShowArchiveConfirm}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle>🎉 {pendingWinnerPlayerName} wins{prize ? " " + prize : ""}!</AlertDialogTitle>
-            <AlertDialogDescription>
-              Would you like to archive the training data now? This will clear the wheel for the next raffle and save the events to Settings.
+            <AlertDialogDescription className="space-y-3 mc-text-secondary">
+              <p>What would you like to do with the current attendance data?</p>
+              <div className="space-y-2 mt-2 text-xs">
+                <p>
+                  <strong className="mc-text block font-semibold text-amber-400">Clear Wheel Only</strong>
+                  Resets the wheel for the next weekly raffle. Active player attendance will be deleted, but not saved to the archived history.
+                </p>
+                <p>
+                  <strong className="mc-text block font-semibold text-indigo-400">Archive Season</strong>
+                  Clears the wheel and moves all active player attendance to Settings history. Typically done at the end of a season.
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between items-center mt-4">
             <AlertDialogCancel
-              disabled={isArchiving}
+              disabled={isArchiving || isClearing}
               onClick={() => {
                 setShowArchiveConfirm(false);
                 setPendingWinnerPlayerName(null);
               }}
+              className="w-full sm:w-auto"
             >
               Keep Data
             </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-indigo-600 hover:bg-indigo-700"
-              disabled={isArchiving}
-              onClick={async (e) => {
-                e.preventDefault();
-                setIsArchiving(true);
-                try {
-                  const success = await archiveEvents({ type: EVENT_TYPES.OPTIONAL_TRAINING });
-                  if (success) {
-                    setWinner("Events archived! Start logging new training sessions for the next raffle.");
-                    setWheelEntries([]);
-                    setWheelRotation(0);
-                    setShowArchiveConfirm(false);
-                    setPendingWinnerPlayerName(null);
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto justify-end">
+              <button
+                disabled={isArchiving || isClearing}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  setIsClearing(true);
+                  try {
+                    const success = await clearActiveEvents({ type: EVENT_TYPES.OPTIONAL_TRAINING });
+                    if (success) {
+                      setWinner("Wheel entries cleared! Start logging new training sessions.");
+                      setWheelEntries([]);
+                      setWheelRotation(0);
+                      setShowArchiveConfirm(false);
+                      setPendingWinnerPlayerName(null);
+                    }
+                  } finally {
+                    setIsClearing(false);
                   }
-                } finally {
-                  setIsArchiving(false);
-                }
-              }}
-            >
-              {isArchiving ? "Archiving..." : "Archive Data"}
-            </AlertDialogAction>
+                }}
+                className="inline-flex items-center justify-center rounded-xl text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none bg-white/[0.04] hover:bg-white/[0.08] border mc-border mc-text h-10 px-4 py-2"
+              >
+                {isClearing ? "Clearing..." : "Clear Wheel Only"}
+              </button>
+              <AlertDialogAction
+                className="bg-indigo-600 hover:bg-indigo-700 h-10 rounded-xl w-full sm:w-auto"
+                disabled={isArchiving || isClearing}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  setIsArchiving(true);
+                  try {
+                    const success = await archiveEvents({ type: EVENT_TYPES.OPTIONAL_TRAINING });
+                    if (success) {
+                      setWinner("Events archived! Start logging new training sessions for the next raffle.");
+                      setWheelEntries([]);
+                      setWheelRotation(0);
+                      setShowArchiveConfirm(false);
+                      setPendingWinnerPlayerName(null);
+                    }
+                  } finally {
+                    setIsArchiving(false);
+                  }
+                }}
+              >
+                {isArchiving ? "Archiving..." : "Archive Season"}
+              </AlertDialogAction>
+            </div>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
