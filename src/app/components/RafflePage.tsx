@@ -2,18 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { RefreshCw } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useTeamStore, EVENT_TYPES } from "../hooks/useTeamStore";
-import { formatDate, formatRelativeTime } from "@/lib/dates";
+import { formatRelativeTime } from "@/lib/dates";
 import DevSpinConsole from "./DevSpinConsole";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "./ui/alert-dialog";
 
 interface WheelEntry {
   player: string;
@@ -23,16 +13,13 @@ interface WheelEntry {
 }
 
 export default function RafflePage() {
-  const { state, archiveEvents, clearActiveEvents, raffleWinners, recordRaffleWinner, undoLastRaffleWinner } = useTeamStore();
+  const { state, raffleWinners, recordRaffleWinner, undoLastRaffleWinner } = useTeamStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isSpinning, setIsSpinning] = useState(false);
-  const [winner, setWinner] = useState<string>("");
+  const [winner, setWinner] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState("");
   const [wheelRotation, setWheelRotation] = useState(0);
   const [wheelEntries, setWheelEntries] = useState<WheelEntry[]>([]);
-  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
-  const [pendingWinnerPlayerName, setPendingWinnerPlayerName] = useState<string | null>(null);
-  const [isArchiving, setIsArchiving] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
 
   const [prize, setPrize] = useState(() => localStorage.getItem("kaizen.raffle.prize") ?? "");
   const [excludeLastN, setExcludeLastN] = useState(() => {
@@ -181,7 +168,7 @@ export default function RafflePage() {
     if (!wheelEntries.length || isSpinning) return;
 
     setIsSpinning(true);
-    setWinner("Spinning...");
+    setStatusMessage("Spinning...");
 
     // Treat as undefined if it's a MouseEvent (invoked via standard button onClick)
     // Guard against non-DEV environments to ensure test seeds can never be forced in production
@@ -216,21 +203,18 @@ export default function RafflePage() {
         setWheelRotation(finalRotation);
         setIsSpinning(false);
         const winnerEntry = wheelEntries[winningIndex];
-        setWinner(
-          `${winnerEntry.player} wins${prize ? " " + prize : ""}! Entry earned ${formatDate(winnerEntry.date)}.`
-        );
+        setStatusMessage("");
+        setWinner(winnerEntry.player);
         drawWheel(wheelEntries, finalRotation);
 
         recordRaffleWinner({ player: winnerEntry.player, prize });
 
-        // Celebrate with confetti!
         confetti({
           particleCount: 100,
           spread: 70,
           origin: { y: 0.6 }
         });
 
-        // Extra confetti burst
         setTimeout(() => {
           confetti({
             particleCount: 50,
@@ -245,12 +229,6 @@ export default function RafflePage() {
             origin: { x: 1 }
           });
         }, 250);
-
-        // Prompt to archive events after winner is announced
-        setTimeout(() => {
-          setPendingWinnerPlayerName(winnerEntry.player);
-          setShowArchiveConfirm(true);
-        }, 2000);
       }
     };
 
@@ -272,18 +250,13 @@ export default function RafflePage() {
         : allEntries;
 
     setWheelEntries(filtered);
-    setWinner((prev) => {
-      if (allEntries.length === 0) {
-        if (prev === "Events archived! Start logging new training sessions for the next raffle.") {
-          return prev;
-        }
-        return "Log optional training sessions to build the wheel.";
-      }
-      if (prev === "Log optional training sessions to build the wheel.") {
-        return "";
-      }
-      return prev;
-    });
+    if (allEntries.length === 0) {
+      setStatusMessage("Log optional training sessions to build the wheel.");
+    } else {
+      setStatusMessage((prev) =>
+        prev === "Log optional training sessions to build the wheel." ? "" : prev
+      );
+    }
   };
 
   const drawSilently = () => {
@@ -292,18 +265,11 @@ export default function RafflePage() {
     const winningIndex = Math.floor(Math.random() * wheelEntries.length);
     const winnerEntry = wheelEntries[winningIndex];
 
-    setWinner(
-      `${winnerEntry.player} wins${prize ? " " + prize : ""}! Entry earned ${formatDate(winnerEntry.date)}.`
-    );
+    setWinner(winnerEntry.player);
     recordRaffleWinner({ player: winnerEntry.player, prize });
 
     setPulsingEntry(winnerEntry.player);
     setTimeout(() => setPulsingEntry(null), 600);
-
-    setTimeout(() => {
-      setPendingWinnerPlayerName(winnerEntry.player);
-      setShowArchiveConfirm(true);
-    }, 600);
   };
 
   useEffect(() => {
@@ -314,7 +280,12 @@ export default function RafflePage() {
     drawWheel(wheelEntries, wheelRotation);
   }, [wheelEntries]);
 
-
+  useEffect(() => {
+    if (!winner) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setWinner(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [winner]);
 
   const getEntryCounts = () => {
     const counts = wheelEntries.reduce((map, entry) => {
@@ -415,10 +386,10 @@ export default function RafflePage() {
               );
             })()}
 
-            {/* Winner Display */}
-            {winner && (
+            {/* Status Display */}
+            {statusMessage && (
               <p className="text-center font-bold text-blue-700 text-lg px-4">
-                {winner}
+                {statusMessage}
               </p>
             )}
           </div>
@@ -499,85 +470,45 @@ export default function RafflePage() {
           </div>
         </div>
       </div>
-      {/* Archive Post-Win Confirmation Dialog */}
-      <AlertDialog open={showArchiveConfirm} onOpenChange={setShowArchiveConfirm}>
-        <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle>🎉 {pendingWinnerPlayerName} wins{prize ? " " + prize : ""}!</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3 mc-text-secondary">
-              <p>What would you like to do with the current attendance data?</p>
-              <div className="space-y-2 mt-2 text-xs">
-                <p>
-                  <strong className="mc-text block font-semibold text-amber-400">Clear Wheel Only</strong>
-                  Resets the wheel for the next weekly raffle. Active player attendance will be deleted, but not saved to the archived history.
-                </p>
-                <p>
-                  <strong className="mc-text block font-semibold text-indigo-400">Archive Season</strong>
-                  Clears the wheel and moves all active player attendance to Settings history. Typically done at the end of a season.
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between items-center mt-4">
-            <AlertDialogCancel
-              disabled={isArchiving || isClearing}
-              onClick={() => {
-                setShowArchiveConfirm(false);
-                setPendingWinnerPlayerName(null);
-              }}
-              className="w-full sm:w-auto"
-            >
-              Keep Data
-            </AlertDialogCancel>
-            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto justify-end">
-              <button
-                disabled={isArchiving || isClearing}
-                onClick={async (e) => {
-                  e.preventDefault();
-                  setIsClearing(true);
-                  try {
-                    const success = await clearActiveEvents({ type: EVENT_TYPES.OPTIONAL_TRAINING });
-                    if (success) {
-                      setWinner("Wheel entries cleared! Start logging new training sessions.");
-                      setWheelEntries([]);
-                      setWheelRotation(0);
-                      setShowArchiveConfirm(false);
-                      setPendingWinnerPlayerName(null);
-                    }
-                  } finally {
-                    setIsClearing(false);
-                  }
-                }}
-                className="inline-flex items-center justify-center rounded-xl text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none bg-white/[0.04] hover:bg-white/[0.08] border mc-border mc-text h-10 px-4 py-2"
-              >
-                {isClearing ? "Clearing..." : "Clear Wheel Only"}
-              </button>
-              <AlertDialogAction
-                className="bg-indigo-600 hover:bg-indigo-700 h-10 rounded-xl w-full sm:w-auto"
-                disabled={isArchiving || isClearing}
-                onClick={async (e) => {
-                  e.preventDefault();
-                  setIsArchiving(true);
-                  try {
-                    const success = await archiveEvents({ type: EVENT_TYPES.OPTIONAL_TRAINING });
-                    if (success) {
-                      setWinner("Events archived! Start logging new training sessions for the next raffle.");
-                      setWheelEntries([]);
-                      setWheelRotation(0);
-                      setShowArchiveConfirm(false);
-                      setPendingWinnerPlayerName(null);
-                    }
-                  } finally {
-                    setIsArchiving(false);
-                  }
-                }}
-              >
-                {isArchiving ? "Archiving..." : "Archive Season"}
-              </AlertDialogAction>
+      {/* Winner celebration dialog */}
+      {winner && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="winner-title"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setWinner(null); }}
+        >
+          <div className="w-full max-w-md rounded-3xl border mc-border bg-[#11161d] p-8 shadow-2xl">
+            <div className="text-center">
+              <div className="text-5xl">🎉</div>
+              <h2 id="winner-title" className="mt-3 text-2xl font-bold mc-text">
+                {winner} wins{prize ? ` ${prize}` : ""}!
+              </h2>
+              <p className="mt-1 text-sm mc-text-secondary">
+                Earned through optional training attendance.
+              </p>
             </div>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
+            <div className="mt-6 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setWinner(null)}
+                className="rounded-xl border mc-border bg-white/[0.04] px-4 py-2.5 text-sm font-semibold mc-text hover:bg-white/[0.08]"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => { setWinner(null); spinWheel(); }}
+                className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-[#11161d] hover:bg-amber-400"
+              >
+                Spin again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {import.meta.env.DEV && (
         <DevSpinConsole
