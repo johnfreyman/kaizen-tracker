@@ -465,7 +465,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
             {/* Custom Input Reveal */}
             {durationMode === "custom" && (
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-5 bg-white/[0.02] border border-white/[0.08] rounded-xl animate-fade-in">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-5 border mc-border rounded-xl animate-fade-in" style={{ background: "var(--mc-card)" }}>
                 <div className="flex items-center gap-3 flex-1">
                   <div className="relative flex-1">
                     <input
@@ -475,11 +475,12 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                       step="0.5"
                       value={durationInput}
                       onChange={(e) => setDurationInput(e.target.value)}
-                      className={`w-full px-4 py-3 rounded-lg border text-center font-extrabold text-white transition-all focus:outline-none focus:ring-4 ${
+                      className={`w-full px-4 py-3 rounded-lg border text-center font-extrabold mc-text transition-all focus:outline-none focus:ring-4 ${
                         isDurationValid
-                          ? "border-white/[0.08] bg-white/[0.03] focus:border-blue-500 focus:ring-blue-500/10"
+                          ? "mc-border focus:border-blue-500 focus:ring-blue-500/10"
                           : "border-red-500 bg-red-500/10 focus:border-red-500 focus:ring-red-100"
                       }`}
+                      style={isDurationValid ? { background: "var(--mc-card)" } : undefined}
                       placeholder="e.g. 1.5"
                     />
                   </div>
