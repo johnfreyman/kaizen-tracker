@@ -23,7 +23,7 @@ interface WheelEntry {
 }
 
 export default function RafflePage() {
-  const { state, archiveEvents, raffleWinners, recordRaffleWinner } = useTeamStore();
+  const { state, archiveEvents, raffleWinners, recordRaffleWinner, undoLastRaffleWinner } = useTeamStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [winner, setWinner] = useState<string>("");
@@ -34,6 +34,12 @@ export default function RafflePage() {
   const [isArchiving, setIsArchiving] = useState(false);
 
   const [prize, setPrize] = useState(() => localStorage.getItem("kaizen.raffle.prize") ?? "");
+  const [excludeLastN, setExcludeLastN] = useState(() => {
+    const stored = localStorage.getItem("kaizen.raffle.excludeLastN");
+    return stored ? Number(stored) : 0;
+  });
+  const [pulsingEntry, setPulsingEntry] = useState<string | null>(null);
+  const [rawEntryCount, setRawEntryCount] = useState(0);
 
   // Dev visual testing states
   const [testWinnerIndex, setTestWinnerIndex] = useState<number | null>(null);
@@ -251,25 +257,57 @@ export default function RafflePage() {
   };
 
   const refreshWheel = () => {
-    const entries = getWheelEntries();
-    setWheelEntries(entries);
+    const allEntries = getWheelEntries();
+    setRawEntryCount(allEntries.length);
+
+    const filtered =
+      excludeLastN > 0
+        ? (() => {
+            const excluded = new Set(
+              raffleWinners.slice(0, excludeLastN).map((w) => w.player)
+            );
+            return allEntries.filter((e) => !excluded.has(e.player));
+          })()
+        : allEntries;
+
+    setWheelEntries(filtered);
     setWinner((prev) => {
-      if (entries.length === 0) {
-        if (
-          prev ===
-          "Events archived! Start logging new training sessions for the next raffle."
-        ) {
+      if (allEntries.length === 0) {
+        if (prev === "Events archived! Start logging new training sessions for the next raffle.") {
           return prev;
         }
         return "Log optional training sessions to build the wheel.";
       }
-      return "";
+      if (prev === "Log optional training sessions to build the wheel.") {
+        return "";
+      }
+      return prev;
     });
+  };
+
+  const drawSilently = () => {
+    if (!wheelEntries.length || isSpinning) return;
+
+    const winningIndex = Math.floor(Math.random() * wheelEntries.length);
+    const winnerEntry = wheelEntries[winningIndex];
+
+    setWinner(
+      `${winnerEntry.player} wins${prize ? " " + prize : ""}! Entry earned ${formatDate(winnerEntry.date)}.`
+    );
+    recordRaffleWinner({ player: winnerEntry.player, prize });
+
+    setPulsingEntry(winnerEntry.player);
+    setTimeout(() => setPulsingEntry(null), 600);
+
+    setTimeout(() => {
+      setPendingWinnerPlayerName(winnerEntry.player);
+      setShowArchiveConfirm(true);
+    }, 600);
   };
 
   useEffect(() => {
     refreshWheel();
-  }, [state.events]);
+  }, [state.events, excludeLastN, raffleWinners]);
 
   useEffect(() => {
     drawWheel(wheelEntries, wheelRotation);
@@ -340,6 +378,42 @@ export default function RafflePage() {
               {isSpinning ? "Spinning..." : "Spin the Wheel"}
             </button>
 
+            {/* Secondary controls */}
+            {(() => {
+              const allExcluded = rawEntryCount > 0 && wheelEntries.length === 0;
+              return (
+                <div className="flex items-center gap-5 text-xs mc-text-secondary">
+                  <button
+                    onClick={drawSilently}
+                    disabled={isSpinning || wheelEntries.length === 0}
+                    className="hover:mc-text underline-offset-2 hover:underline disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Draw silently
+                  </button>
+                  <span
+                    className="flex items-center gap-1.5"
+                    title={allExcluded ? "All players are excluded — lower this number to spin." : undefined}
+                  >
+                    Exclude last
+                    <select
+                      value={excludeLastN}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        setExcludeLastN(n);
+                        localStorage.setItem("kaizen.raffle.excludeLastN", String(n));
+                      }}
+                      className="bg-transparent border mc-border rounded px-1 py-0.5 text-xs mc-text-secondary cursor-pointer"
+                    >
+                      {[0, 1, 2, 3, 5].map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                    winners
+                  </span>
+                </div>
+              );
+            })()}
+
             {/* Winner Display */}
             {winner && (
               <p className="text-center font-bold text-blue-700 text-lg px-4">
@@ -356,13 +430,24 @@ export default function RafflePage() {
             <div className="bg-white/[0.03] border mc-border rounded-3xl p-6">
               <h3 className="text-base font-bold mc-text mb-3">Recent winners</h3>
               <div className="space-y-2">
-                {raffleWinners.slice(0, 5).map((w) => (
-                  <div key={w.id} className="flex items-center justify-between gap-3 p-2.5 border mc-border rounded-xl bg-white/[0.04]">
+                {raffleWinners.slice(0, 5).map((w, i) => (
+                  <div key={w.id} className="group flex items-center justify-between gap-3 p-2.5 border mc-border rounded-xl bg-white/[0.04]">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold mc-text truncate">{w.player}</p>
                       {w.prize && <p className="text-xs mc-text-secondary truncate">{w.prize}</p>}
                     </div>
-                    <span className="text-xs mc-text-muted whitespace-nowrap shrink-0">{formatRelativeTime(w.wonAt)}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {i === 0 && (
+                        <button
+                          onClick={undoLastRaffleWinner}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-xs mc-text-muted hover:text-red-400"
+                          title="Undo this winner"
+                        >
+                          ↺ undo
+                        </button>
+                      )}
+                      <span className="text-xs mc-text-muted whitespace-nowrap">{formatRelativeTime(w.wonAt)}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -396,7 +481,11 @@ export default function RafflePage() {
                 {getEntryCounts().map(([player, count]) => (
                   <div
                     key={player}
-                    className="flex items-center justify-between gap-4 p-3 border mc-border rounded-2xl bg-white/[0.04]"
+                    className={`flex items-center justify-between gap-4 p-3 border rounded-2xl bg-white/[0.04] transition-all duration-300 ${
+                      pulsingEntry === player
+                        ? "border-amber-400 ring-2 ring-amber-400 scale-[1.02]"
+                        : "mc-border"
+                    }`}
                   >
                     <strong className="mc-text">{player}</strong>
                     <span className="text-sm font-bold text-amber-400">

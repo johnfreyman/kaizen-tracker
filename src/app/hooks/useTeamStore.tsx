@@ -171,6 +171,7 @@ interface TeamStoreContextType {
   raffleWinners: RaffleWinner[];
   recordRaffleWinner: (winner: Omit<RaffleWinner, "id" | "wonAt">) => void;
   clearRaffleHistory: () => void;
+  undoLastRaffleWinner: () => void;
 }
 
 const TeamStoreContext = createContext<TeamStoreContextType | null>(null);
@@ -811,6 +812,14 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(RAFFLE_WINNERS_KEY);
   };
 
+  const undoLastRaffleWinner = () => {
+    setRaffleWinners((prev) => {
+      const updated = prev.slice(1);
+      localStorage.setItem(RAFFLE_WINNERS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const completeOnboarding = () => setIsNewCoach(false);
 
   return (
@@ -845,6 +854,7 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
         raffleWinners,
         recordRaffleWinner,
         clearRaffleHistory,
+        undoLastRaffleWinner,
       }}
     >
       {children}
