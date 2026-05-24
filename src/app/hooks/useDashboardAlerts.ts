@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { AlertTriangle, Info, Flame, Clock, Users, LucideIcon } from "lucide-react";
 import { useTeamStore } from "./useTeamStore";
 import { useSessionTimer } from "./useSessionTimer";
+import { formatDate } from "@/lib/dates";
 
 export type AlertSeverity = "danger" | "warning" | "info";
 
@@ -56,7 +57,7 @@ export function useDashboardAlerts() {
           priority: 2,
           severity: "warning",
           icon: AlertTriangle,
-          message: `Active session was started on ${sessionDay}, not today.`,
+          message: `Active session was started on ${formatDate(sessionDay)}, not today.`,
         });
       }
     }
