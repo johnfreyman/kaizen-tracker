@@ -272,22 +272,27 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
                 <span className="text-sm mc-text-muted">or</span>
 
-                <div className="flex gap-1.5">
-                  {QUICK_TIMES.map((t) => (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() => setStartTime(t.value)}
-                      className={[
-                        "px-3 py-2 rounded-md text-sm font-medium border transition",
-                        startTime === t.value
-                          ? "bg-indigo-600/10 border-indigo-500 text-indigo-300"
-                          : "mc-border mc-text-secondary hover:mc-text hover:bg-white/5",
-                      ].join(" ")}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-semibold mc-text-secondary">
+                    {state.events.length > 0 ? "Frequently used:" : "Suggested:"}
+                  </span>
+                  <div className="flex gap-1.5">
+                    {QUICK_TIMES.map((t) => (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() => setStartTime(t.value)}
+                        className={[
+                          "px-3 py-2 rounded-md text-sm font-medium border transition",
+                          startTime === t.value
+                            ? "bg-indigo-600/10 border-indigo-500 text-indigo-300"
+                            : "mc-border mc-text-secondary hover:mc-text hover:bg-white/5",
+                        ].join(" ")}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
