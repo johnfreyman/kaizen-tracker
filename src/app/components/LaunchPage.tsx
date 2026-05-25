@@ -225,7 +225,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
             {/* Event Date */}
             <div className="relative">
               <label className="block mb-2 font-bold mc-text-secondary text-sm uppercase tracking-wide flex items-center gap-1.5">
-                <CalendarDays className="size-4 text-blue-500" /> Date
+                <CalendarDays className="size-4 text-indigo-500" /> Date
               </label>
               <button
                 type="button"
@@ -327,14 +327,14 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                   <div
                     className={`flex flex-col items-center justify-center p-6 rounded-2xl border-2 text-center transition-all duration-200 active:scale-[0.99] group h-full ${
                       isSelected
-                        ? "border-blue-500 bg-blue-500/10 text-white scale-[1.01]"
+                        ? "border-indigo-500 bg-indigo-500/10 text-white scale-[1.01]"
                         : "border-white/[0.08] bg-white/[0.03] mc-text-secondary hover:border-white/[0.15] hover:bg-white/[0.06] hover:scale-[1.01]"
                     }`}
                   >
                     {/* Event Type Icon Indicator */}
                     <div className={`p-3.5 rounded-xl mb-4 transition-all duration-200 ${
                       isSelected
-                        ? isPractice ? "bg-blue-600 text-white" : "bg-emerald-600 text-white"
+                        ? isPractice ? "bg-indigo-600 text-white" : "bg-emerald-600 text-white"
                         : "bg-white/[0.06] mc-text-muted group-hover:bg-white/[0.1]"
                     }`}>
                       {isPractice ? <Users className="size-6" /> : <Target className="size-6" />}
@@ -363,7 +363,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
             </h3>
             <span className={`text-xs font-bold px-3 py-1 rounded-full border transition-all duration-200 ${
               isDurationValid 
-                ? "bg-blue-500/10 text-blue-300 border-blue-500/25" 
+                ? "bg-indigo-500/10 text-indigo-300 border-indigo-500/25" 
                 : "bg-red-500/10 text-red-300 border-red-500/25 animate-pulse"
             }`}>
               {isDurationValid ? `${parsedDuration} ${parsedDuration === 1 ? "hour" : "hours"}` : "Invalid Duration"}
@@ -383,7 +383,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                     onClick={() => selectPreset(val)}
                     className={`py-3.5 px-2 rounded-xl text-sm font-bold border transition-all active:scale-[0.98] ${
                       isSelected
-                        ? "bg-blue-600 border-transparent text-white scale-[1.02] transform"
+                        ? "bg-indigo-600 border-transparent text-white scale-[1.02] transform"
                         : "bg-white/[0.03] border mc-border hover:border-white/[0.15] hover:bg-white/[0.06] mc-text-secondary"
                     }`}
                   >
@@ -405,7 +405,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                 onClick={() => setDurationMode("custom")}
                 className={`py-3.5 px-2 rounded-xl text-sm font-bold border transition-all active:scale-[0.98] ${
                   durationMode === "custom"
-                    ? "bg-blue-600 border-transparent text-white scale-[1.02] transform"
+                    ? "bg-indigo-600 border-transparent text-white scale-[1.02] transform"
                     : "bg-white/[0.03] border mc-border hover:border-white/[0.15] hover:bg-white/[0.06] mc-text-secondary"
                 }`}
               >
@@ -427,7 +427,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
                       onChange={(e) => setDurationInput(e.target.value)}
                       className={`w-full px-4 py-3 rounded-lg border text-center font-extrabold transition-all focus:outline-none focus:ring-4 ${
                         isDurationValid
-                          ? "mc-border focus:border-blue-500 focus:ring-blue-500/10"
+                          ? "mc-border focus:border-indigo-500 focus:ring-indigo-500/10"
                           : "border-red-500 bg-red-500/10 focus:border-red-500 focus:ring-red-100"
                       }`}
                       style={isDurationValid ? { background: "var(--mc-card)", color: "var(--mc-text-primary)" } : { color: "var(--mc-text-primary)" }}
@@ -452,7 +452,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
         <button
           type="submit"
           disabled={!isDurationValid || !startTime}
-          className="w-full flex items-center justify-center gap-2.5 px-6 py-4.5 bg-blue-600 hover:bg-blue-500 disabled:bg-white/[0.04] disabled:mc-text-muted text-white font-extrabold rounded-xl transition-all duration-300 active:scale-[0.98] disabled:cursor-not-allowed text-base tracking-wide group"
+          className="w-full flex items-center justify-center gap-2.5 px-6 py-4.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-white/[0.04] disabled:mc-text-muted text-white font-extrabold rounded-xl transition-all duration-300 active:scale-[0.98] disabled:cursor-not-allowed text-base tracking-wide group"
         >
           <Play className="size-5 fill-current transition-transform group-hover:scale-110 duration-200" />
           Start Session
@@ -547,7 +547,7 @@ function SessionCard({
           onClick={() => {
             navigator.clipboard.writeText(ev.players.join(", ")).catch(() => {});
           }}
-          className="shrink-0 text-[11px] font-semibold mc-text-muted hover:text-blue-500 transition-colors"
+          className="shrink-0 text-[11px] font-semibold mc-text-muted hover:text-indigo-400 transition-colors"
         >
           Copy roster
         </button>

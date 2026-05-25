@@ -48,9 +48,9 @@ export default function OnboardingPage() {
               key={n}
               className={`h-2 rounded-full transition-all duration-300 ${
                 n === step
-                  ? "w-8 bg-blue-600"
+                  ? "w-8 bg-indigo-600"
                   : n < step
-                  ? "w-2 bg-blue-400"
+                  ? "w-2 bg-indigo-400"
                   : "w-2 bg-gray-200 dark:bg-white/20"
               }`}
             />
@@ -71,13 +71,13 @@ export default function OnboardingPage() {
                   onKeyDown={(e) => e.key === "Enter" && nameValid && handleContinue()}
                   placeholder="e.g. Varsity Soccer"
                   autoFocus
-                  className="w-full px-4 py-3.5 rounded-2xl border mc-border focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 transition-all font-medium"
+                  className="w-full px-4 py-3.5 rounded-2xl border mc-border focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/15 transition-all font-medium"
                   style={{ background: "var(--mc-surface)", color: "var(--mc-text-primary)" }}
                 />
                 <button
                   onClick={handleContinue}
                   disabled={!nameValid}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-2xl bg-blue-600 text-white font-semibold shadow-md shadow-blue-500/25 hover:bg-blue-700 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-2xl bg-indigo-600 text-white font-semibold shadow-md shadow-indigo-500/25 hover:bg-indigo-700 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
                 >
                   Continue
                   <ArrowRight className="size-4" />
@@ -108,7 +108,7 @@ export default function OnboardingPage() {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-2xl bg-blue-600 text-white font-semibold shadow-md shadow-blue-500/25 hover:bg-blue-700 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-2xl bg-indigo-600 text-white font-semibold shadow-md shadow-indigo-500/25 hover:bg-indigo-700 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
                 >
                   {isUploading ? (
                     <>

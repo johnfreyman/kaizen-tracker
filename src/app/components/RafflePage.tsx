@@ -366,7 +366,7 @@ export default function RafflePage() {
             <button
               onClick={spinWheel}
               disabled={isSpinning || wheelEntries.length === 0}
-              className="w-full max-w-xs flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold text-lg rounded-2xl hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed focus:ring-4 focus:ring-blue-200 transition-all shadow-lg hover:shadow-xl"
+              className="w-full max-w-xs flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-bold text-lg rounded-2xl hover:from-indigo-700 hover:to-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed focus:ring-4 focus:ring-indigo-200 transition-all shadow-lg hover:shadow-xl"
             >
               {isSpinning ? "Spinning..." : "Spin the Wheel"}
             </button>
@@ -409,7 +409,7 @@ export default function RafflePage() {
 
             {/* Status Display */}
             {statusMessage && (
-              <p className="text-center font-bold text-blue-700 text-lg px-4">
+              <p className="text-center font-bold text-indigo-500 text-lg px-4">
                 {statusMessage}
               </p>
             )}
@@ -432,7 +432,7 @@ export default function RafflePage() {
                     <div className="flex items-center gap-2 shrink-0">
                       {i === 0 && (
                         <button
-                          onClick={undoLastRaffleWinner}
+                           onClick={undoLastRaffleWinner}
                           className="opacity-0 group-hover:opacity-100 transition-opacity text-xs mc-text-muted hover:text-red-400"
                           title="Undo this winner"
                         >
@@ -453,7 +453,7 @@ export default function RafflePage() {
               <h3 className="text-xl font-bold mc-text">Wheel Entries</h3>
               <button
                 onClick={refreshWheel}
-                className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 rounded-xl transition-colors"
                 title="Refresh wheel"
               >
                 <RefreshCw className="w-5 h-5" />

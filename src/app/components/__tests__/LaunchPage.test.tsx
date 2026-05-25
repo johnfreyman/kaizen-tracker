@@ -38,15 +38,10 @@ describe("LaunchPage Dynamic Presets", () => {
 
     render(<LaunchPage onNavigate={vi.fn()} />);
 
-    // Fallback evening presets: 5:00 PM to 8:30 PM
+    // Fallback evening presets: 4:00 PM, 5:00 PM, 6:00 PM
+    expect(screen.getByText("4:00 PM")).toBeDefined();
     expect(screen.getByText("5:00 PM")).toBeDefined();
-    expect(screen.getByText("5:30 PM")).toBeDefined();
     expect(screen.getByText("6:00 PM")).toBeDefined();
-    expect(screen.getByText("6:30 PM")).toBeDefined();
-    expect(screen.getByText("7:00 PM")).toBeDefined();
-    expect(screen.getByText("7:30 PM")).toBeDefined();
-    expect(screen.getByText("8:00 PM")).toBeDefined();
-    expect(screen.getByText("8:30 PM")).toBeDefined();
 
     // Fallback durations: 30 min, 1 hr, 1.5 hrs, etc.
     expect(screen.getByText("30 min")).toBeDefined();
@@ -57,25 +52,17 @@ describe("LaunchPage Dynamic Presets", () => {
     expect(screen.getByText("3 hrs")).toBeDefined();
   });
 
-  test("derives top 7 most-frequent time presets sorted correctly when >= 3 unique times", () => {
+  test("derives top 3 most-frequent time presets sorted correctly when >= 1 unique times", () => {
     // Mock store state with event history:
     // "09:00" appears 5 times
-    // "10:00" appears 3 times (tie with 08:00 but 08:00 is earlier, so 08:00 should come first in tie)
+    // "10:00" appears 3 times
     // "08:00" appears 3 times
     // "11:00" appears 2 times
-    // "12:00" appears 2 times
-    // "13:00" appears 1 time
-    // "14:00" appears 1 time
-    // "15:00" appears 1 time (should not be in top 7 because only top 7 are displayed)
     const events = [
       ...Array(5).fill({ date: "2026-05-22T09:00:00", duration: 1.5 }),
       ...Array(3).fill({ date: "2026-05-22T10:00:00", duration: 1.5 }),
       ...Array(3).fill({ date: "2026-05-22T08:00:00", duration: 1.5 }),
       ...Array(2).fill({ date: "2026-05-22T11:00:00", duration: 1.5 }),
-      ...Array(2).fill({ date: "2026-05-22T12:00:00", duration: 1.5 }),
-      { date: "2026-05-22T13:00:00", duration: 1.5 },
-      { date: "2026-05-22T14:00:00", duration: 1.5 },
-      { date: "2026-05-22T15:00:00", duration: 1.5 },
     ].map((e, i) => ({ ...e, id: `e${i}`, players: [], savedAt: `2026-05-22T00:00:${i}` }));
 
     // Most recent event is 09:00 AM, duration 1.5
@@ -97,16 +84,10 @@ describe("LaunchPage Dynamic Presets", () => {
 
     render(<LaunchPage onNavigate={vi.fn()} />);
 
-    // Verify top 7 times appear:
-    // Sorted order: 9:00 AM (freq 5), 8:00 AM (freq 3, tie), 10:00 AM (freq 3, tie), 11:00 AM (freq 2, tie), 12:00 PM (freq 2, tie), 1:00 PM (freq 1, tie), 2:00 PM (freq 1, tie)
-    // 3:00 PM (freq 1) is the 8th slot in freq map so it should NOT be rendered since we limit to top 7.
+    // Verify top 3 times appear:
     expect(screen.getByText("9:00 AM")).toBeDefined();
     expect(screen.getByText("8:00 AM")).toBeDefined();
     expect(screen.getByText("10:00 AM")).toBeDefined();
-    expect(screen.getByText("11:00 AM")).toBeDefined();
-    expect(screen.getByText("12:00 PM")).toBeDefined();
-    expect(screen.getByText("1:00 PM")).toBeDefined();
-    expect(screen.getByText("2:00 PM")).toBeDefined();
-    expect(screen.queryByText("3:00 PM")).toBeNull();
+    expect(screen.queryByText("11:00 AM")).toBeNull();
   });
 });

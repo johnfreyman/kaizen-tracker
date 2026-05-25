@@ -152,11 +152,11 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
         <button
           onClick={handleSaveSession}
           disabled={!state.activeSession || isSavingSession}
-          className="hidden md:flex items-center justify-center gap-2 text-blue-400 hover:text-blue-300 font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="hidden md:flex items-center justify-center gap-2 text-indigo-400 hover:text-indigo-300 font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isSavingSession ? (
             <>
-              <span className="size-5 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+              <span className="size-5 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
               Saving...
             </>
           ) : (
@@ -238,7 +238,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
                     {player}
                   </div>
                   {playerIsGuest && (
-                    <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-[10px] font-medium tracking-wider uppercase text-blue-400">
+                    <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-medium tracking-wider uppercase text-indigo-400">
                       <UserCircle className="size-3" />
                       <span>Guest</span>
                     </div>
@@ -318,7 +318,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSavingSession}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-blue-600 hover:bg-blue-500 text-white rounded-xl"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl"
               disabled={isSavingSession}
               onClick={async (e) => {
                 e.preventDefault();
@@ -350,7 +350,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-blue-600 hover:bg-blue-500 text-white rounded-xl"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl"
               onClick={() => {
                 const lastEvent = editLastSession();
                 if (lastEvent) {
@@ -380,7 +380,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
           <button
             onClick={handleSaveSession}
             disabled={!state.activeSession || isSavingSession}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all min-w-[160px]"
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all min-w-[160px]"
           >
             {isSavingSession ? (
               <>
