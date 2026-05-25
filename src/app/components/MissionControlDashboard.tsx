@@ -92,6 +92,7 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
             // If events[] is empty, no fragment is shown.
             lastEventDate={state.events[0]?.date ?? null}
             hasEvents={state.events.length > 0}
+            smartSession={buildSmartSession()}
             onStart={handleSmartStart}
             onConfigure={() => onNavigate("launch")}
           />
@@ -240,11 +241,18 @@ function ActiveSessionHero({
   );
 }
 
+function formatDuration(hours: number): string {
+  if (hours < 1) return `${Math.round(hours * 60)}m`;
+  if (hours % 1 === 0) return `${hours}h`;
+  return `${hours}h`;
+}
+
 function IdleHero({
   today,
   rosterSize,
   lastEventDate,
   hasEvents,
+  smartSession,
   onStart,
   onConfigure,
 }: {
@@ -252,6 +260,7 @@ function IdleHero({
   rosterSize: number;
   lastEventDate: string | null;
   hasEvents: boolean;
+  smartSession: ActiveSession;
   onStart: () => void;
   onConfigure: () => void;
 }) {
@@ -273,16 +282,22 @@ function IdleHero({
         </div>
 
         <div className="space-y-2.5">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* TODO: replace with --mc-accent token once Ticket X lands */}
+          <div>
+            {/* TODO: if smartSession is null (no session available), render a "Schedule a session" secondary button instead */}
             <button
               onClick={onStart}
-              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition-colors text-sm shadow-lg shadow-indigo-900/30"
+              className="group inline-flex items-center gap-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 px-5 py-3 text-left text-white transition shadow-lg shadow-indigo-900/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--mc-bg)]"
             >
-              <Play className="size-4 fill-current" />
-              Quick Start
+              <Play className="size-5 shrink-0 fill-current" aria-hidden />
+              <span className="flex flex-col">
+                <span className="text-base font-bold leading-tight">Quick Start</span>
+                <span className="text-[12.5px] font-medium text-white/75 leading-tight mt-0.5">
+                  {[smartSession.type, formatDuration(smartSession.duration), "starts now"]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </span>
             </button>
-            <span className="mc-text-muted text-xs">Practice · 1.5h · starts now</span>
           </div>
           <button
             onClick={onConfigure}
