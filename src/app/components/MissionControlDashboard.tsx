@@ -96,6 +96,7 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
             smartSession={buildSmartSession()}
             onStart={handleSmartStart}
             onConfigure={() => onNavigate("launch")}
+            onRoster={() => onNavigate("attendance")}
           />
         )}
       </div>
@@ -256,6 +257,7 @@ function IdleHero({
   smartSession,
   onStart,
   onConfigure,
+  onRoster,
 }: {
   today: string;
   rosterSize: number;
@@ -264,6 +266,7 @@ function IdleHero({
   smartSession: ActiveSession;
   onStart: () => void;
   onConfigure: () => void;
+  onRoster: () => void;
 }) {
   const startsAt = smartSession.date ? new Date(smartSession.date) : null;
   const relativeStart = useRelativeTime(startsAt);
@@ -278,7 +281,14 @@ function IdleHero({
             Ready for today's session?
           </h2>
           <p className="mt-1.5 mc-text-secondary text-sm">
-            {rosterSize} {rosterSize === 1 ? "player" : "players"} on roster
+            <button
+              onClick={onRoster}
+              className="underline decoration-transparent underline-offset-2 hover:decoration-current focus-visible:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded-sm transition"
+            >
+              {rosterSize === 0
+                ? "No players yet — add your first →"
+                : `${rosterSize} ${rosterSize === 1 ? "player" : "players"} on roster`}
+            </button>
             {hasEvents && lastEventDate ? ` · Last session: ${formatDate(lastEventDate)}` : ""}
             {!hasEvents ? " · No sessions logged yet" : ""}
           </p>
