@@ -203,7 +203,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
           <div className="space-y-1">
             <h4 className="font-extrabold text-amber-900 dark:text-amber-200 text-sm">Active Session in Progress</h4>
             <p className="text-xs text-amber-800/90 dark:text-amber-300/80 leading-relaxed">
-              There is already an active <span className="font-bold text-amber-900 dark:text-amber-200">{state.activeSession.type}</span> session started ({state.activeSession.duration} hrs). Starting a new event below will overwrite this active session.
+              There is already an active <span className="font-bold text-amber-900 dark:text-amber-200">{state.activeSession.type}</span> session started ({state.activeSession.duration} hrs). Starting a new session below will overwrite this active session.
             </p>
           </div>
         </div>
@@ -225,7 +225,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
             {/* Event Date */}
             <div className="relative">
               <label className="block mb-2 font-bold mc-text-secondary text-sm uppercase tracking-wide flex items-center gap-1.5">
-                <CalendarDays className="size-4 text-blue-500" /> Event Date
+                <CalendarDays className="size-4 text-blue-500" /> Date
               </label>
               <button
                 type="button"
@@ -303,7 +303,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
         {/* Event Type Section */}
         <fieldset className="space-y-4">
           <h3 className="text-xs font-bold uppercase tracking-widest mc-text-secondary border-b mc-border pb-2 flex items-center gap-2">
-            <Target className="size-4" /> Select Event Type
+            <Target className="size-4" /> Session Type
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {Object.values(EVENT_TYPES).map((type) => {
