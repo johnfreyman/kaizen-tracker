@@ -156,6 +156,12 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
   const lastUsedTime = state.events[0]?.date.slice(11, 16);
 
+  const todayLabel = new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
   const formatDisplayDate = (date: Date) => {
     return date.toLocaleDateString(undefined, {
       weekday: "long",
@@ -196,33 +202,21 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
   return (
     <div className="space-y-8 max-w-3xl mx-auto">
-      {/* Hero Card */}
-      <div className="relative overflow-hidden rounded-2xl border mc-border bg-gradient-to-br from-blue-950/40 to-transparent p-8 mc-text">
-        <div className="absolute -top-20 -right-20 size-56 rounded-full blur-3xl bg-blue-600/6 pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-xs font-bold uppercase tracking-wider text-blue-500 dark:text-blue-300 border mc-border">
-              <Play className="size-3 fill-current" /> Event Launcher
-            </span>
-            <h2 className="mt-4 text-3xl md:text-4xl font-extrabold tracking-tight leading-tight">
-              Set up today's team event.
-            </h2>
-            <p className="mt-3 mc-text-secondary text-sm md:text-base max-w-xl leading-relaxed">
-              Configure the event details below so players can instantly check in and record their training hours.
-            </p>
-          </div>
-          {/* Roster Stat Badge */}
-          <div className="flex-shrink-0 bg-white/[0.06] border mc-border rounded-xl p-4 flex items-center gap-3">
-            <div className="p-2 bg-white/[0.08] rounded-lg">
-              <Users className="size-6" />
-            </div>
-            <div>
-              <div className="text-xs mc-text-muted font-bold uppercase tracking-widest">Roster Size</div>
-              <div className="text-xl font-extrabold">{state.roster.length} active players</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <header>
+        <h1 className="text-3xl font-bold mc-text leading-tight">
+          Today's session
+        </h1>
+        <p className="mt-1.5 text-sm mc-text-secondary">
+          {todayLabel} ·{" "}
+          <button
+            type="button"
+            onClick={() => onNavigate("settings")}
+            className="underline decoration-transparent underline-offset-2 hover:decoration-current focus-visible:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded-sm transition"
+          >
+            {state.roster.length} {state.roster.length === 1 ? "player" : "players"} on roster
+          </button>
+        </p>
+      </header>
 
       {/* Prominent Active Session Alert Container */}
       {state.activeSession && (
