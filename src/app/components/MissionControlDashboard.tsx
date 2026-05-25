@@ -84,6 +84,12 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
           <IdleHero
             today={today}
             rosterSize={state.roster.length}
+            // Option A: last *completed* session only.
+            // events[] contains only saved (finished) sessions — in-progress sessions
+            // live in activeSession, never here. The array is ordered by saved_at DESC
+            // (Supabase query + local prepend), so index 0 is always the most-recently
+            // committed session. We read .date (the session's start datetime) for display.
+            // If events[] is empty, no fragment is shown.
             lastEventDate={state.events[0]?.date ?? null}
             hasEvents={state.events.length > 0}
             onStart={handleSmartStart}
