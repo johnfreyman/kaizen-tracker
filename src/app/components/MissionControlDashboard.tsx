@@ -274,9 +274,10 @@ function IdleHero({
 
         <div className="space-y-2.5">
           <div className="flex flex-wrap items-center gap-3">
+            {/* TODO: replace with --mc-accent token once Ticket X lands */}
             <button
               onClick={onStart}
-              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors text-sm shadow-lg shadow-blue-900/30"
+              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition-colors text-sm shadow-lg shadow-indigo-900/30"
             >
               <Play className="size-4 fill-current" />
               Quick Start
@@ -285,7 +286,7 @@ function IdleHero({
           </div>
           <button
             onClick={onConfigure}
-            className="text-blue-600 dark:text-blue-400/60 hover:text-blue-500 dark:hover:text-blue-400 font-medium text-xs transition-colors"
+            className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium text-xs transition-colors"
           >
             Set up manually →
           </button>
