@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useRelativeTime } from "../hooks/useRelativeTime";
 import { Play, Users, Activity, Target, Clock } from "lucide-react";
 import { useTeamStore, EVENT_TYPES, ActiveSession } from "../hooks/useTeamStore";
 import { useSessionTimer, formatElapsed } from "../hooks/useSessionTimer";
@@ -264,6 +265,8 @@ function IdleHero({
   onStart: () => void;
   onConfigure: () => void;
 }) {
+  const startsAt = smartSession.date ? new Date(smartSession.date) : null;
+  const relativeStart = useRelativeTime(startsAt);
   return (
     <div className="relative overflow-hidden rounded-2xl border mc-border p-6 md:p-8" style={{ background: "var(--mc-card)" }}>
       <div className="absolute -top-20 -right-20 size-56 rounded-full blur-3xl bg-blue-600/6 pointer-events-none" />
@@ -292,7 +295,7 @@ function IdleHero({
               <span className="flex flex-col">
                 <span className="text-base font-bold leading-tight">Quick Start</span>
                 <span className="text-[12.5px] font-medium text-white/75 leading-tight mt-0.5">
-                  {[smartSession.type, formatDuration(smartSession.duration), "starts now"]
+                  {[smartSession.type, formatDuration(smartSession.duration), relativeStart]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
