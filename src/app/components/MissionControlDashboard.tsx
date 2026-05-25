@@ -96,7 +96,7 @@ export default function MissionControlDashboard({ onNavigate }: Props) {
             smartSession={buildSmartSession()}
             onStart={handleSmartStart}
             onConfigure={() => onNavigate("launch")}
-            onRoster={() => onNavigate("attendance")}
+            onRoster={() => onNavigate("settings")}
           />
         )}
       </div>
