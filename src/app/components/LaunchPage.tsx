@@ -15,21 +15,17 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
   const [eventType, setEventType] = useState<EventType>(
     EVENT_TYPES.PRACTICE
   );
-  const getNearest15Time = () => {
+  const getNextHalfHour = () => {
     const now = new Date();
     const minutes = now.getMinutes();
-    const roundedMinutes = Math.round(minutes / 15) * 15;
-    
-    if (roundedMinutes === 60) {
-      now.setHours(now.getHours() + 1);
-      now.setMinutes(0);
+    const h = now.getHours();
+    if (minutes === 0 || minutes === 30) {
+      return `${String(h).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+    } else if (minutes < 30) {
+      return `${String(h).padStart(2, "0")}:30`;
     } else {
-      now.setMinutes(roundedMinutes);
+      return `${String((h + 1) % 24).padStart(2, "0")}:00`;
     }
-
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutesStr = String(now.getMinutes()).padStart(2, '0');
-    return `${hours}:${minutesStr}`;
   };
 
   const formatTimeLabel = (value: string) => {
@@ -43,42 +39,32 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
     }
   };
 
-  const commonTimes = (() => {
+  const FALLBACK_QUICK_TIMES = [
+    { value: "16:00", label: "4:00 PM" },
+    { value: "17:00", label: "5:00 PM" },
+    { value: "18:00", label: "6:00 PM" },
+  ];
+
+  const QUICK_TIMES = (() => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
     const freq: Record<string, number> = {};
     state.events
-      .slice(0, 60)
+      .filter((e) => new Date(e.date) >= thirtyDaysAgo)
       .forEach((e) => {
-        const t = e.date.slice(11, 16); // "HH:MM"
+        const t = e.date.slice(11, 16);
         if (t) freq[t] = (freq[t] ?? 0) + 1;
       });
 
     const uniqueTimes = Object.keys(freq);
-    if (uniqueTimes.length >= 3) {
-      const sorted = uniqueTimes.sort((a, b) => {
-        const diff = freq[b] - freq[a];
-        if (diff !== 0) return diff;
-        return a.localeCompare(b);
-      });
-      return sorted.slice(0, 7).map((value) => ({
-        value,
-        label: formatTimeLabel(value),
-      }));
-    } else {
-      const fallbackValues = [
-        "17:00",
-        "17:30",
-        "18:00",
-        "18:30",
-        "19:00",
-        "19:30",
-        "20:00",
-        "20:30",
-      ];
-      return fallbackValues.map((value) => ({
-        value,
-        label: formatTimeLabel(value),
-      }));
+    if (uniqueTimes.length >= 1) {
+      return uniqueTimes
+        .sort((a, b) => freq[b] - freq[a])
+        .slice(0, 3)
+        .map((value) => ({ value, label: formatTimeLabel(value) }));
     }
+    return FALLBACK_QUICK_TIMES;
   })();
 
   const commonDurations = (() => {
@@ -114,33 +100,9 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
     return commonDurations.includes(lastUsed) ? "presets" : "custom";
   });
 
-  const [startTime, setStartTime] = useState(() => {
-    const lastUsed = state.events[0]?.date.slice(11, 16);
-    const nearest15 = getNearest15Time();
-
-    if (lastUsed && commonTimes.some((t) => t.value === lastUsed)) {
-      return lastUsed;
-    }
-    if (commonTimes.some((t) => t.value === nearest15)) {
-      return nearest15;
-    }
-    return commonTimes[0]?.value || "18:00";
-  });
-  const [timeMode, setTimeMode] = useState<"presets" | "custom">("presets");
-
-  const selectTimePreset = (val: string) => {
-    setTimeMode("presets");
-    setStartTime(val);
-  };
-
-  const enableCustomTime = () => {
-    setTimeMode("custom");
-    const currentSnapped = getNearest15Time();
-    const defaultPresetVal = commonTimes[0]?.value || "18:00";
-    if (startTime === defaultPresetVal) {
-      setStartTime(currentSnapped);
-    }
-  };
+  const [startTime, setStartTime] = useState(
+    () => QUICK_TIMES[0]?.value || getNextHalfHour()
+  );
 
   const parsedDuration = parseFloat(durationInput);
   const isDurationValid =
@@ -149,12 +111,26 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
     parsedDuration <= 4 &&
     Number.isInteger(parsedDuration * 2);
 
+  const isTimeInPast = (() => {
+    if (!startTime) return false;
+    const now = new Date();
+    const selDate = new Date(
+      selectedDate.getFullYear(),
+      selectedDate.getMonth(),
+      selectedDate.getDate()
+    );
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (selDate.getTime() !== today.getTime()) return false;
+    const [hours, minutes] = startTime.split(":").map(Number);
+    const sessionDateTime = new Date(selectedDate);
+    sessionDateTime.setHours(hours, minutes, 0, 0);
+    return sessionDateTime < now;
+  })();
+
   const selectPreset = (val: number) => {
     setDurationMode("presets");
     setDurationInput(val.toString());
   };
-
-  const lastUsedTime = state.events[0]?.date.slice(11, 16);
 
   const todayLabel = new Date().toLocaleDateString(undefined, {
     weekday: "long",
@@ -281,66 +257,46 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
             </div>
 
             {/* Start Time */}
-            <div className="space-y-3">
-              <label className="block mb-2 font-bold mc-text-secondary text-sm uppercase tracking-wide flex items-center gap-1.5">
-                <Clock className="size-4 text-blue-500" /> Start Time
-              </label>
-              
-              {/* Preset Time Buttons Grid */}
-              <div className="grid grid-cols-3 gap-3">
-                {commonTimes.map(({ label, value }) => {
-                  const isSelected = timeMode === "presets" && startTime === value;
-                  const isLastUsed = lastUsedTime === value;
-                  return (
+            <fieldset>
+              <legend className="text-xs font-semibold uppercase tracking-wider mc-text-secondary mb-2">
+                Start time
+              </legend>
+
+              <div className="flex items-center gap-3 flex-wrap">
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="px-4 py-3 rounded-lg bg-[var(--mc-card)] border mc-border text-base font-semibold mc-text focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+
+                <span className="text-sm mc-text-muted">or</span>
+
+                <div className="flex gap-1.5">
+                  {QUICK_TIMES.map((t) => (
                     <button
-                      key={value}
+                      key={t.value}
                       type="button"
-                      onClick={() => selectTimePreset(value)}
-                      className={`py-3.5 px-2 rounded-xl text-sm font-bold border transition-all active:scale-[0.98] ${
-                        isSelected
-                          ? "bg-blue-600 border-transparent text-white scale-[1.02] transform"
-                          : "bg-white/[0.03] border mc-border hover:border-white/[0.15] hover:bg-white/[0.06] mc-text-secondary"
-                      }`}
+                      onClick={() => setStartTime(t.value)}
+                      className={[
+                        "px-3 py-2 rounded-md text-sm font-medium border transition",
+                        startTime === t.value
+                          ? "bg-indigo-600/10 border-indigo-500 text-indigo-300"
+                          : "mc-border mc-text-secondary hover:mc-text hover:bg-white/5",
+                      ].join(" ")}
                     >
-                      <span className="flex items-center justify-center gap-1.5">
-                        {label}
-                        {isLastUsed && (
-                          <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? "bg-white" : "bg-blue-500"}`} />
-                        )}
-                      </span>
+                      {t.label}
                     </button>
-                  );
-                })}
-                <button
-                  type="button"
-                  onClick={enableCustomTime}
-                  className={`py-3.5 px-2 rounded-xl text-sm font-bold border transition-all active:scale-[0.98] ${
-                    timeMode === "custom"
-                      ? "bg-blue-600 border-transparent text-white scale-[1.02] transform"
-                      : "bg-white/[0.03] border mc-border hover:border-white/[0.15] hover:bg-white/[0.06] mc-text-secondary"
-                  }`}
-                >
-                  Custom time
-                </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Custom Time Input Reveal */}
-              {timeMode === "custom" && (
-                <div className="p-5 border mc-border rounded-xl animate-fade-in max-w-sm mt-3" style={{ background: "var(--mc-card)" }}>
-                  <div className="relative group">
-                    <input
-                      type="time"
-                      required
-                      step="900"
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                      className="w-full px-4 py-3 rounded-lg border mc-border hover:border-blue-400/50 focus:border-blue-500 focus:outline-none font-semibold text-sm transition-all focus:ring-4 focus:ring-blue-500/10"
-                      style={{ background: "var(--mc-card)", color: "var(--mc-text-primary)" }}
-                    />
-                  </div>
-                </div>
+              {isTimeInPast && (
+                <p className="mt-2 text-xs text-amber-400">
+                  That's in the past. Did you mean tomorrow?
+                </p>
               )}
-            </div>
+            </fieldset>
           </div>
         </div>
 
@@ -495,7 +451,7 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={!isDurationValid}
+          disabled={!isDurationValid || !startTime}
           className="w-full flex items-center justify-center gap-2.5 px-6 py-4.5 bg-blue-600 hover:bg-blue-500 disabled:bg-white/[0.04] disabled:mc-text-muted text-white font-extrabold rounded-xl transition-all duration-300 active:scale-[0.98] disabled:cursor-not-allowed text-base tracking-wide group"
         >
           <Play className="size-5 fill-current transition-transform group-hover:scale-110 duration-200" />
