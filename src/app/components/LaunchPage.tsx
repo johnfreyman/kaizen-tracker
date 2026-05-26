@@ -59,10 +59,11 @@ export default function LaunchPage({ onNavigate }: LaunchPageProps) {
 
     const uniqueTimes = Object.keys(freq);
     if (uniqueTimes.length >= 1) {
-      return uniqueTimes
+      const topTimes = uniqueTimes
         .sort((a, b) => freq[b] - freq[a])
         .slice(0, 3)
         .map((value) => ({ value, label: formatTimeLabel(value) }));
+      return topTimes.sort((a, b) => a.value.localeCompare(b.value));
     }
     return FALLBACK_QUICK_TIMES;
   })();
