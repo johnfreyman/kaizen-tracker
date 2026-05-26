@@ -157,3 +157,100 @@ Same questions as iOS. Is there a meaningful difference in audience (budget coac
 
 ### 9. What am I overlooking?
 What important product, business, legal, or technical considerations has the product owner not thought to ask about yet? Think about: data privacy (storing minors' names and attendance), COPPA/FERPA implications, data portability, competitor landscape, coach burnout/adoption risk, onboarding friction, etc.
+
+---
+
+### 10. Legal Compliance — COPPA, Minor Data, and Onboarding Agreements
+
+This app stores names and attendance records for minor athletes. That's likely enough to trigger compliance obligations under federal and possibly state law. This section is a planning guide for engaging an attorney before the app scales.
+
+---
+
+#### What type of attorney to hire
+
+Look for an attorney (or firm) that checks all three of these boxes:
+
+1. **Privacy / Data Protection law** — someone who works with COPPA and state privacy statutes (CCPA, COPPA-analogues in states like Illinois, Texas, Virginia) as core practice areas, not as an occasional matter.
+2. **EdTech or youth-facing software experience** — attorneys who have drafted terms and privacy policies for youth sports apps, school software, or children's media understand the specific COPPA/FERPA intersection and what regulators actually scrutinize.
+3. **Startup/SaaS familiarity** — you want practical, proportionate advice for a small product, not a Fortune 500 compliance program. Ask whether they've advised early-stage SaaS products before.
+
+**Where to find candidates:**
+- The International Association of Privacy Professionals (iapp.org) has a member directory filterable by specialty.
+- Law firms with named EdTech or youth privacy practices (e.g., firms that publish COPPA-specific content on their blog).
+- Ask other indie SaaS founders or sports-tech founders for referrals — this is often the fastest path to a good fit.
+
+**Avoid:** general business attorneys who will Google COPPA alongside you. The nuance in this space (operator vs. service-provider distinctions, "mixed audience" site rules, verifiable parental consent methods) requires someone who already knows it.
+
+---
+
+#### The core legal question for this app
+
+COPPA applies to operators of websites or apps **directed to children under 13** that collect personal information, OR to operators of general-audience sites with **actual knowledge** they are collecting data from children under 13.
+
+The Kaizen Tracker occupies an interesting middle ground:
+- **The coach is the operator** — minors never log in, create accounts, or directly submit data.
+- **The coach enters minors' data** on behalf of the organization.
+- Player names + attendance patterns are arguably personal information tied to identifiable individuals.
+
+This "school official / operator intermediary" model has precedent — it's how many EdTech tools operate under FERPA's "school official" exception. But whether that exception applies here (private club sport vs. school setting) is exactly what an attorney needs to analyze.
+
+The **onboarding agreement** idea — having coaches affirmatively certify that parents have consented — is a reasonable product-layer safeguard, but it does not automatically shield the platform from liability if the underlying data handling is noncompliant. Get legal confirmation that it's drafted correctly and does what you think it does.
+
+---
+
+#### Questions to ask the attorney
+
+**Applicability:**
+1. Is this app "directed to children" under COPPA's five-factor test, or is it a general-audience B2B tool where the operator (coach) controls all data entry?
+2. Does the school official / service provider exception to COPPA apply in a private club sports context, or only in formal school settings covered by FERPA?
+3. Do any state laws (CCPA, Illinois BIPA if biometrics are ever added, state-specific COPPA analogues) add obligations beyond federal COPPA?
+
+**Consent and onboarding:**
+4. Is a coach-side onboarding agreement (certifying parental consent) a legally defensible mechanism, or does the platform need to independently obtain verifiable parental consent?
+5. What specific language must the onboarding agreement contain to be enforceable and to provide meaningful liability protection?
+6. Should the agreement be a checkbox, a click-through Terms of Service, or a signed document?
+7. Does the agreement need to be re-accepted when the privacy policy changes materially?
+
+**Privacy policy and notices:**
+8. What must the platform's privacy policy disclose about minor data collection, storage, and use?
+9. Is a separate "Children's Privacy Notice" required, or can it be a section within the main policy?
+10. Are there required disclosures at the point of data entry (when the coach adds a player name)?
+
+**Data handling:**
+11. What data minimization obligations apply — is storing player names + attendance alone compliant, or do we need to strip/anonymize further?
+12. What data retention limits are legally required or strongly recommended? (e.g., delete records after season ends, after a player leaves the roster)
+13. What security controls are required or expected by regulators for this data category?
+14. If a parent requests deletion of their child's data, what is the required response time and process?
+
+**Scaling and future features:**
+15. If the app adds parent-facing views, push notifications to parents, or player photos — what new obligations are triggered?
+16. If the app is used in a school district context (vs. private club), does FERPA apply, and how does that interact with COPPA?
+17. If we monetize (ads, data analytics, third-party integrations) — what COPPA consent obligations does that trigger?
+
+---
+
+#### How to prepare for the attorney meeting
+
+**Bring documentation of what you collect and how:**
+- A written inventory of every piece of data the app stores (player name, attendance, session dates, team logo, coach email, etc.) — the data model in this brief is a good starting point.
+- A description of who enters the data (coach only), who can access it (coach only, super admin), and where it's stored (Supabase/PostgreSQL, Supabase Storage).
+- A description of any third-party services that touch the data: Supabase, any analytics tools, email providers, CDN.
+
+**Bring the current state of your legal docs:**
+- Current Terms of Service and Privacy Policy (or note that none exist yet).
+- Any existing onboarding flow screenshots or mockups.
+
+**Bring your business model context:**
+- Is this currently free? What's the intended monetization path?
+- Are you targeting private clubs only, or eventually schools/districts?
+- Approximate number of current users and minors whose data is in the system.
+
+**Frame the engagement clearly:**
+- Tell the attorney you want: (a) an opinion on COPPA applicability, (b) a draft or review of a compliant onboarding consent agreement, and (c) a privacy policy that covers minor data correctly.
+- Ask for a flat-fee quote for that specific deliverable set — this is a defined enough scope that a good attorney will quote it rather than billing open-ended hours.
+- Ask whether they recommend a phased approach: get compliant now at current scale, then revisit if you add parent-facing features or school-district clients.
+
+**Questions to ask before hiring:**
+- "Have you drafted COPPA-compliant terms for a youth sports or EdTech app before?"
+- "Have you dealt with the school official / service provider exemption question?"
+- "What's your flat-fee estimate for a COPPA applicability memo + privacy policy + onboarding agreement review?"
