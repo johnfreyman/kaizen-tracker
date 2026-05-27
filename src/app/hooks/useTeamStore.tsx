@@ -160,7 +160,7 @@ interface TeamStoreContextType {
   retrySave: () => Promise<void>;
   addPlayer: (name: string, isGuest?: boolean) => Promise<boolean>;
   removePlayer: (name: string) => Promise<void>;
-  updateSettings: (settings: { teamName?: string; teamLogo?: string; raffleEnabled?: boolean }) => Promise<void>;
+  updateSettings: (settings: { teamName?: string; teamLogo?: string; raffleEnabled?: boolean; consentAgreedAt?: string; consentVersion?: string }) => Promise<void>;
   uploadLogo: (file: File) => Promise<void>;
   archiveEvents: (options?: { type?: EventType }) => Promise<boolean>;
   clearActiveEvents: (options: { type: EventType }) => Promise<boolean>;
@@ -524,28 +524,51 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
 
   const removePlayer = async (name: string) => {
     const current = stateRef.current;
-    const previousRoster = current.roster;
-    const previousGuestPlayers = current.guestPlayers;
+    const previousRoster        = current.roster;
+    const previousGuestPlayers  = current.guestPlayers;
+    const previousEvents        = current.events;
+    const previousArchivedEvents = current.archivedEvents;
 
-    updateState({
-      roster: current.roster.filter((p) => p !== name),
-      guestPlayers: current.guestPlayers.filter((p) => p !== name),
-    });
+    // Optimistically scrub the player from all local state immediately.
+    setState((prev) => ({
+      ...prev,
+      roster:       prev.roster.filter((p) => p !== name),
+      guestPlayers: prev.guestPlayers.filter((p) => p !== name),
+      events: prev.events.map((e) => ({
+        ...e,
+        players: e.players.filter((p) => p !== name),
+      })),
+      archivedEvents: prev.archivedEvents.map((a) => ({
+        ...a,
+        events: a.events.map((e) => ({
+          ...e,
+          players: e.players.filter((p) => p !== name),
+        })),
+      })),
+    }));
 
     try {
-      const { error } = await supabase.from("roster").delete().eq("coach_id", currentUserIdRef.current).eq("name", name);
+      const { error } = await supabase.rpc("remove_player", {
+        p_coach_id:    currentUserIdRef.current,
+        p_player_name: name,
+      });
       if (error) throw error;
       toast.success(`${name} removed from roster.`);
     } catch (err: any) {
       console.error("Failed to remove player:", err);
-      updateState({ roster: previousRoster, guestPlayers: previousGuestPlayers });
+      updateState({
+        roster:        previousRoster,
+        guestPlayers:  previousGuestPlayers,
+        events:        previousEvents,
+        archivedEvents: previousArchivedEvents,
+      });
       toast.error(`Failed to remove player: ${err.message || "Unknown error"}`);
     }
   };
 
   const isGuest = (playerName: string) => stateRef.current.guestPlayers.includes(playerName);
 
-  const updateSettings = async (settings: { teamName?: string; teamLogo?: string; raffleEnabled?: boolean }) => {
+  const updateSettings = async (settings: { teamName?: string; teamLogo?: string; raffleEnabled?: boolean; consentAgreedAt?: string; consentVersion?: string }) => {
     const current = stateRef.current;
     const previousSettings = {
       teamName: current.teamName,
@@ -556,15 +579,16 @@ export function TeamStoreProvider({ children }: { children: ReactNode }) {
     updateState(settings);
 
     try {
-      const { error } = await supabase.from("team_settings").upsert(
-        {
-          coach_id: currentUserIdRef.current,
-          team_name: settings.teamName ?? current.teamName,
-          team_logo: settings.teamLogo ?? current.teamLogo,
-          raffle_enabled: settings.raffleEnabled ?? current.raffleEnabled,
-        },
-        { onConflict: 'coach_id' }
-      );
+      const payload: Record<string, unknown> = {
+        coach_id:       currentUserIdRef.current,
+        team_name:      settings.teamName      ?? current.teamName,
+        team_logo:      settings.teamLogo      ?? current.teamLogo,
+        raffle_enabled: settings.raffleEnabled ?? current.raffleEnabled,
+      };
+      if (settings.consentAgreedAt !== undefined) payload.consent_agreed_at = settings.consentAgreedAt;
+      if (settings.consentVersion  !== undefined) payload.consent_version   = settings.consentVersion;
+
+      const { error } = await supabase.from("team_settings").upsert(payload, { onConflict: 'coach_id' });
       if (error) throw error;
       toast.success("Settings updated.");
     } catch (err: any) {
