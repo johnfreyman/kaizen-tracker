@@ -129,7 +129,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
 
       {/* Session Banner */}
       <div
-        className="rounded-2xl border border-white/[0.08] overflow-hidden p-6 md:p-8 md:flex md:items-center md:justify-between gap-4"
+        className="rounded-2xl border mc-border overflow-hidden p-6 md:p-8 md:flex md:items-center md:justify-between gap-4"
         style={{ backgroundColor: "var(--mc-surface)" }}
       >
         <div>
@@ -172,7 +172,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <button
           onClick={handleAddPlayer}
-          className="flex items-center justify-center gap-3 px-6 py-4 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white font-semibold rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+          className="flex items-center justify-center gap-3 px-6 py-4 mc-card mc-card-hover mc-text border font-semibold rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
           <UserPlus className="size-5" />
           <span>Add Player</span>
@@ -180,7 +180,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
         {state.events.length > 0 && (
           <button
             onClick={handleEditLastSession}
-            className="flex items-center justify-center gap-3 px-6 py-4 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white font-semibold rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="flex items-center justify-center gap-3 px-6 py-4 mc-card mc-card-hover mc-text border font-semibold rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
             <Edit className="size-5" />
             <span>Edit Last Session</span>
@@ -215,7 +215,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
                 className={`relative flex flex-col items-center justify-center gap-3 min-h-36 p-5 rounded-2xl border transition-all ${
                   isPresent
                     ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-700 dark:text-emerald-300"
-                    : "bg-white/[0.03] border mc-border mc-text-secondary hover:border-white/[0.15] hover:bg-white/[0.06] hover:scale-[1.02]"
+                    : "mc-card border mc-border mc-text-secondary mc-card-hover hover:scale-[1.02]"
                 }`}
               >
                 {hasStreak && (
@@ -229,7 +229,7 @@ export default function AttendancePage({ onNavigate }: { onNavigate?: (page: str
                 <div className={`size-14 rounded-full flex items-center justify-center font-bold text-base transition-all ${
                   isPresent
                     ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                    : "bg-white/[0.06] mc-text-secondary"
+                    : "bg-slate-100 dark:bg-white/[0.06] mc-text-secondary"
                 }`}>
                   {getInitials(player)}
                 </div>
