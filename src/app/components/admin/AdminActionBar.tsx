@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "../ui/utils";
+import InviteCoachModal from "./InviteCoachModal";
 
 // ---------------------------------------------------------------------------
 // Action Definitions
@@ -222,6 +223,7 @@ function CommandPalette({
 export default function AdminActionBar() {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<AdminAction | null>(null);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
 
   // Define the available actions
   const actions: AdminAction[] = useMemo(
@@ -231,7 +233,7 @@ export default function AdminActionBar() {
         label: "Invite Coach",
         icon: UserPlus,
         type: "primary",
-        onExecute: () => toast.info("Invite Coach modal would open here."),
+        onExecute: () => setIsInviteOpen(true),
       },
       {
         id: "export-data",
@@ -392,6 +394,8 @@ export default function AdminActionBar() {
           onExecute: () => executeAction(a)
         }))}
       />
+
+      <InviteCoachModal isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} />
     </>
   );
 }

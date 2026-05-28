@@ -6,11 +6,11 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-type Action = "resend-verification" | "force-logout" | "suspend-account" | "view-as-coach";
+type Action = "resend-verification" | "force-logout" | "suspend-account" | "view-as-coach" | "invite-coach";
 
 interface RequestBody {
   action: Action;
-  coachId: string;
+  coachId?: string;
   email?: string;
 }
 
@@ -26,8 +26,11 @@ Deno.serve(async (req) => {
     }
 
     const { action, coachId, email }: RequestBody = await req.json();
-    if (!action || !coachId) {
-      return json({ error: "Missing required fields: action, coachId" }, 400);
+    if (!action) {
+      return json({ error: "Missing required field: action" }, 400);
+    }
+    if (action !== "invite-coach" && !coachId) {
+      return json({ error: "Missing required field: coachId" }, 400);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -93,6 +96,12 @@ Deno.serve(async (req) => {
         });
         if (error) throw error;
         return json({ success: true, link: linkData.properties.action_link }, 200);
+      }
+      case "invite-coach": {
+        if (!email) return json({ error: "Missing email for invite-coach" }, 400);
+        const { error } = await adminClient.auth.admin.inviteUserByEmail(email);
+        if (error) throw error;
+        break;
       }
       default:
         return json({ error: `Unknown action: ${action}` }, 400);
