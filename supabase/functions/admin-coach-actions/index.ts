@@ -6,7 +6,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-type Action = "resend-verification" | "force-logout" | "suspend-account" | "view-as-coach" | "invite-coach";
+type Action = "list-coaches" | "resend-verification" | "force-logout" | "suspend-account" | "view-as-coach" | "invite-coach";
 
 interface RequestBody {
   action: Action;
@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     if (!action) {
       return json({ error: "Missing required field: action" }, 400);
     }
-    if (action !== "invite-coach" && !coachId) {
+    if (action !== "invite-coach" && action !== "list-coaches" && !coachId) {
       return json({ error: "Missing required field: coachId" }, 400);
     }
 
@@ -50,21 +50,28 @@ Deno.serve(async (req) => {
     }
 
     // Verify the caller is a super admin using their own JWT (matches the RLS policy)
-    const { data: adminRow } = await callerClient
+    const { data: adminRow, error: adminError } = await callerClient
       .from("super_admins")
       .select("user_id")
       .eq("user_id", user.id)
       .maybeSingle();
-    if (!adminRow) {
+    if (adminError || !adminRow) {
       return json({ error: "Forbidden" }, 403);
     }
 
-    // Service-role client for privileged auth admin operations
+    // Only verified super admins may use this privileged client.
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
     switch (action) {
+      case "list-coaches": {
+        const { data, error } = await adminClient
+          .from("admin_coach_summary_view")
+          .select("*");
+        if (error) throw error;
+        return json({ coaches: data ?? [] }, 200);
+      }
       case "resend-verification": {
         if (!email) return json({ error: "Missing email for resend-verification" }, 400);
         const { error } = await adminClient.auth.admin.generateLink({

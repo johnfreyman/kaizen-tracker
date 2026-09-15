@@ -296,17 +296,19 @@ export default function SuperAdminDashboard() {
   }, []);
 
   // -------------------------------------------------------------------------
-  // Data fetch — single view query, no N+1
+  // Data fetch — the backend verifies super-admin access before reading the view.
   // -------------------------------------------------------------------------
   useEffect(() => {
     async function fetchCoaches() {
       try {
-        const { data, error } = await supabase
-          .from("admin_coach_summary_view")
-          .select("*");
+        const { data, error } = await supabase.functions.invoke("admin-coach-actions", {
+          body: { action: "list-coaches" },
+        });
 
         if (error) throw error;
-        setRows((data as CoachSummaryRow[]) ?? []);
+        if (data?.error) throw new Error(data.error);
+        if (!Array.isArray(data?.coaches)) throw new Error("Invalid coach data response.");
+        setRows(data.coaches as CoachSummaryRow[]);
       } catch (err: any) {
         setError(err.message ?? "Failed to load coach data.");
       } finally {
