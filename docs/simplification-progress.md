@@ -11,6 +11,8 @@ Stage 1 documentation is complete. The owner subsequently requested reconciliati
 
 Canonical continuation branch: `codex/simplification-plan` in `johnfreyman/kaizen-tracker`. Use these documents from that branch, not the unchanged `main` checkout or the superseded seven-stage draft.
 
+Published review: [draft PR #1](https://github.com/johnfreyman/kaizen-tracker/pull/1). It remains unmerged. The initial reconciliation commit is `428d59a274965c172324958f3f8fa2b407f9880b`; use the latest branch head for subsequent handoffs.
+
 | Stage | State | Deliverable / next gate |
 | --- | --- | --- |
 | 1. Product specification and migration plan | Complete | Source audit, approved requirements/decisions, recommendations, flows, data invariants, acceptance matrix and recovery plan documented. |
@@ -83,6 +85,7 @@ P12 describes proposed sub-team reporting behavior. One versus multiple simultan
 - Publish the reconciled documents on the continuation branch with Claude's original commit retained as an ancestor. Keep the draft PR unmerged; Stage 8 remains the release gate. Do not delete Claude's branch or unrelated files.
 - Revised documentation checks passed: links resolve, fences balance, no trailing whitespace, and all 14 requirements, 6 confirmed decisions, 12 proposals and 25 acceptance criteria have unique entries. The Vercel JSON parses and disables only the exact continuation branch. No `.github` workflow directory was present in this checkout. Application tests were not repeated for planning/configuration-only edits; baseline results remain above.
 - Created the continuation branch from Claude's exact commit; both original documents remain recoverable in Git history. Publication is a draft PR against unchanged `main`, not a merge or production release. Verify the PR head and the branch's no-deploy guard before continuing work in another environment.
+- Post-publication inspection confirmed PR #1 is open/draft and contains exactly the two documents and `vercel.json`; `main` remains at `40d9b0c2f57692cdc8439d453816418be3db5a39`. The only remaining unrelated local modification is `.DS_Store`. No deployment was requested.
 
 ## Existing issues and limitations
 
