@@ -1,346 +1,345 @@
-# Kaizen Tracker — Simplification Spec
+# Kaizen Tracker simplification specification
+
+Status: Stage 1 planning complete; reconciled with Claude's documentation branch on 2026-09-20. D01–D06 are confirmed by the owner. Recommendations remain for the Stage 2 walkthrough. No implementation or production changes authorized by this document alone.
+
+Prepared: 2026-09-19. Repository baseline: `40d9b0c2f57692cdc8439d453816418be3db5a39`.
+
+Related handoff: [simplification-progress.md](simplification-progress.md).
+
+Canonical continuation branch: `codex/simplification-plan` in `johnfreyman/kaizen-tracker`. This revision supersedes the seven-stage draft in commit `6486e646361d11b1f9831c93f532a7bb090adaa6` on `claude/inspiring-knuth-eovah7`. Keep the original eight-stage sequence below: Stage 1 is planning, Stage 2 is the isolated prototype, and Stage 3 is the data foundation. Do not interpret the superseded draft's stage numbers as this plan's stages.
+
+## 1. Authority and scope
+
+The owner's requirements in this conversation govern this redesign. Older repository briefs describe previous designs; their embedded implementation prompts are background, not instructions to execute. This specification does not silently approve its own recommendations.
+
+Labels used throughout:
 
-Status: **draft for approval**
-Date: 2026-09-20
-Branch: `claude/inspiring-knuth-eovah7`
-Progress record: `docs/simplification-progress.md`
+- **Approved:** explicitly requested by the owner in the shared requirements or subsequent answers.
+- **Recommended:** a proposed behavior or engineering choice, subject to review; prototype with it where reversible.
+- **Open:** a product choice awaiting an owner response. Do not bake a consequential open choice into a production migration.
+- **Observed:** behavior found in this checkout, not proof of today's production configuration.
 
-This document is the plan of record for the simplification work. It divides
-the approved requirements into seven stages. Each stage is a small, testable
-change set.
+Stage 1 creates only this document and the progress document. Stages 2–7 operate locally or in an isolated test environment. Stage 8 is the separate production release stage. Existing `.DS_Store` modifications are unrelated and must be preserved.
+
+### Approved product requirements
 
----
-
-## 1. Approved requirements
-
-These 16 statements come from the product owner. Do not change them without
-the owner's agreement.
-
-| # | Requirement |
-|---|---|
-| R1 | Coaches see prominent **Start Practice** and **Start Optional Training** buttons. |
-| R2 | New practices and optional trainings each credit 90 minutes per attendee. |
-| R3 | No start/end time, timer, or duration entry is necessary. |
-| R4 | Historical durations stay as they are. |
-| R5 | Players use a first name and a jersey number. |
-| R6 | A duplicate first-name/number pair needs a last initial or another short label. |
-| R7 | Coaches can tap player cards to mark attendance. |
-| R8 | Kiosk users type a jersey number, see the matching player cards, and select their own card. |
-| R9 | Kiosk users can undo an incorrect selection. |
-| R10 | A coach exit code returns the app from kiosk mode to the attendance screen. |
-| R11 | Attendance survives refreshes and interrupted connectivity. |
-| R12 | Each optional-training attendance earns one raffle ticket. |
-| R13 | Practices earn no raffle tickets. |
-| R14 | Tickets accrue when the raffle feature is enabled and when it is disabled. |
-| R15 | When a coach enables the raffle, the app offers **Keep accrued tickets** or **Start fresh**. Start fresh changes raffle eligibility only. It does not delete attendance, credited hours, or historical raffle records. |
-| R16 | The raffle defaults to enabled for new teams. Existing teams keep their saved setting. |
-
-Two constraints apply to every stage:
-
-- **C1** — Keep the analytics pages and their numbers correct.
-- **C2** — Keep `supabase/functions/admin-coach-actions` and its authorization
-  checks. `johnfreyman70@gmail.com` stays the only super admin.
-- **C3** — Stages 1 to 7 do not deploy and do not change production. Test in a
-  local or isolated environment.
-
----
-
-## 2. What the code does today
-
-Findings from a read of the repository at commit `40d9b0c`.
-
-### 2.1 Session start (R1, R2, R3)
-
-`src/app/components/LaunchPage.tsx` asks the coach for four things: event
-type, date, start time, and duration. The duration control offers presets
-(0.5 h to 3.0 h) and a custom field. Valid durations are 0.5 h to 4.0 h in
-half-hour steps.
-
-The page writes `date` as `YYYY-MM-DDTHH:mm` and `duration` as a number of
-hours.
-
-### 2.2 Data model
-
-`migrations/001_schema.sql` defines five tables. All are coach-scoped and
-protected by row-level security.
-
-| Table | Relevant columns |
-|---|---|
-| `team_settings` | `team_name`, `team_logo`, `raffle_enabled BOOLEAN NOT NULL DEFAULT false` |
-| `roster` | `name TEXT`, `is_guest BOOLEAN`, `UNIQUE (coach_id, name)` |
-| `events` | `date TEXT`, `type TEXT`, `duration NUMERIC`, `players JSONB` (array of name strings), `saved_at TEXT` |
-| `active_session` | `id`, `date`, `type`, `duration` |
-| `archived_event_sets` | `events JSONB` |
-
-A player is a **name string**. `events.players` holds an array of those
-strings. Archived sets hold copies of the same strings. There is no player
-identifier.
-
-### 2.3 Attendance (R7, R11)
-
-`src/app/components/AttendancePage.tsx` already uses tappable player cards.
-R7 is satisfied.
-
-The present-player set is React state only:
-
-```ts
-const [presentPlayers, setPresentPlayers] = useState<Set<string>>(new Set());
-```
-
-A refresh loses it. `src/lib/attendance-draft.ts` exports `saveDraft`,
-`loadDraft`, and `clearDraft`, but **no file calls them**. The offline path is
-different and does work: a failed save writes the finished event to
-`localStorage` and a browser `online` event retries it.
-
-### 2.4 Kiosk (R8, R9, R10)
-
-Kiosk mode does not exist. A search for `kiosk`, `jersey`, and `exit code`
-across `src/` returns nothing. `BRAINSTORM_BRIEF.md` §3 lists kiosk mode as an
-open idea, not as built work.
-
-### 2.5 Raffle (R12 to R16)
-
-`src/app/components/RafflePage.tsx` builds the wheel from live events:
-
-```ts
-state.events.filter((event) => event.type === EVENT_TYPES.OPTIONAL_TRAINING)
-```
-
-One wheel slice per attendance. Practices give none. So R12 and R13 already
-hold in effect, and R14 holds too, because slices are derived from events and
-not from a stored counter.
-
-Three gaps remain:
-
-1. **Reset is destructive.** The "Reset wheel" button calls
-   `clearActiveEvents({ type: OPTIONAL_TRAINING })`, which **deletes the event
-   rows** from the `events` table. That erases attendance and credited hours.
-   R15 forbids this.
-2. **No enable dialog.** `SettingsPage.tsx` has a plain on/off switch. There is
-   no Keep/Start-fresh choice.
-3. **Wrong default.** `raffle_enabled` defaults to `false` in the database and
-   in `defaultState`. R16 wants `true` for new teams.
-
-Raffle winners are stored in `localStorage` under `kaizen.raffle.winners`, not
-in Supabase.
-
-### 2.6 Analytics (C1)
-
-`src/lib/stats.ts` sums `event.duration` per player into `practice` and
-`training` hours. The unit is **hours as a decimal**. 90 minutes is `1.5`.
-
-### 2.7 Open question to verify
-
-`migrations/001_schema.sql` line 37 constrains the event date:
-
-```sql
-date TEXT NOT NULL CHECK (date ~ '^\d{4}-\d{2}-\d{2}$')
-```
-
-`LaunchPage.tsx` writes `2026-09-20T16:00`, which the anchored pattern
-rejects. Either the live database carries a different constraint, or saves
-fail. **Verify against the live schema in Stage 1 before any migration.**
-Stage 1 removes the time-of-day part, which also removes this risk.
-
----
-
-## 3. Design decisions
-
-These are **assumptions**, not approved requirements. Each one is open to
-correction at plan review.
-
-| # | Decision | Reason |
-|---|---|---|
-| A1 | Store 90 minutes as `duration = 1.5` in the existing `NUMERIC` column. Do not add a minutes column. | `stats.ts`, reports, and exports already use decimal hours. A unit change would touch every analytics path and risk C1. |
-| A2 | Keep `events.players` as an array of display-name strings. | Every event row, every archive, and every statistics helper reads these strings. A change to identifiers is a data migration across JSONB, and it is not needed by any of the 16 requirements. |
-| A3 | Add `first_name`, `jersey_number`, and `label` to `roster`. Derive `name` from them and keep `name` as the unique key. | Gives R5 and R6 structured data without breaking A2. |
-| A4 | Display name format: `First #Number`, or `First L. #Number` when a label exists. | Short, and it reads well on a card. |
-| A5 | Kiosk mode is a screen state inside the app, not a separate route. | It must not be reachable by a typed URL, and it shares the store. |
-| A6 | The coach exit code is a 4-digit to 6-digit PIN in `team_settings`, hashed. | Simple for a coach at a gym door. Hashing avoids storing a live code in plain text. |
-| A7 | "Start fresh" writes a `raffle_epoch` timestamp in `team_settings`. The wheel counts only optional-training attendance after that time. | Satisfies R15 exactly: eligibility changes, no row is deleted. |
-| A8 | New events write the fixed credit. Old events keep the value already in the row. | R4. No backfill, no update of history. |
-
----
-
-## 4. Stages
-
-Each stage lists its requirements, its files, and its exit test. A stage is
-done only when its exit test passes.
-
-### Stage 1 — Fixed-credit sessions
-
-**Covers:** R1, R2, R3, R4.
-
-**Change:**
-
-- Replace the LaunchPage form with two large buttons: **Start Practice** and
-  **Start Optional Training**. Keep the date picker only if the owner wants
-  back-dating; otherwise use today's date.
-- Remove the start-time control, the duration presets, and the custom duration
-  field.
-- Set `duration = 1.5` for every new session.
-- Write `date` as `YYYY-MM-DD` with no time part.
-- Leave `saveSession`, `stats.ts`, and every existing row untouched.
-
-**Files:** `src/app/components/LaunchPage.tsx`,
-`src/app/components/__tests__/LaunchPage.test.tsx`,
-`src/app/hooks/useTeamStore.tsx` (constant only).
-
-**Exit test:** Start each session type. Confirm the saved event holds
-`duration: 1.5` and a 10-character date. Confirm a report that mixes old
-events and new events shows old durations unchanged.
-
-### Stage 2 — Player identity
-
-**Covers:** R5, R6.
-
-**Change:**
-
-- Migration `011_player_identity.sql`: add `first_name TEXT`,
-  `jersey_number TEXT`, `label TEXT` to `roster`. Backfill `first_name` from
-  the existing `name`. Leave `jersey_number` empty for old rows.
-- Add a unique constraint on `(coach_id, lower(first_name), jersey_number,
-  coalesce(label,''))`.
-- Change the add-player dialog to ask for first name and jersey number.
-- When the pair already exists, require a short label and say why.
-- Derive the display name per A4 and keep writing it to `roster.name`.
-
-**Files:** `migrations/011_player_identity.sql`,
-`src/app/hooks/useTeamStore.tsx`, `src/app/components/PlayerTypeDialog.tsx`,
-`src/app/components/AttendancePage.tsx`,
-`src/app/components/SettingsPage.tsx`.
-
-**Exit test:** Add two players named Jordan with number 12. The second add
-fails until a label is given. Old roster rows still load and still match their
-event history.
-
-### Stage 3 — Durable attendance
-
-**Covers:** R11.
-
-**Change:**
-
-- Call `saveDraft` from `AttendancePage` on every tap, keyed by the active
-  session id.
-- Call `loadDraft` when the page mounts and an active session exists.
-- Call `clearDraft` after a successful save and after a discard.
-- Confirm the existing offline retry still works with the draft in place.
-
-**Files:** `src/app/components/AttendancePage.tsx`,
-`src/lib/attendance-draft.ts` (no change expected),
-`src/app/hooks/useTeamStore.tsx`.
-
-**Exit test:** Mark five players, refresh the browser, and confirm the five
-are still marked. Go offline, save, go online, and confirm one event syncs and
-no duplicate appears.
-
-### Stage 4 — Kiosk mode
-
-**Covers:** R8, R9, R10. Depends on Stage 2 and Stage 3.
-
-**Change:**
-
-- Add a kiosk screen state with a number pad.
-- A typed jersey number filters the roster to the matching cards.
-- A tap on a card marks that player present and shows a short confirmation
-  with an **Undo** control.
-- Kiosk mode hides navigation, settings, reports, and the raffle.
-- An exit control asks for the coach PIN and returns to the attendance screen.
-- Kiosk writes through the same draft store as Stage 3.
-
-**Files:** new `src/app/components/KioskPage.tsx`, new
-`src/app/components/KioskExitDialog.tsx`, `src/app/App.tsx`,
-`src/app/components/SettingsPage.tsx` (set the PIN),
-`migrations/012_kiosk_exit_code.sql`.
-
-**Exit test:** Type a number, select a card, and confirm the mark. Undo it and
-confirm the mark is gone. Try three wrong PINs and confirm the app stays in
-kiosk mode. Enter the correct PIN and confirm the app returns to the
-attendance screen.
-
-### Stage 5 — Raffle tickets
-
-**Covers:** R12, R13, R14.
-
-**Change:**
-
-- Move ticket derivation out of `RafflePage.tsx` into `src/lib/raffle.ts`.
-- One ticket per optional-training attendance. Zero for practice.
-- Derive tickets from events, so they accrue while the raffle is off.
-- Show the ticket count in the player detail drawer, whatever the raffle
-  setting is.
-
-**Files:** new `src/lib/raffle.ts`, new `src/lib/raffle.test.ts`,
-`src/app/components/RafflePage.tsx`,
-`src/app/components/PlayerDetailDrawer.tsx`.
-
-**Exit test:** Unit tests for the ticket function. With the raffle off, save an
-optional training, then turn the raffle on and confirm the tickets are there.
-
-### Stage 6 — Raffle enable dialog and defaults
-
-**Covers:** R15, R16. Depends on Stage 5.
-
-**Change:**
-
-- Migration `013_raffle_defaults.sql`: set the `raffle_enabled` column default
-  to `true` and add `raffle_epoch TIMESTAMPTZ NULL`. **Do not update existing
-  rows** — an existing team keeps the value it saved.
-- New-coach state defaults to `raffleEnabled: true`.
-- When a coach turns the raffle on, show a dialog with **Keep accrued
-  tickets** and **Start fresh**.
-- Start fresh sets `raffle_epoch = now()`. Keep leaves it as it is.
-- `src/lib/raffle.ts` counts only attendance after `raffle_epoch`.
-- **Delete the destructive reset path.** Replace the `clearActiveEvents` call
-  in `RafflePage.tsx` with the epoch reset. Keep `clearActiveEvents` in the
-  store only if another caller needs it; otherwise remove it.
-
-**Files:** `migrations/013_raffle_defaults.sql`,
-`src/app/hooks/useTeamStore.tsx`, `src/app/components/SettingsPage.tsx`,
-`src/app/components/RafflePage.tsx`, `src/lib/raffle.ts`.
-
-**Exit test:** Start fresh, then confirm the event count, the credited hours,
-and the winner history are all unchanged, and only the wheel is empty. A new
-coach sees the raffle on. A coach who had saved "off" still sees it off.
-
-### Stage 7 — Verification
-
-**Covers:** C1, C2, C3 and a full regression pass.
-
-**Change:** No feature work.
-
-- Run the full test suite and `npx tsc --noEmit`.
-- Walk every page and compare the analytics numbers against a set of known
-  events.
-- Confirm `admin-coach-actions` is unchanged and its tests pass.
-- Confirm no migration in this branch has run against production.
-- Write the deployment note for the owner. **Do not deploy.**
-
-**Exit test:** A green test run, and a checklist in the progress document with
-one line per requirement, R1 to R16.
-
----
-
-## 5. Order and dependencies
-
-```
-Stage 1  ──▶  Stage 2  ──▶  Stage 3  ──▶  Stage 4
-                                  │
-Stage 5  ──▶  Stage 6  ───────────┴──▶  Stage 7
-```
-
-Stage 5 can start at any time. Stage 4 needs Stage 2 (jersey numbers) and
-Stage 3 (durable marks).
-
----
-
-## 6. Out of scope
-
-These are not in the 16 requirements. Do not build them in this work.
-
-- Multi-team or sub-team support.
-- Parent or player accounts.
-- A native mobile application.
-- Moving raffle winners from `localStorage` into Supabase.
-- A theme or visual redesign.
-- The open tickets in `RAFFLE-SPEC.md` and `handoff/REPORTS-SPEC.md`.
+| ID | Requirement |
+| --- | --- |
+| R01 | Prominent **Start Practice** and **Start Optional Training** actions. |
+| R02 | Every attendee of a new session receives 90 minutes of credit. No start/end time, timer, or duration entry. Preserve historical durations. |
+| R03 | Player display uses first name and jersey number; duplicate combinations require a last initial or another short distinguishing label. |
+| R04 | Coach can tap player cards to mark attendance. |
+| R05 | Kiosk accepts a number, shows matching player cards, and allows self-check-in and correction of an incorrect selection. |
+| R06 | A coach exit code returns from kiosk to coach attendance. Default to `0000` and offer a coach-set PIN (D01). |
+| R07 | Attendance survives refresh and interrupted connectivity. |
+| R08 | Each optional-training attendance earns one ticket; practices earn none. Accrual continues while raffle is off. |
+| R09 | Turning raffle on offers **Keep accrued tickets** or **Start fresh**. Fresh eligibility does not delete attendance, credited hours, or historical raffle records. |
+| R10 | Raffle defaults on for new teams. Preserve existing teams' explicitly saved settings. |
+| R11 | Keep analytics. |
+| R12 | `johnfreyman70@gmail.com` is the sole authorized super admin. Preserve the secured `admin-coach-actions` backend and authorization checks. |
+| R13 | Default new sessions to today, with a low-prominence date option for entering attendance from paper later. No time or duration input. Store new session credit as `1.5` hours. |
+| R14 | Store each player's first name, distinguishing initial/label when needed, jersey number and team membership. Default grouping can be **Kaizen**; Settings allows custom sub-teams. Offer sub-team selection when adding players if sub-teams exist, and let coaches sort/filter by team for decisions. |
+
+### Non-goals
+
+No payment collection or payment verification, scheduling, live timing, partial-session minute calculation, parent/player accounts, cross-coach team sharing/permissions, notification campaigns, native-device lockdown, general dashboard redesign, or unrelated admin/purge-system overhaul. Coach-owned sub-teams are now explicitly in scope under R14; they do not introduce separate logins or permission boundaries. Training fees explain the raffle incentive; this release does not verify a payment before awarding a ticket.
+
+## 2. What the current code actually does
+
+These observations were verified from source on the baseline commit. No production queries were made for Stage 1. Reconcile deployed schemas with these files before a later migration.
+
+| Area | Observed implementation | Consequence for this project |
+| --- | --- | --- |
+| Navigation | `src/app/App.tsx` uses in-memory page selection, separate dashboard/launch/attendance/reports/settings pages, conditional raffle navigation, keyboard shortcuts and swipe navigation. | Kiosk needs its own shell and must suppress normal navigation/shortcuts. Persist its session binding across reload. |
+| Session setup | `LaunchPage.tsx` requests date, time and duration; creates `date` as local `YYYY-MM-DDTHH:mm`. It warns that a new session overwrites an active one. | Replace the form with direct start actions and a resume path. Do not overwrite an unfinished session. |
+| Timers | `MissionControlDashboard.tsx`, `SessionStatusBar.tsx`, and `useSessionTimer.ts` expose timing concepts. | Remove timing UI across these surfaces, not just the launch form. |
+| Identity | `migrations/001_schema.sql` gives roster rows UUIDs, but the store projects them to `string[]` names. Events and archives contain arrays of names. Client disallows case-insensitive duplicate names. | Reuse UUIDs, retain raw legacy names, and replace name-based joins throughout the app. |
+| Duration | Store, stats and exports use hours: `1.5` means 90 minutes. | Never write `90` into existing hour-valued fields. Default new credit to `1.5` hours and retain old values. |
+| Date mismatch | Migration 001 checks date-only strings, while launch creates date-time strings. | Inspect actual deployed constraints later; do not assume checked-in SQL fully describes production. Preserve original date text during conversion. |
+| Draft attendance | `AttendancePage.tsx` keeps present names in a component-local `Set`. `saveDraft`/`loadDraft` exist in `src/lib/attendance-draft.ts` but have no callers. | Refresh/navigation can lose current selections. Durable active attendance is new work. |
+| Network recovery | `useTeamStore.tsx` stores one failed completed event under `kaizen_pending_event`, with a coach ID and online retry. It optimistically clears the active session. | This is not a multi-operation draft/outbox system. Local success and cloud acknowledgment must be distinguished. |
+| Save RPC | Migration 003 inserts a completed event then deletes `active_session` by coach. Duplicate delivery can conflict, and a delayed save can affect a newer active session. | Idempotency, session-specific matching and revision checks are required. |
+| Editing | `editLastSession` deletes the saved event and upserts an active session in separate requests. | Edit the existing finalized session transactionally; do not destroy it when opening an editor. |
+| Raffle pool | `RafflePage.getWheelEntries` makes one entry per optional-training attendee in current `state.events`, independent of the setting. | Preserve one-entry-per-attendance weighting and explicitly persist round eligibility. |
+| Raffle reset | `RafflePage.tsx` calls `clearActiveEvents`; the store deletes matching optional-training rows from `events`. Dialog copy says season totals are unaffected. | Current reset is coupled to record deletion despite its copy. Replace it; do not reuse it for Start fresh. |
+| Winners | Draws do not consume entries. Optional exclusion of last N winners filters all tickets for those player names. Winners, prize and exclusion preferences use unscoped localStorage keys. | Preserve draw behavior by default; introduce coach-scoped durable history. Existing local winner ownership is uncertain. |
+| Archive | `archive_events` copies events into a JSON bundle then deletes live rows. Restore upserts by event ID and removes the bundle. | One attendance must not become multiple credits/tickets when crossing storage locations. |
+| Player removal | `remove_player` in migration 010 removes the roster row and scrubs that name from live and archived attendance. | Recommend retirement instead of destructive removal. Already scrubbed history cannot be recovered from the remaining data. |
+| Analytics | `stats.ts` keys totals by names; regular-player attendance percentages/streaks use practices and exclude guests. Monthly/session-hour totals differ from summed player effort. | Preserve metric meaning, separate session-hours from player-hours, and migrate joins to IDs. |
+| Super admin | Store checks `super_admins`; `admin-coach-actions` verifies `auth.getUser()`, then caller membership before privileged queries. Frontend uses `list-coaches`. | Keep this boundary. Do not restore browser access to the privileged summary view or promote users via client metadata/email input. |
+
+Relevant existing documents: `BRAINSTORM_BRIEF.md`, `RAFFLE-SPEC.md`, `RAFFLE-DIALOG-SPEC.md`, `docs/mission-control-ux-spec.md`, and `migrations/README.md`. Some descriptions are stale; source and eventual deployed-schema inspection take precedence as evidence.
+
+## 3. Product decisions
+
+### Confirmed owner decisions
+
+The owner confirmed D01–D03 on 2026-09-19 and D04–D06 on 2026-09-20. They are approved requirements, not assumptions.
+
+| ID | Choice | Approved behavior | Affected stages |
+| --- | --- | --- | --- |
+| D01 | Kiosk exit | Start with `0000`; offer the coach a way to set a PIN. This remains a supervised kiosk convenience, not strong authentication. | Stage 2 settings/exit prototype, Stage 3 coach setting, Stage 5 exit behavior. |
+| D02 | `0` versus `00` | Keep them distinct. Store numbers as strings; recommended normalization trims surrounding whitespace without removing leading zeros. | Stage 3 number storage and Stage 5 exact lookup. |
+| D03 | Initial raffle pool | Current, unarchived trainings only. Preserve archived training history without adding it to the initial current pool. | Stage 3 backfill and Stage 6 initial round. |
+| D04 | Enter attendance later | Keep a discreet date option so a coach can enter paper attendance for an earlier day. | Stage 2 prototype and Stage 4 session flow. |
+| D05 | Credit units | `1.5` hours is approved for new practices and optional trainings; historical credit stays unchanged. | Stage 3 contract and Stages 4/6 credit/analytics. |
+| D06 | Sub-teams | Settings supports named sub-teams, roster entry offers membership selection, and coaches can sort/filter by team. Default grouping can be Kaizen. Examples: Kaizen Blue 7th Grade, Kaizen Gray 7th Grade, Kaizen Blue 6th Grade and Kaizen Gray 6th Grade. Examples are not mandatory seed data. | Stage 2 prototype, Stage 3 membership foundation, Stage 4 roster and Stage 6 reporting. |
+
+Recommended PIN details for the prototype: four digits to avoid jersey-number collisions; changing the PIN replaces the default exit code rather than leaving `0000` as a bypass. Settings outside kiosk allow the signed-in coach to change/reset it. Persist the coach preference and make the active exit verifier available through interrupted connectivity. Length, recovery presentation and storage design remain implementation recommendations for review, not additional owner decisions.
+
+### Recommendations that do not require blocking the prototype
+
+These are proposals, not newly approved requirements. Include them in the Stage 2 walkthrough; record any owner corrections before dependent implementation.
+
+| ID | Recommendation and rationale |
+| --- | --- |
+| P01 | Check-ins persist immediately as provisional attendance. **Finish & Save Attendance** finalizes credits and tickets once. Drafts show counts, not spendable raffle tickets. This avoids counting abandoned sessions. |
+| P02 | Allow only one unfinished session per coach. Resume it; do not silently replace it. A pending offline finish must synchronize before a different session starts in the first release. |
+| P03 | Require an online, fully synchronized state with no active session before Start fresh. Bind each new session to the current raffle round at creation, regardless of whether raffle is enabled. Corrections keep that original round. |
+| P04 | Keep existing draw semantics: a draw records a winner without consuming tickets. Preserve optional last-N exclusion as a draw filter, with new teams defaulting to no exclusion. It must not change accrued totals. Scope new exclusions to the current round. |
+| P05 | Existing players receive a coach-reviewed first-name/number setup step; never invent jersey numbers or blindly split culturally diverse names. Allow manual coach attendance while setup is incomplete; only players with numbers appear in kiosk lookup. |
+| P06 | Preserve guests as identifiable players with stable IDs. They can receive credit and optional-training tickets, matching the current pool. Keep guests out of regular-roster practice percentage/streak denominators. Guests without a number use coach attendance. |
+| P07 | Retire a player from the active roster instead of scrubbing history. Retired players retain existing current-round tickets; exclusion from future draws, if desired, is a separate explicit action and outside the basic removal flow. |
+| P08 | Implement approved D04 with a small **Change date** action beside **Today** on attendance, after the one-tap start. Keep that chosen date across resume/sync and show it in the finish summary. Use date-only local-calendar semantics; retain raw legacy dates. Date edits never move existing raffle eligibility between rounds. For a newly entered backdated training, recommend the current round at record creation, not a guessed historical round; review this policy in Stage 2. |
+| P09 | Keep an attendance correction workflow for the last finalized session; broader history editing is not required. Corrections update the same session and do not erase past draw results. An affected draw remains an auditable historical result. |
+| P10 | Archive remains a reporting/season organization action; it does not reset or revive raffle eligibility. Keep current-season analytics scope by default and retain archived access. |
+| P11 | No automatic weekly raffle reset, ticket expiration or round close after a draw. Start fresh is the explicit round boundary. |
+| P12 | Sub-teams organize one coach's program. Prototype one current sub-team per player pending the owner's membership answer; preserve stable player/sub-team IDs, snapshot membership for new history, and leave unavailable historical sub-team membership unknown. Keep one coach-wide raffle and one ticket per player/session regardless of group filtering. Filtering cards must not unmark hidden attendees or redefine who was expected at a session. Review the separate question of sessions targeting a sub-team before changing attendance-rate denominators. |
+
+Open membership question submitted 2026-09-20: can one player belong to multiple sub-teams simultaneously? This does not block a fixture prototype; do not finalize schema cardinality until answered. Sub-team-specific raffles and new attendance-denominator policies are not approved by the request to sort by team.
+
+Stage 1 completion does not mean these recommendations were approved. Stages 3–6 must resolve any disputed recommendation affecting stored data before committing to that behavior.
+
+## 4. Screen and interaction contract
+
+### Home
+
+- Primary actions: **Start Practice**, **Start Optional Training**. One tap opens that session's attendance grid; no setup form.
+- Secondary: **Roster**, **Progress**, **Raffle** when enabled, **Settings**. Preserve theme, team identity and existing exports without crowding the start flow.
+- If a session exists: **Resume Practice/Training** and a clear date. New start actions cannot overwrite it.
+- Default to today; keep backdating behind a small **Change date** action on the attendance screen, not another required start step (recommended presentation of D04).
+- If a finish is pending: show **Saved on this device — waiting to sync** and **Retry sync**. Prevent another session until resolved under P02.
+- An empty roster directs the coach to add players; it is not a silent dead end.
+- No elapsed time, countdown, start/end time or duration control in session banners, keyboard menus, mobile navigation or the home page.
+
+### Roster
+
+- Structured first name, jersey number, optional distinguishing label and team membership; preserve guest status.
+- Settings offers **Sub-teams** with **Add sub-team** and editable names. With none configured, players use the default Kaizen grouping and roster entry needs no extra decision. When sub-teams exist, show a team selector while adding/editing a player.
+- Show a small team label on cards and **All teams** / team filters plus sorting/grouping by team on coach roster and Progress. Recommended attendance filtering is presentation-only: retain selected players hidden by the filter and display the overall present count. Kiosk number matches include team labels and remain unambiguous across teams.
+- Display `Alex · #12`; if another Alex wears 12, ask the coach to distinguish the cards, e.g. `Alex M. · #12` and `Alex R. · #12`. Editing an existing card may be needed too.
+- A shared initial is not sufficient if cards are still identical; accept a short unique label. Do not demand full legal names.
+- Names are trimmed and compared with a documented case-insensitive policy for collision detection, while original casing/diacritics are preserved for display. Name normalization is never identity.
+- Recommended numbers are digit strings of 1–3 characters; `0` and `00` are distinct as approved in D02. Four-digit exit input is processed only on explicit submit. Do not auto-submit at the first valid prefix.
+- Number/label edits preserve player ID. Incomplete legacy cards remain selectable by coach with **Add number** guidance. Do not make up shared sentinel numbers.
+- Retire confirmation explicitly says historical attendance and tickets are retained under P07.
+- Moving a player between sub-teams retains their player ID, attendance, hours and tickets. Recommended sub-team retirement removes it from future choices without erasing historical membership; do not delete its players.
+
+### Coach attendance
+
+- Session type/date, number present, large roster cards, **Enter Kiosk Mode**, **Finish & Save Attendance**.
+- **Change date** is secondary and available before finalizing, including after marks were entered. Changing it preserves selections and 1.5-hour credit. Backdated paper entry uses the same session flow; returning to a new session defaults to today again.
+- Tap a card to set present; tap again to set absent. Use explicit desired-state writes, not a remote toggle operation that reverses on retry.
+- Color, icon and text indicate selection; keyboard interaction and accessible names are required.
+- Save draft changes immediately to durable local storage and synchronize when available. Show device-saved versus cloud-saved status accurately.
+- Finish freezes a version of attendance, credits each attendee once, and returns to a simple summary/home after acknowledgment. Zero-attendee finish requires explicit confirmation.
+- Canceling an edit leaves the last finalized version intact. Opening an editor does not remove credits, tickets or the historical event.
+
+### Kiosk
+
+1. Number pad with **Find player**, clear/backspace, and minimal session context.
+2. Enter number and submit. Show all matching cards, including distinctions and checked-in states. A single match still requires a tap.
+3. Tap an absent card: mark that exact player present, display confirmation, then clear input and return to the number pad. Disable repeat submission while the local write is pending.
+4. Look up the number again to see present status; choose **Undo check-in** on the selected card to correct a mistake. Show undo feedback and reset.
+5. No match: **No player found for #... — try again or ask your coach**. Do not expose roster editing or email addresses.
+6. Enter/submit `0000` by default, or the coach's configured PIN, to return to coach attendance. Exiting does not finish, clear or restart the session. Offer PIN setup/change in coach Settings; demonstrate default and custom-code paths in Stage 2.
+
+Kiosk uses the same session/player IDs as manual attendance. Disable coach navigation, command palette and swipe shortcuts while active. Restore kiosk mode after refresh when the bound session remains active. If the session was closed elsewhere, show **Session finished — ask your coach** rather than a working coach dashboard. This is a supervised shared-device UI, not player authentication or operating-system lockdown.
+
+### Progress and raffle
+
+- Progress retains attendance counts, practice/training credit, trends and existing export access. Label estimated effort **Credited hours**.
+- Raffle OFF hides draw tools, not earning. Settings explains that tickets keep accumulating.
+- OFF → ON opens a dialog: **Use existing raffle tickets? Your players have earned {N} tickets from optional trainings.** Buttons: **Keep {N} tickets**, **Start fresh**, **Cancel**. For zero, use grammatical zero-ticket copy with the same semantics.
+- Keep is the recommended primary action. Start fresh explains: **Begin a new raffle round with zero eligible tickets. Attendance, credited hours and previous raffle results stay unchanged.**
+- Cancel changes nothing. The enable/round choice is one atomic server operation. A stale dialog refreshes its count before confirmation rather than silently resetting a newer round.
+- ON → OFF is a visibility/draw-availability change only. OFF does not close the round. No repeat dialog merely on page reload.
+
+## 5. Session state and reliability contract
+
+Recommended model: session lifecycle and delivery status are separate. Offline is not a second kind of session.
+
+| State/action | Required transition/result |
+| --- | --- |
+| Idle → Start | Create unique session ID once; type, local date and 1.5 hours; snapshot the round and roster membership used for attendance reporting. |
+| Active → mark/unmark | Persist `(coach, session, player, desired present state, operation ID, expected revision)`; same operation replay returns same result. |
+| Active → kiosk / exit | Change local presentation only. Do not create a new session or credit. |
+| Active → refresh | Recover durable local edits for this coach/session, fetch server revision when reachable, reconcile; retain pending work. |
+| Active → Finish | Freeze attendance revision and submit finalize operation. Repeat delivery cannot duplicate the session, attendance, credits or tickets. |
+| Finishing → network failure | Retain pending finalize and local attendance; show waiting-to-sync. Do not claim cloud completion or permit a draw based on pending tickets. |
+| Finishing → validation/authorization failure | Show actionable failure; retain recoverable draft. Do not clear selections in a finally block. |
+| Finishing → acknowledgment | Mark completed, clear only acknowledged operations for this exact session, show saved summary. |
+| Completed → correction | Edit a versioned draft of the same session; atomic commit revises attendance/credits/tickets in its original round. |
+| Stale write to completed session | Reject as a conflict; never implicitly reopen or overwrite final attendance. |
+| Auth expired | Pause remote sync, keep a coach-scoped recoverable draft, require that coach to sign in again. |
+| Coach switch/logout | Never display or replay another coach's draft, tickets or winners. Warn of pending local work; namespace caches and queues by owner. |
+
+Use a durable queue, not the existing single global pending-event slot. IndexedDB is a recommended implementation choice, not a new product dependency. Persist local intent before showing a successful tap. Expose persistence failure (quota/private browsing) rather than silently promising recovery.
+
+One active session is enforced on the server as well as the client. Compare revisions on changes; accept non-conflicting operations deliberately, surface true conflicts for coach resolution, and do not use the device clock as the sole authority. After lost acknowledgments, retry the same operation ID. Finishing a session must target that session ID, never delete a different active session by coach alone.
+
+First release reliability promise: previously loaded app/roster and an existing session can continue through interrupted connectivity; full fresh-device cold-start offline support is not promised. Do not reset rounds or draw while offline. Start fresh checks no active session and no outstanding local work; server guards round revision and session state against another device racing the reset. An old offline draft keeps its old round and cannot enter a new one on reconnect.
+
+## 6. Proposed data contract
+
+Logical entities, not final SQL. Stage 3 chooses additive columns/tables after inspecting the actual environment. Prefer versioned operations to changing the meaning of existing RPC arguments.
+
+| Entity | Core fields and invariants |
+| --- | --- |
+| Player | Existing roster UUID when resolvable; coach ID; first name; number string; distinguishing label; guest flag; active/retired; retained legacy name/display snapshot. Never key history by number/name. |
+| Sub-team / membership | Stable coach-owned sub-team ID, display name, active/retired status, player-to-sub-team membership. Default current grouping Kaizen when none configured; preserve existing program names/settings. Cardinality awaits the membership answer. Never use a mutable team name in a player identity key. |
+| Session | Stable existing event ID when migrated; coach; type; local calendar date; raw legacy date; credit hours; active/completed state; revision; creation/finalization audit timestamps; immutable original raffle-round assignment. |
+| Attendance | Coach/session/player composite ownership; unique session/player record; present state and revision; source operation IDs; display snapshot for historical readability. |
+| Reporting membership | Session roster/guest/sub-team snapshots for new sessions so later changes do not rewrite historical attribution. Legacy membership marked unknown where unavailable. Session target/expected roster is separate from a UI team filter; confirm any sub-team-specific denominator policy before implementation. |
+| Raffle round | Coach; ID; generation/revision; open/closed state; boundary audit timestamps. Exactly one current round even while raffle is off. |
+| Ticket entitlement | Unique original training-session/player pair; immutable round assignment; eligible/revoked state or equivalent derived membership. Reinstatement updates the same entitlement in the same round. |
+| Draw | Coach/round; idempotency key; eligible-pool snapshot or verifiable revision; selected ticket/player; displayed name; prize; timestamp; exclusions. Undo is a recorded void, not silent deletion. |
+| Legacy mapping | Source coach, exact raw name, source location/event ID, target player UUID, evidence and resolution status. Do not log private roster contents into committed fixtures. |
+| Outbox | Owner/session/operation ID, desired change, base revision, queued/acknowledged/conflict state. A retry must not become a new intent. |
+
+Use either stored ticket entitlements or a tested derivation from immutable session-round membership; do not maintain an unrelated counter that can drift from attendance. Requirements are invariant regardless of representation.
+
+All browser-accessible records need both appropriate object grants and coach ownership controls. Validate foreign ownership at the database/server boundary, including conflicting IDs supplied to upserts and archive restores. Never trust client-supplied owner IDs or user-editable metadata for authorization. Preserve existing super-admin membership verification; no new role-management UI is needed.
+
+Do not grant browser SELECT on `admin_coach_summary_view` to make the simplification work. New tables/columns must remain compatible with admin aggregate queries, exports and the authorized backend. Confirm the sole admin account as a release check, not by auto-promoting whichever user submits that email.
+
+## 7. Raffle and analytics invariants
+
+### Raffle examples
+
+| Scenario | Expected result under recommendations |
+| --- | --- |
+| Player attends two finalized trainings and one practice; raffle off | 2 accrued tickets, 4.5 credited hours for these new sessions. |
+| Turn on and keep | Same 2 tickets; no attendance/hour changes. |
+| Turn off, attend another finalized training, turn on and keep | 3 tickets in the same round. |
+| Turn on and start fresh | 0 tickets in new round; earlier 4.5/6.0-hour history remains exactly as recorded. |
+| Attend another new-round training | 1 ticket in current round. |
+| Remove then restore attendance on old-round training | Old entitlement is revoked/reinstated there; current round stays at 1. |
+| Add a previously absent player to an old session | Entitlement belongs to that session's original round; not the current round merely because the edit is new. |
+| Archive or restore a session | Reporting location changes; its identity, credit and round assignment do not. |
+| Repeat a finish/reset request after lost response | Return original result; do not award twice or open another empty round. |
+| Draw a winner | Record result once; accrued tickets stay. Optional exclusions change the draw pool only. |
+
+No stored player-total counter is authoritative over the underlying attendance. Historical draw records preserve what was drawn at the time even if attendance is later corrected; show a correction/void trail as appropriate.
+
+### Analytics semantics
+
+- Per-player credit: sum recorded credit hours of distinct finalized sessions attended. New session value is 1.5 hours; historical values are unchanged, including old sessions later corrected.
+- Session-hours: sum session durations once per session. Player-hours: sum attendee credits. Five attendees at one new practice = 1.5 session-hours and 7.5 player-hours. Label these distinctly.
+- Preserve existing practice-based attendance percentages/streaks; optional-training absence does not lower them. Do not invent historical roster membership for newly ID-based denominators.
+- Preserve existing guest exclusion from regular-roster percentages; guest attendance and credit remain available where currently shown.
+- Player renames/numbers affect display, not totals or winner matching. Report missing historical membership as a limitation instead of silently recalculating unsupported denominators.
+- Proposed team reporting offers clearly labeled **Current roster** comparisons and **Team at session** historical attribution. Do not move old credit between historical groups when a player transfers. Legacy records with unknown membership remain in overall totals and an explicit unknown group. Whole-program totals count each player/session once even if multiple simultaneous memberships are later approved.
+- Raffle visibility, keep, reset and draw leave analytics unchanged. Reporting filters/season archive may change the selected scope, but records remain accessible and lifetime reconciliation counts each session once.
+- CSV/PDF and admin session counts use the same canonical IDs and data adapters as the app; no double-counting live/archive copies.
+
+## 8. Migration, rollout and recovery plan
+
+### A. Inventory and reconciliation (Stage 3; non-production rehearsal)
+
+1. Inspect deployed-like schema, constraints, grants, views, triggers and RPC definitions in an isolated environment. Existing SQL migration files may not match deployed state; migration history was previously empty, so verify rather than replay all numbered files.
+2. Inventory roster rows, live events, archive event payloads, active sessions, duration/date formats, duplicate IDs and legacy names. Produce aggregate counts and mapping exceptions without committing personal data.
+3. Retain immutable copies of raw source fields and mappings. Match by coach and evidence, not by first name or number. Current roster UUIDs can be reused for exact unambiguous legacy names, but reused names may be historically ambiguous; surface those exceptions.
+4. Historical attendees without a surviving roster row get a retained legacy identity scoped to coach, with explicit unresolved mapping when necessary. Never attach them to a similarly named current player automatically. Equal-name people already collapsed by old records cannot be reliably split without owner evidence.
+5. Preserve unknown first-name parsing/jersey numbers as setup-needed values. No guessed number, initial or person merge.
+   Assign a default current grouping where needed; do not infer historical sub-teams or overwrite existing program names with Kaizen.
+6. Inventory local-only pending events and raffle history on available devices at cutover. Global winner keys lack coach ownership; do not upload them automatically to whoever logs in. Offer owner-confirmed import with deterministic deduplication or export/retain the legacy data. Do not promise recovery from unavailable browsers.
+7. Record records already deleted by reset/removal as unrecoverable from current tables. Restore only from separately verified backups if requested; do not fabricate attendance/tickets.
+
+### B. Add and backfill (Stage 3 rehearsal)
+
+- Add new entities/columns, constraints, ownership rules and versioned RPCs without dropping old fields.
+- Preserve event IDs; canonicalize duplicate live/archive representations only when contents agree. Conflicting same-ID copies require a recorded resolution, not arbitrary newest-wins.
+- Backfill stable player mappings, canonical sessions/attendance, legacy display/date snapshots and round assignment using approved D03: current unarchived training only seeds the initial current pool. No floating-point rounding that changes historical credit.
+- Seed current/historical raffle rounds explicitly. Do not infer closed rounds from winner timestamps, browser clocks or guessed weekly boundaries.
+- Preserve explicit existing raffle settings. Change defaults for genuinely new teams at database and application creation paths. Missing settings from failed fetches must not be misclassified as new accounts.
+- Replace ordinary removal with retirement only after P07 review. Retain legacy raw records for recovery; forbid unsupported destructive legacy operations after cutover.
+- Rehearse backfill twice; the second pass must produce no extra attendance, ticket, draw or round records.
+
+### C. Compatibility and release order (Stage 8 only)
+
+1. Verify backups and a tested restore path; establish a release checkpoint and migration manifest.
+2. Drain/synchronize active drafts where possible. Preserve offline drafts that cannot synchronize and require explicit reconciliation before reuse.
+3. Apply additive schema/backfill and deploy compatible server operations before the new frontend.
+4. Enable the new frontend only after counts, ownership checks and admin queries pass.
+5. After cutover, old tabs must not call legacy destructive reset/removal or bypass new attendance/round rules. Route safe old operations through adapters where possible; otherwise revoke/guard legacy mutations with a clear reload-required response. A frontend banner alone is not a server-side write guard.
+6. Duplicate display names cannot be faithfully represented in old name-keyed clients. Do not pretend old and new clients are indefinitely interchangeable. Use a version gate for mutations and a compatibility-capable fallback frontend.
+7. Keep legacy fields during validation. Schema cleanup is a separate future release; it is not part of these stages.
+
+### D. Reconciliation gates
+
+For each coach and relevant reporting scope, compare before/after unique session counts, distinct attendance memberships, exact practice/training hours, guest appearances, active-session state, archive membership, duration/date preservation, settings and identity mappings. Explain duplicate cleanup separately from data loss. New-round eligible counts must equal the approved legacy selection, not all lifetime attendance by accident.
+
+Test cross-coach failures using actual access roles in the isolated database, not only UI mocks. Verify admin views still aggregate correctly via the secured backend. Ensure no unexpected role elevation, public grant, or history-scrubbing cascade.
+
+### E. Recovery
+
+- Before new-format writes: turn off the new frontend, restore the compatible previous release, retain additive schema and backfill artifacts. Undo only migration-owned changes whose reversal has been rehearsed.
+- After new-format writes: use a compatibility-capable fallback or forward fix. Do not blindly restore the old frontend/database snapshot and lose post-cutover attendance, players or raffle rounds.
+- If a database restore is unavoidable, preserve/export the post-checkpoint operation log and newly recorded data, rehearse its replay, validate counts, then reopen writes. Account for old offline clients replaying pending requests.
+- Recovery success means restored app behavior AND reconciled records. Keep old-client write guards active until a deliberate safe rollback policy says otherwise.
+
+## 9. Acceptance matrix
+
+Each criterion must be demonstrated in Stage 7 against the approved decision log. Stage 1 does not assert these pass yet.
+
+| ID | Scenario and pass condition | Stage |
+| --- | --- | --- |
+| A01 | One primary tap opens practice/training attendance; no time/duration prompt or timer anywhere in the active flow. | 2, 4 |
+| A02 | Each new attendance credits 1.5 hours; correcting a historical 2-hour event retains its 2-hour duration. | 3, 4, 6 |
+| A03 | Same number shows multiple cards; same first-name/number requires a distinguishing label; collisions remaining after an initial cannot save unresolved. | 3–5 |
+| A04 | Rename/renumber keeps history, credits, ticket ownership and prior draw identity. | 3, 6 |
+| A05 | Manual present/absent changes are immediately clear and persist across navigation/refresh. | 4 |
+| A06 | Kiosk handles one/multiple/no matches, distinct `0`/`00`, repeated entry, correct undo, cleared input and exit without ending session. Default `0000` and coach-set PIN flows work; under the recommended replacement policy, `0000` stops working after a custom PIN is set. | 2, 5 |
+| A07 | Kiosk blocks ordinary coach navigation and stays in its session presentation on refresh. | 5 |
+| A08 | Offline changes survive refresh and reconnect with accurate saved/pending labels; persistence failure is visible. | 4, 5 |
+| A09 | Double-start, double-finish, lost acknowledgment, delayed retry and a second device cannot duplicate credit or delete another active session. | 3, 4 |
+| A10 | Coach switch/expired auth cannot expose or submit another coach's cached work. | 3, 4 |
+| A11 | Practice earns zero; each finalized training attendee earns one while raffle off or on. | 6 |
+| A12 | Keep/Start fresh/Cancel work with zero and nonzero accrued tickets; off/on and reset retries are atomic and idempotent. | 6 |
+| A13 | A reset racing another device or pending old-session update cannot migrate old tickets into a new round. | 3, 6 |
+| A14 | Attendance undo/correction updates one original entitlement; old-session edits and archive restore cannot revive closed-round eligibility. | 6 |
+| A15 | Draw is weighted by eligible tickets; recording/undoing a draw preserves history and does not alter attendance/credit. | 6 |
+| A16 | Guests, retired players, missing numbers and ambiguous legacy identities follow the reviewed recommendations without lost history. | 3–6 |
+| A17 | New teams default on, explicit legacy false stays false, settings fetch failure cannot reset settings. | 3, 6 |
+| A18 | Analytics, CSV/PDF and admin counts reconcile; raffle actions do not alter underlying effort totals. | 6, 7 |
+| A19 | Migration rerun changes no counts; conflicting archive IDs and unmapped names produce reviewable exceptions. | 3, 7 |
+| A20 | Coach A cannot read/write Coach B's records through APIs/RPCs or supplied foreign IDs. Only the designated admin has admin membership; browser access to the privileged view remains closed. | 3, 7, 8 |
+| A21 | Old-client mutation attempts after cutover are safely adapted or rejected; tested recovery preserves new writes. | 7, 8 |
+| A22 | Phone/tablet layouts, keyboard/focus behavior, touch targets, labels and contrast make check-in usable without relying only on color. | 2, 4, 5, 7 |
+| A23 | Start defaults to today; a discreet date action permits an earlier date without time/duration controls. Selecting a date preserves attendance across refresh/sync and still credits 1.5 hours; an existing session's date correction does not move its raffle round. | 2–4, 6 |
+| A24 | No custom sub-teams gives a simple default Kaizen group; Settings can add named sub-teams and roster entry offers selection. Team sort/filter handles shared names/numbers, preserves hidden attendance selections and overall totals, and transfers preserve player identity/history. | 2–6 |
+| A25 | Historical team attribution does not change on transfer; unknown legacy membership is explicit. Group filters cannot duplicate player/session credit or raffle tickets or grant access to another coach's data. | 3, 6, 7 |
+
+## 10. Build sequence and handoff boundaries
+
+| Stage | Deliverable | Model / effort recommendation | Dependency / exit |
+| --- | --- | --- | --- |
+| 1 | This specification and progress handoff | Astra / High | Complete documentation; approved choices and recommendations distinguished. |
+| 2 | Fixture-driven isolated prototype | Claude Sonnet / Medium | Demonstrate approved D01–D06; review date/sub-team flows, PIN details and P01–P12. No schema work. |
+| 3 | Identity, sub-team membership, attendance, round foundations and migration rehearsal | Claude Opus 5 / High | Resolve data-affecting decisions; stable IDs and reconciliation tests pass locally. |
+| 4 | Coach session/roster workflow | Sol / High | Stage 3 API/data contract; reliable save/resume and new duration default. |
+| 5 | Kiosk workflow | Claude Sonnet / High | Stage 4 attendance semantics and approved number/exit policy. |
+| 6 | Raffle activation, rounds and analytics integration | Claude Opus 5 / High | Stage 3 round model and Stage 4 finalization; independent reset. |
+| 7 | Independent review and full acceptance rehearsal | Astra / Extra high | A01–A25 checked; existing test failures separated from regressions. |
+| 8 | Authorized production release and verification | Sol / High | Reviewed exact commit, migration rehearsal and recovery point. |
+
+Execute sequentially, carrying code and these documents forward. These are model recommendations from the prior build plan, not permission to start tasks or delegate work automatically.
+
+## 11. Stage 1 verification and limits
+
+Source review covered session setup/store, attendance, draft helpers, RPC migrations, player removal, raffle earning/reset/draw, analytics, exports, settings/navigation and admin authorization. Repository/ancestor instruction discovery found no applicable `AGENTS.md`; use fresh discovery in later stages.
+
+No application source, SQL, dependency, environment or deployment changes are included. No production data or settings were accessed during Stage 1. A baseline local test run is recorded in the progress document. Browser acceptance and database migration tests are future-stage work, not completed checks.
+
+The plan preserves the remaining stored data; it cannot recover previously deleted training attendance, previously scrubbed player names or unavailable browser-local raffle results. A later deployment inventory is necessary because checked-in migrations and production may differ.
