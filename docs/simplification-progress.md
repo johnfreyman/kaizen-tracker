@@ -7,7 +7,7 @@ Baseline application commit: `40d9b0c2f57692cdc8439d453816418be3db5a39`.
 
 ## Scope and current status
 
-Stage 1 documentation is complete. The initial Stage 2 prototype was implemented, independently audited, and revised to address the audit: multiple simultaneous sub-team memberships (U01) and audit findings F01–F05 are implemented and verified. A same-day independent review of that revision found two further gaps, R01 and R02, which are also now addressed. See [the audit](simplification-stage2-audit.md) for the original findings and all revision statuses. D01–D08 remain confirmed; the remaining recommendations (P01–P12 and the open decisions below) are still not blanket-approved by this work. Stage 3 has not started — see the handoff at the bottom of this document.
+Stage 1 documentation is complete. The initial Stage 2 prototype was implemented, independently audited, and revised to address the audit: multiple simultaneous sub-team memberships (U01) and audit findings F01–F05 are implemented and verified. A same-day independent review of that revision found two further gaps, R01 and R02, which are also now addressed. See [the audit](simplification-stage2-audit.md) for the original findings and all revision statuses. D01–D09 are confirmed, including offline gym use; the remaining recommendations (P01–P12 and the open decisions below) are still not blanket-approved by this work. Stage 3 has not started — see the handoff at the bottom of this document.
 
 Canonical continuation branch: `codex/simplification-plan` in `johnfreyman/kaizen-tracker`. Stage 2 work continues on `claude/stage-2-prototype`, branched from that head; this revision was implemented on `claude/dazzling-sagan-hxrwfp`, branched from the `claude/stage-2-prototype` head that includes the audit (commit `adcc727`). Use these documents from the newer branch, not the unchanged `main` checkout or the superseded seven-stage draft.
 
@@ -149,7 +149,7 @@ Review these during the walkthrough. None of them is settled by the prototype sh
 | 1 | **Resolved by D07–D08:** multiple simultaneous memberships, one player-wide jersey number. Initial prototype uses one membership; revise it. | Stage 2 revision; Stage 3 uses many-to-many membership. |
 | 2 | Should a coach-set PIN **replace** `0000`, or should `0000` keep working as a fallback? The prototype replaces it. | Stage 3 coach setting, Stage 5 exit. |
 | 3 | Should a backdated optional training join the **current** round (P08), or the round that was open on the date entered? The prototype uses the current round. | Stage 3 round assignment. |
-| 4 | Should a pending offline finish **block** starting a different session (P02)? The prototype blocks it. | Stage 4 queue design. |
+| 4 | **Resolved by D09:** a durably queued offline finish must NOT block the next session. The prototype's blocking behavior is superseded. | Stage 3 queue contract; Stage 4 implementation. |
 | 5 | Is **retirement** the right replacement for today's destructive player removal (P07)? | Stage 3 removal path. |
 | 6 | Should the kiosk have its own URL rather than in-memory state? See finding 2. | Stage 5. |
 | 7 | Should sessions be able to **target** one sub-team, which would change attendance-rate denominators? Not approved by the request to sort by team, and not prototyped. | Stage 6 reporting. |
@@ -166,7 +166,7 @@ Review these during the walkthrough. None of them is settled by the prototype sh
 - Existing SQL and client date formats differ; later stages must inspect the actual schema and cannot assume all migration files were applied exactly as checked in.
 - Browser-local winner records are not owner-scoped; imports require verified ownership, and inaccessible local data cannot be reconstructed.
 - Historical names may refer to a retired/reused identity; do not silently merge people or claim previously lost history was recovered.
-- Full offline cold-start, payment verification and device-level kiosk lockdown are not included.
+- D09 now requires offline reopening on a previously prepared device. First-ever offline setup, payment verification and device-level kiosk lockdown remain excluded.
 - Baseline LaunchPage failure and stats test setup failure are recorded above; do not describe them as regressions from this documentation stage.
 
 ## Independent Stage 2 audit — 2026-09-20
@@ -232,7 +232,7 @@ U01's cardinality/jersey question (row 1 of the original open-decisions table) i
 | --- | --- | --- |
 | 2 | Should a coach-set PIN **replace** `0000`, or should `0000` keep working as a fallback? Still replaces it here. | Stage 3 coach setting, Stage 5 exit. |
 | 3 | Should a backdated optional training join the **current** round (P08), or the round that was open on the date entered? Still uses the current round here. | Stage 3 round assignment. |
-| 4 | Should a pending offline finish **block** starting a different session (P02)? Still blocks here. | Stage 4 queue design. |
+| 4 | **Resolved by D09:** a durably queued offline finish must NOT block the next session. The prototype's blocking behavior is superseded. | Stage 3 queue contract; Stage 4 implementation. |
 | 5 | Is **retirement** the right replacement for today's destructive player removal (P07)? | Stage 3 removal path. |
 | 6 | Should the kiosk have its own URL rather than in-memory state? | Stage 5. |
 | 7 | Should sessions be able to **target** one sub-team, changing attendance-rate denominators? Not approved by the request to sort by team, and not prototyped. | Stage 6 reporting. |
@@ -336,8 +336,8 @@ Stage 3 or the real coach attendance rewrite.
 
 ### Stage 3 gate after the revision
 
-Resolve the applicable PIN, backdated-training round, pending-finish,
-retirement and team-attribution policies before finalizing operations that
+Apply approved D09 for pending finishes. Resolve the applicable PIN,
+backdated-training round, retirement and team-attribution policies before finalizing operations that
 encode them. A labeled recommendation is not approval. Do not copy the
 prototype's simplified local storage or name/group filters into production.
 Stage 3 must inspect an isolated deployed-like schema, preserve historical
@@ -349,7 +349,7 @@ environment is unavailable, report that gap rather than using production.
 
 To open the prototype: `npm install`, then `npm run dev`, then visit `/prototype.html` on the dev server — not `/`, which is the current working app. The amber **Walkthrough controls** bar switches roster fixtures and simulates offline, failed saves, a storage-write failure, and a session finished on another device. Everything is fixture data held in the browser; the *Empty roster* button resets it.
 
-## Exact next-stage handoff
+## Stage 3 data handoff (read with final D09 addendum)
 
 Recommended model: **Claude Opus 5, High effort**, per the specification's build sequence (§10). This handoff does not authorize Stage 4 or any production change by itself.
 
@@ -390,6 +390,10 @@ substituting production.
 3. Do not carry the prototype's in-memory reducer or its single
    localStorage key into this stage. Design a durable, coach-scoped
    outbox with operation ids, revisions and idempotent RPCs (spec S5-S6).
+   Apply D09: multiple locally finished sessions may await sync beside a new
+   active session. Specify prepared-device offline reopening, owner-scoped
+   cache/auth recovery, ordered replay and immutable cached round binding.
+   Implementation of the offline app remains Stages 4–5; verify A27–A30 later.
 4. Rehearse the additive backfill twice in the isolated environment; the
    second pass must produce no extra attendance/ticket/draw/round records.
    Seed the initial current raffle pool from current, unarchived trainings
@@ -398,7 +402,7 @@ substituting production.
 5. Resolve, or explicitly re-confirm as still open, each item in the Stage
    2 revision's "Open decisions carried forward" table before encoding it
    into a migration or RPC contract: PIN replace-vs-fallback, backdated
-   training round assignment, pending-finish blocking a new session,
+   training round assignment,
    retirement vs. destructive removal, kiosk URL vs. in-memory binding, and
    whether a session can target one sub-team. A recommendation the
    prototype happened to use is not owner approval.
@@ -415,3 +419,72 @@ standard as the Stage 2 revision. Do not claim Stage 4 (coach attendance)
 work. STOP after the Stage 3 data foundation and migration rehearsal; do
 not start the real coach attendance rewrite or any production deployment.
 ```
+
+## Independent revision review — 2026-09-20 local / 2026-09-21 UTC
+
+Reviewed remote `claude/dazzling-sagan-hxrwfp` at `92eb4df` in an isolated temporary export without switching this checkout. See [simplification-stage2-revision-review.md](simplification-stage2-revision-review.md) for findings, verification and the exact next handoff. This addendum records a review of the newer branch; the earlier sections in this checkout predate that revision.
+
+Type/build checks and all 16 added tests pass. Full suite: 31 passed, one existing failed test, plus a separate existing collection failure. Three temporary component reproductions confirm remaining historical-retirement visibility gaps (R01; F01 partially open) and hidden kiosk save failures (R02). The production JS bundle changes through the shared dialog fix; no deployment occurred. Claude's browser checks were not independently repeated in this review.
+
+Subsequent branch status: Claude committed the R01/R02 follow-up at `3f1d398`. Its reported results are preserved above; this documentation publication does not independently re-audit that implementation. Next: confirm follow-up acceptance, resolve applicable product policies and prepare the isolated Stage 3 environment. No stage implementation, production access, merge or push was performed. Local application files and the unrelated `.DS_Store` change remain untouched.
+
+
+## Approved offline gym scope and exact continuation handoff — 2026-09-21 UTC
+
+The owner approved the proposed offline plan with “Yes, add it.” D09 is now approved in the specification, expanding R07. This is a documentation update, not permission to begin another implementation stage.
+
+### Changes and remaining work
+
+- A previously prepared iPad must reopen without internet, even with no session already started, and support start, backdating, attendance/undo, kiosk/exit and finish.
+- Confirm success only after durable local storage, with clear pending/synced/failure feedback in coach and kiosk modes. Cache readiness must reflect actual app/data availability.
+- A locally finished session waiting for sync must not block another session. P02's former blocking policy and the old offline-reopening exclusion are superseded. A multi-session queue must survive restarts, delayed acknowledgments, interrupted updates and retry without duplication or clearing newer work.
+- Automatically retry while the app is open and connectivity returns, and when it reopens. No promise of closed-app background sync. Initial scope: one attendance iPad per session; sync before drawing or resetting raffle eligibility. Cached offline ownership does not bypass server authentication.
+- Stage 3 must define queue ordering, session/operation identity, cached owner/round semantics, auth expiration and recoverable stale-device conflicts. Stages 4–5 implement offline app loading and coach/kiosk behavior; Stage 6 enforces draw readiness; Stage 7 proves A27–A30 on an actual supported iPad and against isolated services.
+- R01/R02 were addressed by Claude in `3f1d398`; independent acceptance remains to be confirmed. PIN replacement, newly backdated training round policy, retirement and session targeting remain separate unresolved policies; D09 does not approve them. Service worker/IndexedDB details remain implementation recommendations.
+
+### Validation
+
+Documentation consistency review checked R07/D09, P02, Home/session transitions, offline scope, outbox contract, A08/A27–A30 and stage handoffs. No application tests were run for this documentation-only change, and no offline behavior is claimed implemented or tested. No code, dependency, schema, production settings or deployment changed. Existing local review documents and `.DS_Store` were preserved. These updates are included in this documentation publication on Claude's branch, on top of `3f1d398`.
+
+### Exact handoff
+
+```text
+Continue johnfreyman/kaizen-tracker from claude/dazzling-sagan-hxrwfp
+at the latest published head including 3f1d398 and this documentation update.
+Read the approved D09 specification, this progress document, and the
+independent revision review before continuing.
+Preserve existing changes and the branch-specific no-deploy guard.
+
+The bounded Stage 2 R01/R02 follow-up is already committed in 3f1d398;
+do not repeat it blindly. Confirm acceptance of that work and retain its
+reported evidence. D09 is approved; fixture-only offline behavior remains
+simulation. Do not claim the prototype can reliably reopen offline. STOP
+before Stage 3 unless it is separately requested.
+
+When Stage 3 is requested, extend its isolated data/migration rehearsal to
+support D09: offline-created stable session/operation identities, multiple
+finished unsynced sessions beside the next active session, ordered replay,
+idempotent finalization, exact-session acknowledgments, coach/device-scoped
+cache/outbox, auth-expiration recovery and immutable cached round binding.
+A pending finish must not block the next local session. Preserve historical
+credit, memberships, tickets, sole-admin authorization and all owner boundaries.
+Resolve consequential remaining policies explicitly; do not assume a stale
+cached round can be silently reassigned to the newest round.
+
+Specify preparation/readiness, offline close/reopen, app/cache update and
+storage-failure contracts for Stages 4–5; do not implement those later stages
+as part of Stage 3. Keep initial attendance operation to one iPad per session
+and require online synchronized state for draws/resets. Rehearse migration
+and queue/idempotency contracts only in an isolated environment. If no such
+environment exists, report the gap; never substitute production.
+
+Retain A27–A30 as actual Stage 7 verification gates: prepared iPad airplane-
+mode close/reopen, start/finish A and B while offline, retain active C, recover
+all after reopening and repeated/lost acknowledgments, and reconcile exact
+hours/tickets. Test real storage/network/auth failures, not only toggles.
+Update progress with evidence and unresolved issues; no production deployment.
+```
+
+## Documentation publication checkpoint
+
+Published documentation is based on remote `3f1d398`, preserving Claude's implementation and verification notes. Only the specification, progress document and independent review are included. The exact branch remains deployment-disabled. Documentation checks cover unique requirement/decision/acceptance IDs, balanced fences and conflict/whitespace checks. No application tests were rerun for this publication; new follow-up results above remain attributed to Claude. Remaining work: confirm the follow-up, resolve remaining product decisions, then separately authorize Stage 3 in isolation.

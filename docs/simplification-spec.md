@@ -1,12 +1,12 @@
 # Kaizen Tracker simplification specification
 
-Status: Stage 1 planning complete; Stage 2 prototype audited on 2026-09-20. D01–D08 are confirmed by the owner. Multiple simultaneous sub-team memberships with one jersey number per player are required; the initial single-membership prototype needs revision. Recommendations remain for review. No implementation or production changes authorized by this document alone.
+Status: Stage 1 planning complete; Stage 2 prototype audited on 2026-09-20. D01–D09 are confirmed by the owner. D09 adds reliable offline gym operation on a previously prepared device. The multi-team prototype revision at `92eb4df` was reviewed; Claude subsequently addressed its two follow-up findings in `3f1d398` (see simplification-stage2-revision-review.md and progress for evidence limits). Recommendations remain for review. No implementation or production changes authorized by this document alone.
 
 Prepared: 2026-09-19. Repository baseline: `40d9b0c2f57692cdc8439d453816418be3db5a39`.
 
 Related handoff: [simplification-progress.md](simplification-progress.md).
 
-Canonical continuation branch: `claude/stage-2-prototype` in `johnfreyman/kaizen-tracker`, based on the reconciled `codex/simplification-plan`. This revision supersedes the seven-stage draft in commit `6486e646361d11b1f9831c93f532a7bb090adaa6` on `claude/inspiring-knuth-eovah7`. Keep the original eight-stage sequence below: Stage 1 is planning, Stage 2 is the isolated prototype, and Stage 3 is the data foundation. Do not interpret the superseded draft's stage numbers as this plan's stages. See [the Stage 2 audit](simplification-stage2-audit.md) before further implementation.
+Canonical implementation continuation branch: `claude/dazzling-sagan-hxrwfp` (follow-up at `3f1d398`, with this documentation update carried forward). Original prototype branch: `claude/stage-2-prototype` in `johnfreyman/kaizen-tracker`, based on the reconciled `codex/simplification-plan`. This revision supersedes the seven-stage draft in commit `6486e646361d11b1f9831c93f532a7bb090adaa6` on `claude/inspiring-knuth-eovah7`. Keep the original eight-stage sequence below: Stage 1 is planning, Stage 2 is the isolated prototype, and Stage 3 is the data foundation. Do not interpret the superseded draft's stage numbers as this plan's stages. See [the Stage 2 audit](simplification-stage2-audit.md) before further implementation.
 
 ## 1. Authority and scope
 
@@ -31,7 +31,7 @@ Stage 1 creates only this document and the progress document. Stages 2–7 opera
 | R04 | Coach can tap player cards to mark attendance. |
 | R05 | Kiosk accepts a number, shows matching player cards, and allows self-check-in and correction of an incorrect selection. |
 | R06 | A coach exit code returns from kiosk to coach attendance. Default to `0000` and offer a coach-set PIN (D01). |
-| R07 | Attendance survives refresh and interrupted connectivity. |
+| R07 | Attendance survives refresh and interrupted connectivity. On a previously prepared iPad, coaches can reopen the app, start, mark/undo and finish sessions entirely offline, then synchronize later (D09). |
 | R08 | Each optional-training attendance earns one ticket; practices earn none. Accrual continues while raffle is off. |
 | R09 | Turning raffle on offers **Keep accrued tickets** or **Start fresh**. Fresh eligibility does not delete attendance, credited hours, or historical raffle records. |
 | R10 | Raffle defaults on for new teams. Preserve existing teams' explicitly saved settings. |
@@ -74,7 +74,7 @@ Relevant existing documents: `BRAINSTORM_BRIEF.md`, `RAFFLE-SPEC.md`, `RAFFLE-DI
 
 ### Confirmed owner decisions
 
-The owner confirmed D01–D03 on 2026-09-19 and D04–D08 on 2026-09-20. They are approved requirements, not assumptions.
+The owner confirmed D01–D03 on 2026-09-19 and D04–D08 on 2026-09-20. D09 was approved on 2026-09-21 UTC after the owner explained that gyms often have neither cellular nor Wi-Fi service. They are approved requirements, not assumptions.
 
 | ID | Choice | Approved behavior | Affected stages |
 | --- | --- | --- | --- |
@@ -86,6 +86,7 @@ The owner confirmed D01–D03 on 2026-09-19 and D04–D08 on 2026-09-20. They ar
 | D06 | Sub-teams | Settings supports named sub-teams, roster entry offers membership selection, and coaches can sort/filter by team. Default grouping can be Kaizen. Examples: Kaizen Blue 7th Grade, Kaizen Gray 7th Grade, Kaizen Blue 6th Grade and Kaizen Gray 6th Grade. Examples are not mandatory seed data. | Stage 2 prototype, Stage 3 membership foundation, Stage 4 roster and Stage 6 reporting. |
 | D07 | Simultaneous memberships | Yes: players can belong to multiple teams at once. Maintain one player identity with multiple memberships, not duplicated player records. Each player/session still credits 1.5 hours and earns at most one optional-training ticket regardless of memberships. | Stage 2 revision, Stage 3 many-to-many foundation, Stages 4–6 filters, kiosk and reporting. |
 | D08 | Jersey number across teams | Each player uses one jersey number across all their teams. Store it on the player, not as a separate number per membership. Preserve `0` versus `00`. | Stage 2 revision, Stage 3 player contract and Stage 5 lookup. |
+| D09 | Offline gym use | Prepare the app/roster/settings while connected, then reopen and operate offline in coach or kiosk mode. Persist each change before successful feedback; retain work through refresh/close/reopen. A locally finished session awaiting sync does not block the next session. Automatically synchronize while the app is open and connected, without duplicate credit/tickets. Initial scope: one attendance iPad per session; synchronize before raffle draws. | Stage 3 queue/API/cache contract, Stage 4 offline app and coach flow, Stage 5 kiosk, Stage 6 draw gate, Stage 7 real-device rehearsal. |
 
 Recommended PIN details for the prototype: four digits to avoid jersey-number collisions; changing the PIN replaces the default exit code rather than leaving `0000` as a bypass. Settings outside kiosk allow the signed-in coach to change/reset it. Persist the coach preference and make the active exit verifier available through interrupted connectivity. Length, recovery presentation and storage design remain implementation recommendations for review, not additional owner decisions.
 
@@ -96,7 +97,7 @@ These are proposals, not newly approved requirements. Include them in the Stage 
 | ID | Recommendation and rationale |
 | --- | --- |
 | P01 | Check-ins persist immediately as provisional attendance. **Finish & Save Attendance** finalizes credits and tickets once. Drafts show counts, not spendable raffle tickets. This avoids counting abandoned sessions. |
-| P02 | Allow only one unfinished session per coach. Resume it; do not silently replace it. A pending offline finish must synchronize before a different session starts in the first release. |
+| P02 | Retain the recommendation to resume rather than overwrite an actively edited session. **Superseded in part by approved D09:** a locally finished session awaiting sync must not block another session. Preserve multiple pending sessions with independent identities and ordered operations. |
 | P03 | Require an online, fully synchronized state with no active session before Start fresh. Bind each new session to the current raffle round at creation, regardless of whether raffle is enabled. Corrections keep that original round. |
 | P04 | Keep existing draw semantics: a draw records a winner without consuming tickets. Preserve optional last-N exclusion as a draw filter, with new teams defaulting to no exclusion. It must not change accrued totals. Scope new exclusions to the current round. |
 | P05 | Existing players receive a coach-reviewed first-name/number setup step; never invent jersey numbers or blindly split culturally diverse names. Allow manual coach attendance while setup is incomplete; only players with numbers appear in kiosk lookup. |
@@ -120,7 +121,7 @@ Stage 1 completion does not mean these recommendations were approved. Stages 3�
 - Secondary: **Roster**, **Progress**, **Raffle** when enabled, **Settings**. Preserve theme, team identity and existing exports without crowding the start flow.
 - If a session exists: **Resume Practice/Training** and a clear date. New start actions cannot overwrite it.
 - Default to today; keep backdating behind a small **Change date** action on the attendance screen, not another required start step (recommended presentation of D04).
-- If a finish is pending: show **Saved on this device — waiting to sync** and **Retry sync**. Prevent another session until resolved under P02.
+- If a finish is pending: show **Saved on this device — waiting to sync** and **Retry sync**. Allow a new session once the previous finish is durably queued, even before cloud acknowledgment (D09). Never replace the queued session.
 - An empty roster directs the coach to add players; it is not a silent dead end.
 - No elapsed time, countdown, start/end time or duration control in session banners, keyboard menus, mobile navigation or the home page.
 
@@ -177,21 +178,31 @@ Recommended model: session lifecycle and delivery status are separate. Offline i
 | Idle → Start | Create unique session ID once; type, local date and 1.5 hours; snapshot the round and roster membership used for attendance reporting. |
 | Active → mark/unmark | Persist `(coach, session, player, desired present state, operation ID, expected revision)`; same operation replay returns same result. |
 | Active → kiosk / exit | Change local presentation only. Do not create a new session or credit. |
-| Active → refresh | Recover durable local edits for this coach/session, fetch server revision when reachable, reconcile; retain pending work. |
-| Active → Finish | Freeze attendance revision and submit finalize operation. Repeat delivery cannot duplicate the session, attendance, credits or tickets. |
+| Active → refresh/close/reopen offline | Load the cached app and coach-scoped data on the prepared device; recover session/kiosk binding, attendance and queued operations without a network request being required for entry. Reconcile when reachable. |
+| Active → Finish | Freeze attendance revision and durably queue finalization before confirming local completion. Permit the next local session; deliver queued operations when connected. Repeat delivery cannot duplicate sessions, attendance, credits or tickets. |
 | Finishing → network failure | Retain pending finalize and local attendance; show waiting-to-sync. Do not claim cloud completion or permit a draw based on pending tickets. |
 | Finishing → validation/authorization failure | Show actionable failure; retain recoverable draft. Do not clear selections in a finally block. |
 | Finishing → acknowledgment | Mark completed, clear only acknowledged operations for this exact session, show saved summary. |
 | Completed → correction | Edit a versioned draft of the same session; atomic commit revises attendance/credits/tickets in its original round. |
 | Stale write to completed session | Reject as a conflict; never implicitly reopen or overwrite final attendance. |
-| Auth expired | Pause remote sync, keep a coach-scoped recoverable draft, require that coach to sign in again. |
+| Auth expired | Pause remote sync and retain coach-scoped queued work. On a prepared, not-explicitly-signed-out device, preserve offline attendance access for that local owner; require the same coach to reauthenticate online before upload. Cached identity is never server authorization. |
 | Coach switch/logout | Never display or replay another coach's draft, tickets or winners. Warn of pending local work; namespace caches and queues by owner. |
 
 Use a durable queue, not the existing single global pending-event slot. IndexedDB is a recommended implementation choice, not a new product dependency. Persist local intent before showing a successful tap. Expose persistence failure (quota/private browsing) rather than silently promising recovery.
 
-One active session is enforced on the server as well as the client. Compare revisions on changes; accept non-conflicting operations deliberately, surface true conflicts for coach resolution, and do not use the device clock as the sole authority. After lost acknowledgments, retry the same operation ID. Finishing a session must target that session ID, never delete a different active session by coach alone.
+Distinguish a locally open session from locally finished sessions awaiting delivery. The first release uses one attendance iPad per session (D09); simultaneous disconnected editing of the same session on several devices is outside this release. Stage 3 must define session sequencing so a server record still awaiting finalization does not prevent subsequent offline sessions from being preserved and later synchronized. Compare revisions on changes; accept non-conflicting operations deliberately, surface true conflicts for coach resolution, and do not use the device clock as the sole authority. After lost acknowledgments, retry the same operation ID. Finishing a session must target that session ID, never delete a different active session by coach alone.
 
-First release reliability promise: previously loaded app/roster and an existing session can continue through interrupted connectivity; full fresh-device cold-start offline support is not promised. Do not reset rounds or draw while offline. Start fresh checks no active session and no outstanding local work; server guards round revision and session state against another device racing the reset. An old offline draft keeps its old round and cannot enter a new one on reconnect.
+### Approved offline gym contract (D09)
+
+- School guest Wi-Fi is optional for attendance. Initial sign-in/setup and preparation require connectivity: cache the app shell and required assets, roster, memberships, settings, exit-code verifier and known raffle-round identity. Show an accurate readiness/last-sync indicator; never call a device ready if a required cache/write failed.
+- A prepared device must open the app after it has been closed, in airplane mode, with no existing session required. Start practice/training, choose a date, mark/undo, enter/exit kiosk and finish without internet. Offline reopening is now in scope; first-ever use on an unprepared device is not.
+- Persist every attendance intent and session transition before successful feedback, including kiosk check-in/undo and finish. Show **Saved on this iPad · Waiting to sync**, **All changes synced**, or a clear local-save failure. Do not present a failed local write as safely recorded. Distinguish local credit/tickets awaiting sync from the authoritative draw pool.
+- Retain multiple locally finished, unsynchronized sessions and allow the next session to start. Never overwrite an older queue item. Retry automatically when the app is open and usable connectivity returns; retry on reopening as well. Do not promise background sync while the app is closed. A connection indicator alone is not a server acknowledgment.
+- Persist stable session/operation identities and per-session ordering. Delayed acknowledgments may clear only their own acknowledged operations; they must not clear a newer active session. Replayed starts, marks, undos and finishes cannot duplicate attendance, hours or tickets. Preserve pending work through application updates and failed network/auth requests.
+- Initial operating scope is one attendance iPad per session. Preserve conflict detection for stale/other-device changes; never silently use last-write-wins or weaken coach ownership. Stage 3 defines an explicit recoverable handoff/conflict path, not unsupported simultaneous offline collaboration.
+- Do not reset rounds or draw while offline or while known attendance remains unsynchronized. Start fresh additionally requires no active session; server guards round revision/session state against races. Sessions created offline retain their cached original round ID. If another device has advanced the round, retain and flag that assignment for reconciliation; never silently place old work in the new pool. The server cannot prove that an unseen disconnected device has no pending work.
+- Stage 3 chooses durable storage/cache/auth/update contracts; IndexedDB and a service-worker-backed installable web app are engineering recommendations, not proof of reliability. Explain that first-time setup, signing in again and remote sync need internet, and that clearing browser/site data can remove unsynced local records. Do not promise recovery after device loss or deliberate storage deletion.
+
 
 ## 6. Proposed data contract
 
@@ -208,7 +219,8 @@ Logical entities, not final SQL. Stage 3 chooses additive columns/tables after i
 | Ticket entitlement | Unique original training-session/player pair; immutable round assignment; eligible/revoked state or equivalent derived membership. Reinstatement updates the same entitlement in the same round. |
 | Draw | Coach/round; idempotency key; eligible-pool snapshot or verifiable revision; selected ticket/player; displayed name; prize; timestamp; exclusions. Undo is a recorded void, not silent deletion. |
 | Legacy mapping | Source coach, exact raw name, source location/event ID, target player UUID, evidence and resolution status. Do not log private roster contents into committed fixtures. |
-| Outbox | Owner/session/operation ID, desired change, base revision, queued/acknowledged/conflict state. A retry must not become a new intent. |
+| Outbox | Owner/device/session/operation identity, desired change, base revision, per-session ordering/dependencies and queued/acknowledged/conflict state; retains multiple locally finished sessions beside the next active session. A retry must not become a new intent or clear another session. |
+| Offline preparation | Owner-scoped roster/settings/membership/round snapshots, cached app/schema versions, readiness and last successful sync; durable kiosk/session binding. Prepared offline access is distinct from fresh server authorization. |
 
 Use either stored ticket entitlements or a tested derivation from immutable session-round membership; do not maintain an unrelated counter that can drift from attendance. Requirements are invariant regardless of representation.
 
@@ -305,7 +317,7 @@ Each criterion must be demonstrated in Stage 7 against the approved decision log
 | A05 | Manual present/absent changes are immediately clear and persist across navigation/refresh. | 4 |
 | A06 | Kiosk handles one/multiple/no matches, distinct `0`/`00`, repeated entry, correct undo, cleared input and exit without ending session. Default `0000` and coach-set PIN flows work; under the recommended replacement policy, `0000` stops working after a custom PIN is set. | 2, 5 |
 | A07 | Kiosk blocks ordinary coach navigation and stays in its session presentation on refresh. | 5 |
-| A08 | Offline changes survive refresh and reconnect with accurate saved/pending labels; persistence failure is visible. | 4, 5 |
+| A08 | Offline changes survive refresh and reconnect with accurate local/pending/synced labels; persistence failure is visible in coach AND kiosk modes, with no false successful-save feedback. | 4, 5 |
 | A09 | Double-start, double-finish, lost acknowledgment, delayed retry and a second device cannot duplicate credit or delete another active session. | 3, 4 |
 | A10 | Coach switch/expired auth cannot expose or submit another coach's cached work. | 3, 4 |
 | A11 | Practice earns zero; each finalized training attendee earns one while raffle off or on. | 6 |
@@ -324,6 +336,10 @@ Each criterion must be demonstrated in Stage 7 against the approved decision log
 | A24 | No custom sub-teams gives a simple default Kaizen group; Settings can add named sub-teams and roster entry offers selection. Team sort/filter handles shared names/numbers, preserves hidden attendance selections and overall totals, and transfers preserve player identity/history. | 2–6 |
 | A25 | Historical team attribution does not change on transfer; unknown legacy membership is explicit. Group filters cannot duplicate player/session credit or raffle tickets or grant access to another coach's data. | 3, 6, 7 |
 | A26 | One player belongs to two teams; either team filter finds the same player, All teams/kiosk show them once, and one training yields 1.5 credited hours and one ticket. Removing one membership preserves the other and historical membership sets. Jersey lookup follows the recorded per-team-number decision. | 2–7 |
+| A27 | Prepare a supported iPad online, close the app, enable airplane mode, reopen without an existing session, start practice/training, mark/undo, backdate, use kiosk and exit, finish, close/reopen again; all saved data and correct kiosk binding survive without network access. | 4, 5, 7 |
+| A28 | Offline, finish session A, start/finish B, start C, then close/reopen. Reconnect with delayed/lost acknowledgments and repeat delivery: A/B each finalize once, C remains intact, hours and training tickets reconcile exactly. | 3, 4, 7 |
+| A29 | While app is open, connectivity restoration triggers sync automatically; reopening later also retries. Auth expiration pauses upload until the same coach reauthenticates, preserving offline records and preventing cross-coach access. Draw/reset stays unavailable offline or with known pending work. | 3–7 |
+| A30 | Missing preparation, failed/quota-limited local writes and interrupted app updates never falsely report readiness or safe attendance. Exercise failed check-in AND undo/finish, recovery, stale cached round conflicts and queue preservation using real storage/network failures; fixture toggles alone do not satisfy acceptance. | 3–7 |
 
 ## 10. Build sequence and handoff boundaries
 
@@ -331,11 +347,11 @@ Each criterion must be demonstrated in Stage 7 against the approved decision log
 | --- | --- | --- | --- |
 | 1 | This specification and progress handoff | Astra / High | Complete documentation; approved choices and recommendations distinguished. |
 | 2 | Fixture-driven isolated prototype and audit revision | Claude Sonnet / High for the revision | Demonstrate approved D01–D08 and address the audit; review date/sub-team flows, PIN details and P01–P12. No schema work. |
-| 3 | Identity, sub-team membership, attendance, round foundations and migration rehearsal | Claude Opus 5 / High | Resolve data-affecting decisions; stable IDs and reconciliation tests pass locally. |
-| 4 | Coach session/roster workflow | Sol / High | Stage 3 API/data contract; reliable save/resume and new duration default. |
+| 3 | Identity, sub-team membership, attendance, round foundations and migration rehearsal | Claude Opus 5 / High | Resolve data-affecting decisions; stable IDs, multi-session offline operation ordering, cached ownership/round contracts and reconciliation tests pass in isolation (D09). |
+| 4 | Coach session/roster workflow | Sol / High | Stage 3 API/data contract; prepared-device offline launch, durable multi-session queue, reliable save/resume and new duration default (D09). |
 | 5 | Kiosk workflow | Claude Sonnet / High | Stage 4 attendance semantics and approved number/exit policy. |
 | 6 | Raffle activation, rounds and analytics integration | Claude Opus 5 / High | Stage 3 round model and Stage 4 finalization; independent reset. |
-| 7 | Independent review and full acceptance rehearsal | Astra / Extra high | A01–A26 checked; existing test failures separated from regressions. |
+| 7 | Independent review and full acceptance rehearsal | Astra / Extra high | A01–A30 checked, including actual iPad airplane-mode close/reopen and reconnection; existing test failures separated from regressions. |
 | 8 | Authorized production release and verification | Sol / High | Reviewed exact commit, migration rehearsal and recovery point. |
 
 Execute sequentially, carrying code and these documents forward. These are model recommendations from the prior build plan, not permission to start tasks or delegate work automatically.
