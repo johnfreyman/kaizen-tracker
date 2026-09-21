@@ -21,6 +21,7 @@ interface Row {
   practices: number;
   trainings: number;
   tickets: number;
+  retired?: boolean;
 }
 
 export default function ProgressScreen() {
@@ -31,6 +32,10 @@ export default function ProgressScreen() {
   const totals = programTotals(state);
   const activeTeams = state.subTeams.filter((t) => t.active);
   const roster = state.players.filter((p) => !p.retired);
+  // R01: retirement removes a player from the active roster, never from
+  // history (P07). "Team at session" reports on who actually attended, so
+  // its "All teams" view must not silently drop retired attendees.
+  const everyPlayer = state.players;
 
   // Every sub-team id a session snapshot ever names, active or retired:
   // historical attribution must stay reachable after a sub-team retires.
@@ -75,7 +80,7 @@ export default function ProgressScreen() {
 
   const historicalAllRows: Row[] = useMemo(
     () =>
-      roster.map((p) => {
+      everyPlayer.map((p) => {
         const t = playerTotals(state, p.id);
         const groups = new Set<string>();
         for (const s of state.sessions) {
@@ -89,9 +94,9 @@ export default function ProgressScreen() {
           else ids.forEach((id) => groups.add(subTeamName(state, id)));
         }
         const group = groups.size === 0 ? "—" : [...groups].join(" · ");
-        return { player: p, group, otherTeams: [], ...t };
+        return { player: p, group, otherTeams: [], retired: p.retired, ...t };
       }),
-    [roster, state],
+    [everyPlayer, state],
   );
 
   const historicalTeamRowsForSelection: Row[] = useMemo(() => {
@@ -104,6 +109,7 @@ export default function ProgressScreen() {
       practices: r.practices,
       trainings: r.trainings,
       tickets: r.tickets,
+      retired: r.player.retired,
     }));
   }, [attribution, team, state]);
 
@@ -145,7 +151,13 @@ export default function ProgressScreen() {
         </Note>
       </Panel>
 
-      {activeTeams.length > 0 && (
+      {/*
+       * R01: gate on whether any sub-team was ever created, not on whether
+       * one is still active. Retiring every sub-team must not strand a coach
+       * without a way back into "Team at session" — that historical view is
+       * exactly what still explains who used to play for a now-retired team.
+       */}
+      {state.subTeams.length > 0 && (
         <Panel>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-widest mc-text-secondary mr-1">
@@ -192,10 +204,13 @@ export default function ProgressScreen() {
               session once (P12).
             </Note>
           )}
-          {attribution === "atSession" && hasUnknownHistory && (
+          {attribution === "atSession" && team === "all" && (
             <p className="mt-3 text-xs mc-text-muted">
-              Some early sessions have no recorded team-at-session snapshot. That attendance stays
-              in "Unknown (legacy record)" under All teams rather than being guessed into a team.
+              All teams under Team at session includes retired players (labelled Retired) alongside
+              the current roster — retirement removes someone from new sessions, not from history
+              (P07).{" "}
+              {hasUnknownHistory &&
+                "Some early sessions have no recorded team-at-session snapshot; that attendance stays in “Unknown (legacy record)” rather than being guessed into a team."}
             </p>
           )}
         </Panel>
@@ -222,6 +237,11 @@ export default function ProgressScreen() {
                     {r.player.label ? `${r.player.firstName} ${r.player.label}` : r.player.firstName}
                     {r.player.number !== null && (
                       <span className="mc-text-muted font-normal mc-mono"> · #{r.player.number}</span>
+                    )}
+                    {r.retired && (
+                      <span className="ml-2 align-middle">
+                        <Pill tone="neutral">Retired</Pill>
+                      </span>
                     )}
                   </th>
                   <td className="px-4 py-3 mc-text-secondary">

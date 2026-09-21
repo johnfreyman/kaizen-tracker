@@ -7,7 +7,7 @@ Baseline application commit: `40d9b0c2f57692cdc8439d453816418be3db5a39`.
 
 ## Scope and current status
 
-Stage 1 documentation is complete. The initial Stage 2 prototype was implemented, independently audited, and has now been revised to address the audit: multiple simultaneous sub-team memberships (U01) and audit findings F01–F05 are implemented and verified. See [the audit](simplification-stage2-audit.md) for the original findings and their revision status. D01–D08 remain confirmed; the remaining recommendations (P01–P12 and the open decisions below) are still not blanket-approved by this revision. Stage 3 has not started — see the handoff at the bottom of this document.
+Stage 1 documentation is complete. The initial Stage 2 prototype was implemented, independently audited, and revised to address the audit: multiple simultaneous sub-team memberships (U01) and audit findings F01–F05 are implemented and verified. A same-day independent review of that revision found two further gaps, R01 and R02, which are also now addressed. See [the audit](simplification-stage2-audit.md) for the original findings and all revision statuses. D01–D08 remain confirmed; the remaining recommendations (P01–P12 and the open decisions below) are still not blanket-approved by this work. Stage 3 has not started — see the handoff at the bottom of this document.
 
 Canonical continuation branch: `codex/simplification-plan` in `johnfreyman/kaizen-tracker`. Stage 2 work continues on `claude/stage-2-prototype`, branched from that head; this revision was implemented on `claude/dazzling-sagan-hxrwfp`, branched from the `claude/stage-2-prototype` head that includes the audit (commit `adcc727`). Use these documents from the newer branch, not the unchanged `main` checkout or the superseded seven-stage draft.
 
@@ -16,7 +16,7 @@ Published review: [draft PR #1](https://github.com/johnfreyman/kaizen-tracker/pu
 | Stage | State | Deliverable / next gate |
 | --- | --- | --- |
 | 1. Product specification and migration plan | Complete | Source audit, approved requirements/decisions, recommendations, flows, data invariants, acceptance matrix and recovery plan documented. |
-| 2. Screen flows and prototype | Revision complete | Multiple memberships (U01) and audit F01–F05 implemented, with committed tests and a browser walkthrough. Product recommendations (P01–P12) and the open decisions below remain for Stage 3 review. |
+| 2. Screen flows and prototype | Revision + follow-up complete | Multiple memberships (U01), audit F01–F05, and follow-up review findings R01–R02 implemented, with committed tests and browser walkthroughs. Product recommendations (P01–P12) and the open decisions below remain for Stage 3 review. |
 | 3. Data foundation | Not started | Resolve data-affecting choices including sub-team membership, inspect real schema in an isolated environment, rehearse additive migration. |
 | 4. Coach attendance | Not started | Reliable session/attendance operations and simplified cards. |
 | 5. Kiosk | Not started | Number matching, correction, exit and recovery. |
@@ -238,6 +238,32 @@ U01's cardinality/jersey question (row 1 of the original open-decisions table) i
 | 7 | Should sessions be able to **target** one sub-team, changing attendance-rate denominators? Not approved by the request to sort by team, and not prototyped. | Stage 6 reporting. |
 
 P01–P12 in the specification remain recommendations, not approvals, exactly as before this revision.
+
+## Stage 2 revision follow-up (R01/R02) — 2026-09-21
+
+Branch `claude/dazzling-sagan-hxrwfp`, continuing from the Stage 2 revision at `92eb4df`. A same-day independent review of that revision (see [the audit](simplification-stage2-audit.md#independent-revision-review--2026-09-21) for the findings themselves) surfaced two further gaps, R01 and R02, both now closed. Same fixture-only scope and no-deploy guard as before: no Supabase/production calls, migrations, real roster data, backend authorization changes, deployments, merges or PRs.
+
+### R01 — retired attendees and all-teams-retired navigation
+
+`ProgressScreen`'s "Team at session > All teams" view was built from `roster` (`state.players.filter(p => !p.retired)`) — the same active-only list Current roster mode correctly uses — so a retired player's history disappeared from historical reporting entirely, not just from the current roster. Separately, the whole Attribute-to/Team panel, including the "Team at session" toggle, was gated on `activeTeams.length > 0`; retiring every sub-team removed it along with the panel, closing off the one view that still explains a now-retired team's history.
+
+Fixed: `historicalAllRows` now sources from `state.players` (every player, retired or not) and tags each row with `retired`, shown as a "Retired" pill. The panel's gate changed to `state.subTeams.length > 0` (any sub-team ever created, active or not), so it survives every team being retired. Current roster mode, program-wide totals (session-hours/player-hours), and the specific-team historical view (`historicalTeamRows`, which already iterated `state.players` correctly) are unchanged.
+
+### R02 — local-save failure inside kiosk
+
+The revision's persistence-failure banner and qualified delivery-status pill live in `PrototypeApp.tsx`'s `Shell`, which kiosk never renders (`Shell` returns only `<KioskScreen>` while kiosk owns the screen). A local-save failure during an actual check-in or undo therefore stayed invisible to the kiosk, and the confirmation panel kept claiming an unqualified "You're checked in" / "Check-in undone" regardless.
+
+Fixed: kiosk now shows its own plain-text failure banner whenever `state.localPersistenceFailed` is true, and the confirmation panel becomes "Checked in — not saved yet" / "Undo recorded — not saved yet" (warning tone, explanatory line) for as long as the failure lasts, reverting to the normal confirmation once storage recovers. No new coach-navigation affordance was added — the only way out of kiosk is still the exit code. This is still a best-effort read of the last known save attempt, not the real outbox/acknowledgment model spec §5 describes for Stage 4; it does not require that backend to exist yet, matching the handoff's own scope note.
+
+### Verification — exactly what was run
+
+- `npx tsc --noEmit`: 0 errors.
+- `npx vitest run`: 45 passed, 1 failed of 46 collected, across 8 files (2 failing files). Three new component-test files were added — `ProgressScreen.test.tsx` (5 tests), `KioskScreen.test.tsx` (4 tests) and `RosterScreen.test.tsx` (5 tests) — all rendering the real screens against a `PrototypeStoreProvider` (not calling the pure store helpers directly), covering exactly the three things asked for: a retired player's historical row and totals, historical navigation surviving every sub-team being retired, and kiosk's failure exposure/qualified feedback/live recovery. The Add and Edit `RosterScreen` tests specifically drive the actual Save button, not `wouldCollide`/`playerEditIsValid` in isolation, confirming a duplicate attempt disables Save and leaves the previously stored identity unchanged after Cancel. The 1 failure and 1 collection-blocked file are the same pre-existing `LaunchPage`/`stats.test.ts` baseline issues recorded throughout this project — reported separately here because they are not regressions from this follow-up.
+- `npx vite build` into a temporary directory: `index-DZ3ExIO7.css` and the JS bundle are both byte-identical to the Stage 2 revision's build (same hashes as recorded there) — this follow-up touched only `src/prototype/`, so the one shared-dialog-driven bundle change already documented in the revision is unchanged and no new one was introduced. No prototype code reaches the bundle.
+- Browser walkthrough: headless Chromium, phone 430×932 and tablet 1024×768. **20 scripted checks, all passing:** retiring a player through the real Roster UI removes them from Current roster and the roster count but surfaces them (labelled Retired) under Team at session > All teams; retiring all four sub-teams through Settings still leaves the Team at session toggle and a "(retired)" team filter reachable and renders real rows; enabling the storage-failure dev toggle from the coach controls, then entering kiosk, shows the failure banner inside kiosk with no coach navigation visible, and check-in confirmation reads "Checked in — not saved yet"; turning the toggle back off and re-entering kiosk restores the plain "You're checked in" confirmation. No unexpected console/page errors; the same pre-existing, environment-only Google Fonts certificate failure noted in the revision was excluded.
+- **Not tested, and not claimed:** the same limits as the Stage 2 revision — no production, database, RLS, authorization, migration, real offline/service-worker behavior, screen-reader output or real device testing.
+
+Unresolved product policies are unchanged by this follow-up: the "Open decisions carried forward" table above still applies in full, and P01–P12 remain recommendations, not approvals. Neither R01 nor R02 was a data-affecting policy question — both were completeness gaps in already-approved behavior (retirement keeps history per P07; a local-save failure must be visible per the revision's own persistence-failure fix), so closing them does not resolve or imply approval of any open item in that table.
 
 ## Stage 2 revision handoff (fulfilled — 2026-09-21)
 

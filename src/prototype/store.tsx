@@ -350,8 +350,22 @@ interface StoreValue {
 
 const StoreContext = createContext<StoreValue | null>(null);
 
-export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, "team" as ScenarioId, load);
+export function PrototypeStoreProvider({
+  children,
+  initialState,
+}: {
+  children: ReactNode;
+  /** Test-only seam: skips `load()`/localStorage so a test can render an
+   *  exact state (a retired attendee, every sub-team retired, a simulated
+   *  storage failure) without driving the whole UI to reach it. The real
+   *  app never passes this, so its behavior is unchanged. */
+  initialState?: PrototypeState;
+}) {
+  const [state, dispatch] = useReducer(
+    reducer,
+    "team" as ScenarioId,
+    (scenario) => initialState ?? load(scenario),
+  );
 
   useEffect(() => {
     const ok = trySave(state, state.simulateStorageFailure);

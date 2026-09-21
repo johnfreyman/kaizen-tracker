@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Delete, Search, Undo2 } from "lucide-react";
+import { AlertTriangle, Check, Delete, Search, Undo2 } from "lucide-react";
 import { formatDate } from "@/lib/dates";
 import { Panel } from "../components/ui";
 import { displayName, matchByNumber, subTeamLabel, usePrototypeStore } from "../store";
@@ -14,6 +14,9 @@ type Phase =
 /**
  * Kiosk is a supervised shared-device surface, not player authentication.
  * It deliberately exposes no roster editing, no settings and no email address.
+ * A local-save failure is surfaced here too (R02): kiosk renders outside
+ * PrototypeApp's Shell, so the coach-facing failure banner there never
+ * reaches this screen on its own, and a missed check-in is a missed credit.
  */
 export default function KioskScreen({ onExit }: { onExit: () => void }) {
   const { state, actions } = usePrototypeStore();
@@ -98,6 +101,17 @@ export default function KioskScreen({ onExit }: { onExit: () => void }) {
     setWriting(false);
   };
 
+  /*
+   * R02: kiosk renders standalone, outside PrototypeApp's Shell, so the
+   * coach-facing persistence-failure banner never reaches this screen on
+   * its own. A save failure here matters just as much — a missed check-in
+   * is a missed credit — so it needs its own visible, qualified signal
+   * instead of a checkmark that claims more than is actually true. This is
+   * a best-effort read of the last known save attempt, not a guarantee
+   * about this exact tap (spec §5's real outbox/ack model is Stage 4 work).
+   */
+  const saveFailed = state.localPersistenceFailed;
+
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "var(--mc-bg)" }}>
       {/* Minimal session context only. */}
@@ -124,30 +138,55 @@ export default function KioskScreen({ onExit }: { onExit: () => void }) {
         </button>
       </div>
 
+      {/* Plain text only: no settings/roster link, so this never becomes a
+          second way out of kiosk beyond the exit code. */}
+      {saveFailed && (
+        <div className="border-b border-red-500/30 bg-red-500/10 px-5 py-2 text-center" role="alert">
+          <p className="text-xs font-semibold text-red-700 dark:text-red-300">
+            This device isn't saving check-ins right now. Tell your coach.
+          </p>
+        </div>
+      )}
+
       <main className="flex-1 w-full max-w-xl mx-auto p-5 space-y-5">
         {phase.k === "confirmed" ? (
           <Panel
             className={
-              phase.undone
-                ? "border-amber-500/40 text-center"
-                : "border-emerald-500/40 text-center"
+              saveFailed
+                ? "border-red-500/40 text-center"
+                : phase.undone
+                  ? "border-amber-500/40 text-center"
+                  : "border-emerald-500/40 text-center"
             }
           >
             <div
               className={`mx-auto size-16 rounded-full flex items-center justify-center ${
-                phase.undone ? "bg-amber-500/15" : "bg-emerald-500/15"
+                saveFailed ? "bg-red-500/15" : phase.undone ? "bg-amber-500/15" : "bg-emerald-500/15"
               }`}
             >
-              {phase.undone ? (
+              {saveFailed ? (
+                <AlertTriangle className="size-8 text-red-500" />
+              ) : phase.undone ? (
                 <Undo2 className="size-8 text-amber-500" />
               ) : (
                 <Check className="size-8 text-emerald-500" />
               )}
             </div>
             <h2 className="mt-4 text-2xl font-bold mc-text">
-              {phase.undone ? "Check-in undone" : "You're checked in"}
+              {saveFailed
+                ? phase.undone
+                  ? "Undo recorded — not saved yet"
+                  : "Checked in — not saved yet"
+                : phase.undone
+                  ? "Check-in undone"
+                  : "You're checked in"}
             </h2>
             <p className="mt-1 text-lg mc-text-secondary">{displayName(phase.player)}</p>
+            {saveFailed && (
+              <p className="mt-2 text-sm font-semibold text-red-600 dark:text-red-400">
+                This device isn't saving locally right now. Tell your coach.
+              </p>
+            )}
             <p className="mt-3 text-sm mc-text-muted">Returning to the number pad…</p>
           </Panel>
         ) : (
