@@ -402,10 +402,12 @@ substituting production.
 5. Resolve, or explicitly re-confirm as still open, each item in the Stage
    2 revision's "Open decisions carried forward" table before encoding it
    into a migration or RPC contract: PIN replace-vs-fallback, backdated
-   training round assignment,
-   retirement vs. destructive removal, kiosk URL vs. in-memory binding, and
-   whether a session can target one sub-team. A recommendation the
-   prototype happened to use is not owner approval.
+   training round assignment, retirement vs. destructive removal, kiosk
+   URL vs. in-memory binding, and whether a session can target one
+   sub-team. Pending-finish blocking is no longer on this list: D09
+   resolved it (a durably queued local finish must not block the next
+   session). A recommendation the prototype happened to use is not owner
+   approval.
 6. Verify cross-coach ownership and idempotent operations using actual
    database roles in the isolated environment, not only UI mocks. Confirm
    the sole super admin (johnfreyman70@gmail.com) and the secured
@@ -488,3 +490,30 @@ Update progress with evidence and unresolved issues; no production deployment.
 ## Documentation publication checkpoint
 
 Published documentation is based on remote `3f1d398`, preserving Claude's implementation and verification notes. Only the specification, progress document and independent review are included. The exact branch remains deployment-disabled. Documentation checks cover unique requirement/decision/acceptance IDs, balanced fences and conflict/whitespace checks. No application tests were rerun for this publication; new follow-up results above remain attributed to Claude. Remaining work: confirm the follow-up, resolve remaining product decisions, then separately authorize Stage 3 in isolation.
+
+## Stage 2 follow-up acceptance confirmed — 2026-09-21
+
+Continuing on `claude/dazzling-sagan-hxrwfp`, pulled to `3147635` (the documentation publication above) before this pass. No source files needed further changes: the R01/R02 fixes and their component tests, committed at `3f1d398`, were already correct. This entry is the requested independent confirmation and fresh verification evidence, not a re-implementation — the "Exact handoff" above explicitly asked not to repeat that work blindly.
+
+### What was confirmed, and how
+
+- **R01** (retired attendees and unknown legacy history stay visible under "Team at session > All teams"; those controls survive every sub-team being retired): re-verified against the freshly pulled state with both a full test run and a fresh browser pass.
+- **R02** (kiosk exposes a local-save failure and never shows an unqualified check-in/undo success while one is active): same fresh re-verification.
+- Regression tests: `ProgressScreen.test.tsx`, `KioskScreen.test.tsx` and `RosterScreen.test.tsx` (14 tests total) plus `store.test.ts` (16 tests) all still pass unmodified.
+
+### Verification — exactly what was run, fresh, after the pull
+
+- `npx tsc --noEmit`: 0 errors.
+- `npx vitest run`: 45 passed, 1 failed of 46 collected, across 8 files. **Reported separately, as requested:** the 1 failure is `LaunchPage.test.tsx`'s pre-existing dated `9:00 AM` preset assertion, and `src/lib/stats.test.ts` still fails collection because `VITE_SUPABASE_URL` is missing from this environment. Both predate this branch and are not regressions from any work here.
+- `npx vite build` to a temporary directory: `index-DZ3ExIO7.css` and `index-CAFHf2CU.js` are byte-identical to the hashes recorded in the Stage 2 revision and its R01/R02 follow-up — this confirmation touched no source, so the one shared-dialog-driven bundle change already disclosed there is unchanged and no new one was introduced.
+- Browser walkthrough: headless Chromium, phone 430×932 led this pass (earlier passes led with desktop), plus a tablet 1024×768 spot check. **16 scripted checks, all passing:** retiring a player through the real Roster UI removes them from Current roster but surfaces them, labelled Retired, under Team at session > All teams; retiring every sub-team through Settings still leaves the Team at session toggle and a "(retired)" filter chip reachable, at phone width with no horizontal overflow; enabling the storage-failure dev toggle from the coach controls, then entering kiosk, shows the failure banner with no coach navigation visible and "Checked in — not saved yet" instead of an unqualified success; turning the toggle off and re-entering kiosk restores the plain "You're checked in" confirmation. No unexpected console/page errors; the same pre-existing, environment-only Google Fonts certificate failure noted throughout this project was excluded.
+
+### D09 (offline gym use) — preserved in the handoff only
+
+D09 is confirmed approved (see `simplification-spec.md` and `simplification-stage2-revision-review.md`). Per this task's explicit scope, it is preserved in the Stage 3 data handoff above (step 3: durable multi-session queue, ordered replay, owner-scoped cache/auth recovery, immutable cached round binding — data/contract design only) and in D09's own row of the confirmed-decisions table. **No offline implementation, service worker, IndexedDB, queue code or Stage 3 work was started or is claimed working.** The prototype remains a fixture-only, in-memory demonstration with no real offline capability; D09's acceptance criteria (A27–A30 in the specification) remain future-stage verification gates, not something this pass attempted.
+
+### Unresolved product policies
+
+Unchanged by this confirmation pass. The "Open decisions carried forward" table (under the Stage 2 revision above) still applies, minus the pending-finish item D09 resolved. P01–P12 remain recommendations, not approvals. Nothing here infers additional owner approval from the prototype's existing behavior.
+
+No Supabase/production calls, migrations, deployments, merges or PRs were made. The branch-specific no-deploy guard in `vercel.json` is unchanged. Stopping here, before Stage 3, as requested.
