@@ -7,6 +7,9 @@ Baseline application commit: `40d9b0c2f57692cdc8439d453816418be3db5a39`.
 
 ## Scope and current status
 
+**Current continuation:** D10–D12 supersede older targeting/legacy-reconstruction guidance below. Next is the focused Stage 2 expected-team prototype in [simplification-next-prototype-prompt.md](simplification-next-prototype-prompt.md). Do not start Stage 3 from an earlier embedded handoff. Existing R01/R02 fixes remain complete per Claude’s confirmation at `79f4021`.
+
+
 Stage 1 documentation is complete. The initial Stage 2 prototype was implemented, independently audited, and revised to address the audit: multiple simultaneous sub-team memberships (U01) and audit findings F01–F05 are implemented and verified. A same-day independent review of that revision found two further gaps, R01 and R02, which are also now addressed. See [the audit](simplification-stage2-audit.md) for the original findings and all revision statuses. D01–D09 are confirmed, including offline gym use; the remaining recommendations (P01–P12 and the open decisions below) are still not blanket-approved by this work. Stage 3 has not started — see the handoff at the bottom of this document.
 
 Canonical continuation branch: `codex/simplification-plan` in `johnfreyman/kaizen-tracker`. Stage 2 work continues on `claude/stage-2-prototype`, branched from that head; this revision was implemented on `claude/dazzling-sagan-hxrwfp`, branched from the `claude/stage-2-prototype` head that includes the audit (commit `adcc727`). Use these documents from the newer branch, not the unchanged `main` checkout or the superseded seven-stage draft.
@@ -517,3 +520,24 @@ D09 is confirmed approved (see `simplification-spec.md` and `simplification-stag
 Unchanged by this confirmation pass. The "Open decisions carried forward" table (under the Stage 2 revision above) still applies, minus the pending-finish item D09 resolved. P01–P12 remain recommendations, not approvals. Nothing here infers additional owner approval from the prototype's existing behavior.
 
 No Supabase/production calls, migrations, deployments, merges or PRs were made. The branch-specific no-deploy guard in `vercel.json` is unchanged. Stopping here, before Stage 3, as requested.
+
+
+## Approved expected-attendance / test-data / analytics update — 2026-09-21
+
+The owner approved publishing these revisions and preparing the next prototype task with “Go.” This authorizes this planning publication; it does not authorize production work or a later stage.
+
+- **D10:** Practice starts with Who’s expected? team cards, one or multiple teams, All Kaizen and Take attendance. Expected players are the saved union, not current membership recalculated later. Only expected practices enter attendance percentages/streaks. Optional training opens directly and has no absence penalty.
+- **D11:** Existing records are test/sample data and the app has never officially been used. Real-history reconstruction/backfill reconciliation is unnecessary. No test-account deletion, database reset or production mutation is authorized. Preserve all real attendance/credit/raffle history after launch.
+- **D12:** Preserve the original Reports capabilities listed in the published analytics inventory. The small prototype Progress table is not a substitute for that scope. Shared calculations should use stable IDs, expected attendance, saved memberships and explicit pending/synced status.
+- Superseded: older statements that session targeting is unapproved, a single tap must bypass all practice selection, or Stage 3 must reconstruct real prelaunch history. Older embedded handoffs are historical; use the current prompt and this update.
+- Still open: PIN replacement/recovery detail, newly backdated training round assignment, player retirement behavior, excused-absence/expected-list correction and unexpected-attendance streak policy. Do not infer blanket approval of earlier recommendations. D09 already resolves pending-finish blocking: allow the next local session.
+
+### Exact next-stage handoff
+
+Use Claude Sonnet, High effort, with [simplification-next-prototype-prompt.md](simplification-next-prototype-prompt.md). Pull the published branch after `79f4021`, implement only the expected-team fixture flow and focused expectation metrics, verify it, update these records and STOP for review. Do not redo the completed R01/R02 fixes.
+
+After prototype acceptance and a separate Stage 3 request, use the revised specification §8: inspect an isolated schema, establish stable player/membership/expected-attendance/round entities and offline-operation contracts, and verify repeat-safe setup, real-role isolation and idempotent replay with invented fixtures. No live-data reconstruction or cleanup is required or authorized. Stages 4–5 implement real offline coach/kiosk behavior; Stage 6 adapts the old analytics and exports; Stage 7 verifies A01–A33.
+
+### Validation and limits
+
+Documentation-only update: checked numbered IDs, code fences, local links, whitespace, exact changed-file scope and existing branch no-deploy guard. Application tests/browser checks were not rerun because no application code changed. Production data/settings, schema, dependencies and local unrelated changes remain untouched. This publication preserves all commits through `79f4021` and the earlier confirmation evidence. The new prototype flow, offline implementation and database foundation are not claimed complete.
