@@ -2,11 +2,15 @@
 
 Audited: 2026-09-20. Source commit: `d54c587ed4bdb10d23122b8357ba849348da8278` on `claude/stage-2-prototype`.
 
+**Revision status (2026-09-21):** all findings below (U01, F01–F05) have been addressed by the Stage 2 revision on `claude/dazzling-sagan-hxrwfp`. See [the revision entry in the progress document](simplification-progress.md#stage-2-revision--2026-09-21) for the full change/verification record, and the per-finding "Revision" notes added below. This original audit's findings, evidence and limits are preserved unchanged below as the historical record of what was found; only status notes were appended.
+
 ## Verdict
 
 The main coach/kiosk flow is a useful basis for the product. Keep the design direction, but complete a focused Stage 2 revision before treating its data/reporting behavior as the Stage 3 contract. This is a fixture-only prototype, not evidence of production reliability. This audit changes documentation only; it does not fix the findings or start another implementation stage.
 
 The owner has now confirmed **multiple simultaneous sub-team memberships** and **one jersey number per player across every team** (D07–D08). The original single-membership assumption was labeled correctly when built, but is now superseded. Use one stable player, multiple memberships, one number, one attendance per session and one optional-training ticket per attendance.
+
+*(2026-09-21: this verdict described the audited commit. The revision below implements it; Stage 3 still owns turning this into a real schema.)*
 
 ## Findings
 
@@ -20,6 +24,8 @@ Source: [ProgressScreen.tsx](../src/prototype/screens/ProgressScreen.tsx), lines
 
 **Required correction:** in historical mode, filter attendance using session membership snapshots, then calculate totals from those qualifying records. Preserve unknown membership explicitly and retain access to retired groups/players' history. With multiple memberships, deduplicate player/session records in whole-program totals; make any overlapping team totals explicit. Test a transfer and a shared-team player with known expected sums, not only the presence of labels.
 
+**Revision (2026-09-21):** Addressed. `historicalTeamRows(state, teamId)` in `store.tsx` filters to sessions whose own `teamAtSession` snapshot names that team and sums only those; a transfer (`updatePlayer`) cannot move past hours because old snapshots are never rewritten. Each row carries `otherTeams` for explicit overlap labelling ("also counted under …"). Retired sub-teams and "Unknown (legacy record)" stay reachable as their own groups. Verified with expected sums (not just labels) in `store.test.ts` and reproduced live: a transferred single-team player (Alex M.) keeps his old team's hours unchanged and gets only the new session under his new team; a simultaneous-membership player (Kayla) shows identical, full (non-split) hours under both of her teams in the browser walkthrough.
+
 ### F02 — P2: Editing bypasses the duplicate-card validation
 
 Source: [RosterScreen.tsx](../src/prototype/screens/RosterScreen.tsx), lines 150–183; [store.tsx](../src/prototype/store.tsx), `updatePlayer`.
@@ -27,6 +33,8 @@ Source: [RosterScreen.tsx](../src/prototype/screens/RosterScreen.tsx), lines 150
 **Browser reproduction:** edit Alex M.'s label to R., matching the other Alex #12, then click Done. The screen warns that two cards are identical, but commits the change anyway; it remains after refresh. Inline editing writes each keystroke directly to the store. Blank names are also allowed by that path (source inspection).
 
 **Required correction:** draft edits with explicit Save/Cancel and the same trimmed-name/card-distinction validation as Add. Block ambiguous or empty committed identities while preserving the existing valid card. Multi-team badges should help recognition, but must not be used as mutable identity keys or to excuse identical player cards. Test add and edit paths, including refresh after a rejected edit.
+
+**Revision (2026-09-21):** Addressed. `PlayerRow` now edits a local draft (re-synced on entering edit mode) and only calls `updatePlayer` from Save; a blank name or a collision (via the shared `wouldCollide` helper Add already used) disables Save and shows an inline reason instead of writing anything. Cancel discards the draft. Verified in `store.test.ts` (`playerEditIsValid`/`wouldCollide` cases) and live: renaming Alex M.'s label to collide with Alex R. shows the error and a disabled Save, and a page refresh after that rejected attempt still shows exactly one "Alex R." card.
 
 ### F03 — P2: The new-coach fixture defaults raffle to off
 
@@ -36,6 +44,8 @@ Source: [fixtures.ts](../src/prototype/fixtures.ts), lines 193–213.
 
 **Required correction:** a genuinely new-coach fixture starts enabled. Retain a separate existing-coach/off fixture for testing accrued-ticket activation and preservation of explicit old settings. Test both rather than changing every scenario to on.
 
+**Revision (2026-09-21):** Addressed. The `"empty"` (new-coach) scenario now overrides `raffleEnabled: true`; the `"team"` (existing-coach) scenario keeps the shared `false` default with its accrued tickets, so the Keep/Start-fresh dialog still has a real count to test. Verified in `store.test.ts` and live: Settings shows "Raffle is on" immediately after switching to Empty roster, and the "team" scenario still opens on "Raffle is off" with tickets accrued.
+
 ### F04 — P2: A closed-session kiosk has no coach escape
 
 Source: [KioskScreen.tsx](../src/prototype/screens/KioskScreen.tsx), lines 36–50; [PrototypeApp.tsx](../src/prototype/PrototypeApp.tsx), kiosk binding restoration.
@@ -43,6 +53,8 @@ Source: [KioskScreen.tsx](../src/prototype/screens/KioskScreen.tsx), lines 36–
 **Source-confirmed:** `closedElsewhere` returns only a notice before rendering the number pad or exit handler. The kiosk binding survives refresh. If the bound session closes, the coach cannot enter the code to recover, and normal coach navigation is intentionally absent. This closed-kiosk transition was not independently reproduced through the current walkthrough controls; they disappear inside kiosk.
 
 **Required correction:** keep check-in disabled but offer a code-protected coach exit/reconciliation route from the closed-session state. Do not automatically reveal the coach dashboard to players. Add a fixture/test that reaches closure while kiosk is active, verifies refresh remains closed, and verifies coach recovery.
+
+**Revision (2026-09-21):** Addressed. `KioskScreen` now renders a dedicated `ClosedKiosk` view once `closedElsewhere` is true: a code pad and **Coach exit** button, with no player lookup at all (check-in was already rejected server-side; the UI now matches). The correct code reuses the same `onExit` handoff into `AttendanceScreen`'s existing conflict panel, whose "Back to Home" now also clears the stale session (`acknowledgeClosedElsewhere`, new) so Home does not keep offering to resume it. Because the walkthrough panel is hidden while kiosk owns the screen, a small labelled dev-only trigger was added inside `KioskScreen` itself to reach closure while kiosk is active. Browser-verified end to end: enter kiosk → force closure → player pad is gone, code pad appears → refresh → still closed → wrong code rejected → correct code lands on the coach conflict panel → Back to Home offers a clean Start again.
 
 ### F05 — P2: Ticket derivation conflates initial migration eligibility with later archive status
 
@@ -52,11 +64,15 @@ Source: [store.tsx](../src/prototype/store.tsx), lines 406–415.
 
 **Required correction:** assign migrated archived fixtures to non-current rounds; derive current eligibility from round assignment and attendance, not a perpetual archive exclusion. Include a current-round archived fixture and demonstrate unchanged ticket count on archive/restore. Keep old archived fixtures out of the initial current pool.
 
+**Revision (2026-09-21):** Addressed. `ticketLines` no longer checks `archived` at all; eligibility is `roundId === currentRoundId` alone. `ev-02` (old archived history) still sits outside the current pool, now because it is bound to the previous round rather than because it is archived. A new fixture, `ev-07`, is archived *and* in the current round, so the distinction is demonstrable: RaffleScreen shows it as "still counted in this round," separately from earlier-round archived trainings. `store.test.ts` asserts the ticket count for `ev-07` is identical whether its `archived` flag is `true` or `false` (the archive/restore regression fixture), and that un-archiving `ev-02` still does not add it to the current pool.
+
 ## Approved scope update U01 — multiple teams, one player number
 
 Source: [types.ts](../src/prototype/types.ts), `Player.subTeamId` and scalar `teamAtSession`; corresponding roster, attendance, kiosk, settings counts and Progress consumers.
 
 Replace scalar membership with a membership set/list in the prototype and a many-to-many contract for Stage 3. Keep jersey number on the player. Add fixtures where one player belongs to Blue 6th and Blue 7th. Show them once in All teams/kiosk, in either matching team filter, and preserve their other membership when one is removed. One training must yield one attendance, 1.5 hours and one ticket, even when filtering between both teams. Historical snapshots contain membership sets and survive later edits.
+
+**Revision (2026-09-21):** Addressed in the prototype (the many-to-many *contract* is Stage 3's own item, not restated as done here). `Player.subTeamId` is now `Player.subTeamIds: string[]`; `FinalizedSession.teamAtSession` is now `Record<string, string[]>`. Kayla (`pl-11`, `#12`) belongs to Blue 6th and Blue 7th simultaneously. Verified: she appears once under "All teams," is found under either team's filter, and her two current-round trainings each yield exactly one ticket (`store.test.ts`); removing one membership via edit leaves the other and all past history untouched.
 
 ## Verification performed independently
 
@@ -73,18 +89,28 @@ The audit traced the local UI → fixture reducer → namespaced browser persist
 - Phone attendance at 430×932 and tablet Progress at 1024×768 had no page-level horizontal overflow. Captured browser warning/error logs were empty for the exercised paths. Temporary viewport override was reset.
 - Confirmed the prototype branch did not modify `src/app/`, Supabase functions, migrations, package files or the normal app entry relative to the reconciled plan. Production access/deployment was not used.
 
+## Revision re-verification — 2026-09-21
+
+Performed by the same session that implemented the revision (source: `claude/dazzling-sagan-hxrwfp`, based on the audited head at `adcc727`), not a separate independent auditor — treat this as a documented self-check, not a repeat of the independent-audit posture above.
+
+- `tsc --noEmit`: 0 errors.
+- `vitest run`: 31 passed, 1 failed of 32 collected across 5 files. The new `src/prototype/store.test.ts` (16 tests covering U01, F01, F02, F03, F05 with expected totals) all pass. The 1 failure and the 1 collection-blocked file are the same pre-existing `LaunchPage`/`stats.test.ts` baseline issues noted throughout this project — not new regressions.
+- `vite build` to a temporary directory: `index-DZ3ExIO7.css` byte-identical to the hash recorded above and in Stage 2. The JS hash changed by ~30 bytes, solely from one `forwardRef` line added to `src/app/components/ui/dialog.tsx` (see below) — no prototype code reaches the bundle.
+- Browser (headless Chromium, phone 430×932 and tablet 1024×768): 36 scripted checks, all passing, specifically including the F01–F05 and U01 scenarios described in each finding's Revision note above, plus the persistence-failure banner and the activation dialog's Escape/focus-trap/focus-return behavior. No unexpected console/page errors; one pre-existing, environment-only failure (an external Google Fonts fetch in `prototype.html`, already present before this revision, unrelated to any code change) was identified and excluded.
+- Two additional defects were found and fixed while wiring the accessible dialog, beyond F01–F05: `BigButton` (`src/prototype/components/ui.tsx`) did not forward its ref, so `<DialogTrigger asChild>` could not attach Radix's focus-return target — a reproducible `console.error`, not a style nit. The same gap existed in the shared `DialogOverlay` (`src/app/components/ui/dialog.tsx`), which is the one change to `src/app/` in this revision: a mechanical, behavior-preserving `forwardRef` wrap, made because the handoff explicitly asked to reuse this primitive and reusing it surfaced the defect for every consumer of `Dialog`, not only this prototype.
+
 ## Limits and follow-through
 
-- Local persistence failures are swallowed in `store.tsx` despite the “Saved on this device” label and a comment claiming they surface in the dev panel. Keep this as an explicit reliability limitation; the revision should demonstrate a visible persistence-failed state. Stage 4 must persist intent before successful feedback and prove real recovery.
-- PIN replacement, backdated-training round assignment, pending-finish policy, retirement, session targeting and overlapping-team attribution remain recommendations unless separately confirmed. “On the right track” is not blanket approval of every data policy.
-- The previous 63 browser checks were reported by Claude but no corresponding test file appears in the branch diff. Commit focused regressions for the revised membership/filtering/validation behaviors so the next reviewer can reproduce them.
-- Reuse accessible dialog primitives for the activation dialog before shipping: `aria-modal` alone does not implement focus trapping, Escape dismissal or focus return. Full screen-reader/device testing was not performed here.
-- No real database, RLS, auth, service worker, real network outage, custom-PIN flow or full six-journey regression was claimed by this audit. Backend security and migration checks belong to subsequent isolated stages.
+- ~~Local persistence failures are swallowed in `store.tsx`…~~ **Addressed (2026-09-21):** `trySave` now reports success/failure into `state.localPersistenceFailed`; a banner replaces the false "Saved on this device" claim, and a dev toggle simulates the failure deterministically. Stage 4 still owns proving *real* recovery (quota/private-browsing behavior across actual browsers) — this remains a fixture-level demonstration.
+- PIN replacement, backdated-training round assignment, pending-finish policy, retirement, session targeting and overlapping-team attribution remain recommendations unless separately confirmed. “On the right track” is not blanket approval of every data policy. **Still true after the revision** — see the "Open decisions carried forward" table in the progress document; none of these were resolved by this pass.
+- ~~The previous 63 browser checks were reported by Claude but no corresponding test file appears in the branch diff.~~ **Addressed (2026-09-21):** `src/prototype/store.test.ts` now commits 16 focused regressions for the revised membership/filtering/validation/raffle-default/archive behaviors, with expected totals a reviewer can re-run (`npx vitest run`).
+- ~~Reuse accessible dialog primitives for the activation dialog before shipping…~~ **Addressed (2026-09-21):** the dialog is now built on `@/app/components/ui/dialog` with a real `DialogTrigger`; Escape dismissal, focus trapping and focus return to the trigger were all browser-verified (see above). Full screen-reader/device testing is still not performed.
+- No real database, RLS, auth, service worker, real network outage, custom-PIN flow or full six-journey regression was claimed by this audit. Backend security and migration checks belong to subsequent isolated stages. **Still true** — this revision remains fixture-only, same as the original prototype.
 
 ## Recommended next steps
 
-1. **Stage 2 revision — Claude Sonnet, High thinking:** implement U01 and F01–F05 in the fixture prototype, add focused repeatable tests and update the walkthrough. Do not start database work.
-2. Review the revised multiple-membership flows and explicitly resolve remaining data policies before the affected Stage 3 operations are finalized. Unresolved policies may remain documented gaps; do not silently cement them as defaults because a prototype used them.
-3. **Stage 3 — Claude Opus 5, High thinking:** isolated additive data foundation and migration rehearsal, with stable player IDs, player-owned jersey numbers, many-to-many membership, membership snapshots and idempotent attendance/round operations. No production changes.
+1. ~~**Stage 2 revision — Claude Sonnet, High thinking:** implement U01 and F01–F05 in the fixture prototype, add focused repeatable tests and update the walkthrough. Do not start database work.~~ **Done (2026-09-21)** — see "Revision (2026-09-21)" under each finding above and the Stage 2 revision entry in the progress document.
+2. Review the revised multiple-membership flows and explicitly resolve remaining data policies before the affected Stage 3 operations are finalized. Unresolved policies may remain documented gaps; do not silently cement them as defaults because a prototype used them. **Still open** — none of the "Open decisions carried forward" table's items were resolved by this revision.
+3. **Stage 3 — Claude Opus 5, High thinking:** isolated additive data foundation and migration rehearsal, with stable player IDs, player-owned jersey numbers, many-to-many membership, membership snapshots and idempotent attendance/round operations. No production changes. **Not started.**
 
-The exact next-task prompt is in [simplification-progress.md](simplification-progress.md).
+The exact next-task prompt is in [simplification-progress.md](simplification-progress.md#exact-next-stage-handoff).

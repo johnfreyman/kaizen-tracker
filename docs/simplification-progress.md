@@ -1,22 +1,22 @@
 # Kaizen Tracker simplification progress
 
-Updated: 2026-09-20.
+Updated: 2026-09-21.
 
 Specification: [simplification-spec.md](simplification-spec.md).
 Baseline application commit: `40d9b0c2f57692cdc8439d453816418be3db5a39`.
 
 ## Scope and current status
 
-Stage 1 documentation is complete. The initial Stage 2 prototype is implemented and independently audited; a focused Stage 2 revision is next before the Stage 3 data contract is finalized. The owner says the design is on the right track and has confirmed D07–D08: multiple simultaneous sub-team memberships and one jersey number per player across teams. D01–D08 are confirmed; the remaining recommendations are not blanket-approved. Stage 3 has not started. See [the audit](simplification-stage2-audit.md) for findings, evidence and limits.
+Stage 1 documentation is complete. The initial Stage 2 prototype was implemented, independently audited, and has now been revised to address the audit: multiple simultaneous sub-team memberships (U01) and audit findings F01–F05 are implemented and verified. See [the audit](simplification-stage2-audit.md) for the original findings and their revision status. D01–D08 remain confirmed; the remaining recommendations (P01–P12 and the open decisions below) are still not blanket-approved by this revision. Stage 3 has not started — see the handoff at the bottom of this document.
 
-Canonical continuation branch: `codex/simplification-plan` in `johnfreyman/kaizen-tracker`. Stage 2 work continues on `claude/stage-2-prototype`, branched from that head. Use these documents from the newer branch, not the unchanged `main` checkout or the superseded seven-stage draft.
+Canonical continuation branch: `codex/simplification-plan` in `johnfreyman/kaizen-tracker`. Stage 2 work continues on `claude/stage-2-prototype`, branched from that head; this revision was implemented on `claude/dazzling-sagan-hxrwfp`, branched from the `claude/stage-2-prototype` head that includes the audit (commit `adcc727`). Use these documents from the newer branch, not the unchanged `main` checkout or the superseded seven-stage draft.
 
 Published review: [draft PR #1](https://github.com/johnfreyman/kaizen-tracker/pull/1). It remains unmerged. The initial reconciliation commit is `428d59a274965c172324958f3f8fa2b407f9880b`; use the latest branch head for subsequent handoffs.
 
 | Stage | State | Deliverable / next gate |
 | --- | --- | --- |
 | 1. Product specification and migration plan | Complete | Source audit, approved requirements/decisions, recommendations, flows, data invariants, acceptance matrix and recovery plan documented. |
-| 2. Screen flows and prototype | Initial prototype complete; audit revision required | Multiple memberships plus audit U01/F01–F05, repeatable checks and revised walkthrough. |
+| 2. Screen flows and prototype | Revision complete | Multiple memberships (U01) and audit F01–F05 implemented, with committed tests and a browser walkthrough. Product recommendations (P01–P12) and the open decisions below remain for Stage 3 review. |
 | 3. Data foundation | Not started | Resolve data-affecting choices including sub-team membership, inspect real schema in an isolated environment, rehearse additive migration. |
 | 4. Coach attendance | Not started | Reliable session/attendance operations and simplified cards. |
 | 5. Kiosk | Not started | Number matching, correction, exit and recovery. |
@@ -181,9 +181,69 @@ Audited source: `d54c587ed4bdb10d23122b8357ba849348da8278`. Full report: [simpli
 - Changes in this audit: `docs/simplification-spec.md`, this progress file and new `docs/simplification-stage2-audit.md`. No prototype/application code, migration, dependency or deployment settings changed. The existing no-deploy rule for `claude/stage-2-prototype` remains in place; unrelated `.DS_Store` is preserved.
 - This audit is not a bug-fix pass. Findings remain open. The next step is a bounded Stage 2 revision, not an automatic advance into Stage 3.
 
-## Exact next-stage handoff
+## Stage 2 revision — 2026-09-21
+
+Branch `claude/dazzling-sagan-hxrwfp`, based on `claude/stage-2-prototype` at `adcc727` (the audited head). Implements U01 and audit findings F01–F05 exactly as scoped by the handoff below. No Supabase/production calls, migrations, real roster data, backend authorization changes, deployments or PR merges. The existing no-deploy guard in `vercel.json` was extended to this exact branch before any push (`claude/dazzling-sagan-hxrwfp: false`), alongside the unchanged existing entries.
+
+### U01 — multiple simultaneous memberships, one jersey number
+
+`Player.subTeamId` (scalar, nullable) became `Player.subTeamIds` (array; empty means the default Kaizen grouping). The jersey number stays on the player alone (D08), never per membership. `FinalizedSession.teamAtSession` became a membership-*set* snapshot (`Record<string, string[]>`) instead of one team per attendee. Roster add/edit now offers a checkbox group (`SubTeamCheckboxes`, shared by both paths) instead of a single `<select>`. Kayla (`pl-11`, `#12`) is the fixture's simultaneous-membership player: Blue 6th **and** Blue 7th at once. Every list that shows players (All teams, kiosk matches, Progress "All teams") already showed one row per player id, so multi-membership needed no separate de-duplication — only the filter predicates changed, from `=== teamId` to `.includes(teamId)`. The stale "single membership, still open" note and hint text in `RosterScreen.tsx` were rewritten to state D07/D08 as confirmed.
+
+### F01 — historical team filtering now uses session snapshots
+
+Added `historicalTeamRows(state, teamId)` in `store.tsx`: for a specific team filter in Progress's "Team at session" mode, it filters to sessions whose *own* snapshot names that team, then sums hours/practices/trainings/tickets from only that qualifying subset — instead of reusing the player's all-time `playerTotals` under a relabelled group. A transfer (`updatePlayer` changing `subTeamIds`) therefore cannot move a past session's hours onto the new team, because old snapshots are never touched. Every row from `historicalTeamRows` also carries `otherTeams`: the other teams that same player qualifies for historically, rendered as "also counted under …" so a reader never mistakes two teams' totals as additive; a persistent note next to the team filter says the same for "Current roster" mode. Retired sub-teams and sessions with no snapshot at all stay reachable: the team-filter chip list in "Team at session" mode is built from every team any snapshot ever names (active or retired), and "Unknown (legacy record)" remains its own group under "All teams" rather than silently disappearing.
+
+### F02 — edits are a draft with Save/Cancel, validated like Add
+
+`PlayerRow` in `RosterScreen.tsx` no longer calls `updatePlayer` on every keystroke. It holds a local `draft`, re-synced whenever the row (re)enters edit mode, and reuses the exact same collision rule Add uses (`wouldCollide`, extracted from the inline duplicate check `AddPlayerForm` already had). A blank first name or a rename that would render identically to another card disables Save and shows an inline reason; Cancel discards the draft and restores the last-saved card untouched. A pure `playerEditIsValid` helper exposes the same rule outside the component for the committed tests.
+
+### F03 — new-coach fixture starts with the raffle on
+
+The `"empty"` scenario (labelled "a new coach with nobody on the roster yet") now overrides `raffleEnabled: true` in `buildScenario`, instead of inheriting the shared `false` default. The `"team"` scenario (an existing coach, described in its own blurb as starting off with tickets already accrued) keeps the explicit `false` default, so the Keep/Start-fresh activation dialog still has a real accrued-ticket count to exercise.
+
+### F04 — closed-session kiosk offers a coach exit
+
+`KioskScreen` no longer collapses "no session" and "closed elsewhere" into the same bare notice. A `closedElsewhere` session now renders `ClosedKiosk`: the notice plus a number pad and a **Coach exit** button, with no player lookup at all — check-in stays fully disabled (the reducer already rejected `setPresent` once `closedElsewhere` was true; now the UI matches). The bound-kiosk-survives-refresh effect in `PrototypeApp.tsx` needed no change: it already re-enters `KioskScreen` regardless of `closedElsewhere`, so a refresh lands back on the same closed screen. Entering the correct code calls the same `onExit` the normal pad uses, which returns to `AttendanceScreen`'s existing "finished on another device" conflict panel. That panel's "Back to Home" button previously left a phantom `activeSession` behind (Home would still offer to "Resume" a session that had already finished elsewhere); it now dispatches a new `acknowledgeClosedElsewhere` action that clears it, so Home offers a clean Start again. Since the walkthrough panel's own controls are hidden while kiosk owns the screen, a small labelled dev-only "finish this session on another device" control was added inside `KioskScreen` itself so this transition stays reachable and testable while kiosk is active.
+
+### F05 — raffle eligibility follows round assignment, not archive status
+
+`ticketLines` no longer excludes every `archived` session. Eligibility for the current round is (and was already) governed entirely by `roundId === state.currentRoundId`; archived is now purely a reporting flag, matching P10. `ev-02` (the fixture's original archived-history example) still sits outside the current pool, but because it is assigned to the *previous* round, not because it is archived. A new fixture, `ev-07`, is a training archived for reporting but assigned to the *current* round, to make the distinction demonstrable: RaffleScreen now shows separate pills for "archived training(s) from earlier rounds" versus "archived training(s) still counted in this round," and both the committed tests and the live screen show its ticket count is identical whether `archived` is `true` or `false`.
+
+### Also fixed: a visible local-persistence failure, and dialogs that are actually accessible
+
+- The store's `localStorage.setItem` failure was previously swallowed with a comment claiming it "surfaces in the dev panel," which nothing did. `trySave` now reports success/failure into `state.localPersistenceFailed`; a banner replaces the false "Saved on this device" claim, and `AttendanceScreen`'s own delivery pill turns into "Local save failed — your marks are still here in memory" rather than continuing to claim a successful device save. A new dev-only "Simulate save failure" toggle exercises the identical failure branch a real quota/private-browsing exception would take (including that toggle itself failing to persist on the next refresh — the same risk a genuine failure carries).
+- The raffle activation dialog was a raw `role="dialog"` div. It is now built on the app's existing `@/app/components/ui/dialog` (Radix) primitives, wired through a real `DialogTrigger` rather than a plain `onClick`. That second detail mattered in practice: without it, Radix cannot return focus to the trigger on close. Getting there required two small ref-forwarding fixes, one of which is the sole change to `src/app/` in this revision:
+  - `src/prototype/components/ui.tsx`: `BigButton` now uses `React.forwardRef`, needed because `<DialogTrigger asChild>` clones its child and attaches a ref to it — a plain function component silently drops that ref (a real, reproducible `console.error`, not a style preference).
+  - `src/app/components/ui/dialog.tsx`: `DialogOverlay` had the same gap and is fixed the same way. This is the one exception to Stage 2's "no file under `src/app/` modified" invariant, made deliberately: the handoff explicitly asked to reuse the app's accessible dialog primitives, and reusing them surfaced a latent, pre-existing defect in that shared file (it would affect every other consumer of `Dialog`, such as `InviteCoachModal`/`PlayerTypeDialog`, not just this prototype). The fix is a mechanical, behavior-preserving `forwardRef` wrap — the same pattern current shadcn/ui ships — and does not touch any route, business logic, or the admin-coach-actions backend.
+
+### Verification — exactly what was run
+
+- `npx tsc --noEmit`: 0 errors.
+- `npx vitest run`: 31 passed, 1 failed of 32 collected, across 5 files (2 failing files). The new `src/prototype/store.test.ts` contributes 16 tests, covering U01, F01, F02, F03 and F05 with expected totals (not just label presence) — all 16 pass. The two failing/blocked files are identical to the previously recorded baseline: `LaunchPage.test.tsx`'s dated `9:00 AM` preset assertion, and `src/lib/stats.test.ts` still failing to collect because `VITE_SUPABASE_URL` is missing. **Neither is a regression from this revision.**
+- `npx vite build` into a temporary output directory (the tracked `dist/` was never touched): emitted the same three files as before (`index.html`, one CSS, one JS). `index-DZ3ExIO7.css` (215.60 kB) is byte-identical to the hash recorded in Stage 2 and the audit. The JS bundle's hash changed (1,239.80 kB → 1,239.83 kB, about 30 bytes) — this is expected and solely attributable to the one `forwardRef` line added to `src/app/components/ui/dialog.tsx` above; no prototype code is included (`grep` for `prototype` in the built JS matches only JavaScript's/React's own `.prototype` mechanics).
+- Browser walkthrough: headless Chromium via Playwright against `vite` on `localhost:5199`, at a 430×932 phone viewport and a 1024×768 tablet viewport. **36 scripted checks, all passing.** Beyond the existing six core journeys, this run specifically added and passed: a shared-membership player (Kayla) found under either team filter and exactly once under "All teams"; a rejected duplicate-card edit that never persists past a refresh; "Team at session" showing the same, full, non-split hours for Kayla under both of her teams with an explicit overlap label; the new-coach fixture starting with the raffle on; the existing-coach fixture keeping it off with accrued tickets; the RaffleScreen pill distinguishing an archived-but-current-round training from ones in earlier rounds; the activation dialog opening, Escape-dismissing, and returning focus to its trigger button; a simulated local-storage failure showing and clearing its banner; and the full F04 sequence — entering kiosk, forcing a remote finish, confirming the player pad is replaced by a code-only pad, surviving a refresh, rejecting a wrong code, accepting the right one, landing on the coach's conflict panel, and returning to a clean Home. No unexpected console errors or page errors were captured; one pre-existing, environment-only failure (`ERR_CERT_AUTHORITY_INVALID` for `prototype.html`'s external Google Fonts `<link>`, which cannot reach the internet from this sandbox) was identified, confirmed unrelated to any code in this revision — it predates it — and excluded.
+- **Not tested, and not claimed:** the same limits as the original Stage 2 prototype — no production, database, RLS, authorization, migration, real offline/service-worker behavior, screen-reader output, or real device testing. This remains a fixture-only demonstration of intended behavior, not the Stage 3 data/reliability contract.
+
+### Open decisions carried forward, unresolved by this revision
+
+U01's cardinality/jersey question (row 1 of the original open-decisions table) is now resolved and implemented. The rest are unchanged and still require an explicit owner decision before Stage 3 finalizes the corresponding operation — this revision does not approve any of them by having used one behavior:
+
+| # | Question | Blocks |
+| --- | --- | --- |
+| 2 | Should a coach-set PIN **replace** `0000`, or should `0000` keep working as a fallback? Still replaces it here. | Stage 3 coach setting, Stage 5 exit. |
+| 3 | Should a backdated optional training join the **current** round (P08), or the round that was open on the date entered? Still uses the current round here. | Stage 3 round assignment. |
+| 4 | Should a pending offline finish **block** starting a different session (P02)? Still blocks here. | Stage 4 queue design. |
+| 5 | Is **retirement** the right replacement for today's destructive player removal (P07)? | Stage 3 removal path. |
+| 6 | Should the kiosk have its own URL rather than in-memory state? | Stage 5. |
+| 7 | Should sessions be able to **target** one sub-team, changing attendance-rate denominators? Not approved by the request to sort by team, and not prototyped. | Stage 6 reporting. |
+
+P01–P12 in the specification remain recommendations, not approvals, exactly as before this revision.
+
+## Stage 2 revision handoff (fulfilled — 2026-09-21)
 
 Recommended model: **Claude Sonnet, High effort** for the focused Stage 2 revision. Stage 3 remains **Claude Opus 5, High effort** after the revised walkthrough and resolution of consequential data policies. This handoff does not authorize another stage by itself.
+
+This exact prompt was carried out on 2026-09-21 (see "Stage 2 revision" above); it is kept here as the historical record of what was requested. The live pointer for what to do next is the **Exact next-stage handoff** section below.
 
 Copy this when requesting the revision:
 
@@ -261,4 +321,71 @@ environment is unavailable, report that gap rather than using production.
 
 ### Before the walkthrough
 
-To open the prototype: `npm install`, then `npm run dev`, then visit `/prototype.html` on the dev server — not `/`, which is the current working app. The amber **Walkthrough controls** bar switches roster fixtures and simulates offline, failed saves and a session finished on another device. Everything is fixture data held in the browser; the *Empty roster* button resets it.
+To open the prototype: `npm install`, then `npm run dev`, then visit `/prototype.html` on the dev server — not `/`, which is the current working app. The amber **Walkthrough controls** bar switches roster fixtures and simulates offline, failed saves, a storage-write failure, and a session finished on another device. Everything is fixture data held in the browser; the *Empty roster* button resets it.
+
+## Exact next-stage handoff
+
+Recommended model: **Claude Opus 5, High effort**, per the specification's build sequence (§10). This handoff does not authorize Stage 4 or any production change by itself.
+
+Copy this when requesting Stage 3:
+
+```text
+Work only in johnfreyman/kaizen-tracker, starting from the latest
+claude/dazzling-sagan-hxrwfp branch (the Stage 2 revision), or the newer
+branch head if that revision was published elsewhere. Verify the remote and
+head before editing. Preserve unrelated changes, including .DS_Store. Do
+not work in seating-charts or start from main.
+
+Read repository instructions, docs/simplification-spec.md,
+docs/simplification-progress.md (including the Stage 2 revision section and
+its "Open decisions carried forward" table) and
+docs/simplification-stage2-audit.md.
+
+This is Stage 3: the data foundation and migration rehearsal. Work in an
+isolated, non-production environment only. Do not touch production data,
+run a production migration, or use the live Supabase project. If an
+isolated database/environment is unavailable, report that gap rather than
+substituting production.
+
+1. Inspect the actual deployed-like schema, constraints, grants, views,
+   triggers and RPC definitions rather than assuming the checked-in
+   migration files were applied exactly as written (spec S8.A).
+2. Design additive tables/columns for: a stable player identity (existing
+   roster UUIDs reused where unambiguous, never derived from name or
+   number); a player-owned jersey number, one per player across every team
+   and never per membership (D08); a many-to-many player/sub-team
+   membership table with a unique owner/player/team combination, matching
+   the Stage 2 revision's subTeamIds contract (D07); a session-membership
+   snapshot so historical attribution never depends on a player's current
+   membership (this is F01's fix as a real schema, not the fixture-only
+   snapshot the prototype used); and independent raffle rounds with an
+   immutable per-session round assignment, so ticket eligibility depends on
+   round assignment alone and never on archived status (F05).
+3. Do not carry the prototype's in-memory reducer or its single
+   localStorage key into this stage. Design a durable, coach-scoped
+   outbox with operation ids, revisions and idempotent RPCs (spec S5-S6).
+4. Rehearse the additive backfill twice in the isolated environment; the
+   second pass must produce no extra attendance/ticket/draw/round records.
+   Seed the initial current raffle pool from current, unarchived trainings
+   only (D03), assigning older archived history to non-current rounds
+   rather than filtering by the archived flag.
+5. Resolve, or explicitly re-confirm as still open, each item in the Stage
+   2 revision's "Open decisions carried forward" table before encoding it
+   into a migration or RPC contract: PIN replace-vs-fallback, backdated
+   training round assignment, pending-finish blocking a new session,
+   retirement vs. destructive removal, kiosk URL vs. in-memory binding, and
+   whether a session can target one sub-team. A recommendation the
+   prototype happened to use is not owner approval.
+6. Verify cross-coach ownership and idempotent operations using actual
+   database roles in the isolated environment, not only UI mocks. Confirm
+   the sole super admin (johnfreyman70@gmail.com) and the secured
+   admin-coach-actions backend remain the only privileged path; do not
+   grant browser SELECT on any admin aggregate view or promote a user via
+   client-supplied metadata.
+
+Update docs/simplification-progress.md with the Stage 3 state, evidence,
+and any newly surfaced gaps, using the same "exactly what was run"
+standard as the Stage 2 revision. Do not claim Stage 4 (coach attendance)
+work. STOP after the Stage 3 data foundation and migration rehearsal; do
+not start the real coach attendance rewrite or any production deployment.
+```

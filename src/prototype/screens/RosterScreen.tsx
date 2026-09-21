@@ -1,14 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Plus, UserCircle, UserMinus } from "lucide-react";
 import { BigButton, EmptyState, Note, Panel, Pill, SectionTitle } from "../components/ui";
+import { DEFAULT_GROUP_NAME } from "../fixtures";
 import {
   collidingPlayerIds,
   displayName,
   playerTotals,
   subTeamName,
   usePrototypeStore,
+  wouldCollide,
 } from "../store";
-import type { Player } from "../types";
+import type { Player, SubTeam } from "../types";
 
 export default function RosterScreen() {
   const { state, actions } = usePrototypeStore();
@@ -21,7 +23,10 @@ export default function RosterScreen() {
   const colliding = useMemo(() => collidingPlayerIds(state.players), [state.players]);
 
   const roster = state.players.filter((p) => !p.retired);
-  const visible = filter === "all" ? roster : roster.filter((p) => (p.subTeamId ?? "none") === filter);
+  const visible =
+    filter === "all"
+      ? roster
+      : roster.filter((p) => (filter === "none" ? p.subTeamIds.length === 0 : p.subTeamIds.includes(filter)));
 
   return (
     <div className="space-y-5">
@@ -32,7 +37,7 @@ export default function RosterScreen() {
             title={`${roster.length} player${roster.length === 1 ? "" : "s"}`}
             hint={
               hasSubTeams
-                ? "Players belong to one sub-team. Sort and filter are presentation only."
+                ? "Players can belong to several sub-teams at once. Sort and filter are presentation only."
                 : "No custom sub-teams, so everyone is simply Kaizen."
             }
           />
@@ -62,7 +67,7 @@ export default function RosterScreen() {
                 {t.name}
               </Chip>
             ))}
-            {roster.some((p) => p.subTeamId === null) && (
+            {roster.some((p) => p.subTeamIds.length === 0) && (
               <Chip active={filter === "none"} onClick={() => setFilter("none")}>
                 Kaizen (no sub-team)
               </Chip>
@@ -93,10 +98,9 @@ export default function RosterScreen() {
       )}
 
       {hasSubTeams && (
-        <Note tone="assumption">
-          Each player holds <strong>one</strong> sub-team. The owner's question — can a player
-          belong to several at once? — is still open, so P12's single membership is prototyped and
-          labelled rather than assumed settled. Stage 3 cannot fix cardinality until it is answered.
+        <Note>
+          A player can belong to several sub-teams at once (D07); the jersey number stays one per
+          player across every team they are on (D08). A card shows every current membership.
         </Note>
       )}
     </div>
@@ -119,6 +123,31 @@ function PlayerRow({
   const activeTeams = state.subTeams.filter((t) => t.active);
   const [confirmRetire, setConfirmRetire] = useState(false);
 
+  /*
+   * F02: edits are a draft with explicit Save/Cancel, held to the same
+   * trimmed-name/card-distinction validation as Add, instead of writing
+   * every keystroke straight to the store. Re-sync the draft whenever this
+   * row (re)enters edit mode, so a stale draft from a prior open never
+   * leaks in.
+   */
+  const [draft, setDraft] = useState<Player>(player);
+  useEffect(() => {
+    if (editing) setDraft(player);
+  }, [editing, player]);
+
+  const trimmedFirst = draft.firstName.trim();
+  const trimmedLabel = draft.label?.trim() || undefined;
+  const candidateName = displayName({ ...draft, firstName: trimmedFirst, label: trimmedLabel });
+  const emptyName = trimmedFirst === "";
+  const clash = !emptyName && wouldCollide(state, candidateName, player.id);
+  const canSave = !emptyName && !clash;
+
+  const cancelEdit = () => {
+    setDraft(player);
+    setConfirmRetire(false);
+    onToggleEdit();
+  };
+
   return (
     <Panel className="p-4 md:p-5">
       <div className="flex flex-wrap items-center gap-4">
@@ -130,7 +159,11 @@ function PlayerRow({
             {player.label ? `${player.firstName} ${player.label}` : player.firstName}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
-            <Pill>{subTeamName(state, player.subTeamId)}</Pill>
+            {player.subTeamIds.length === 0 ? (
+              <Pill>{DEFAULT_GROUP_NAME}</Pill>
+            ) : (
+              player.subTeamIds.map((id) => <Pill key={id}>{subTeamName(state, id)}</Pill>)
+            )}
             {player.guest && (
               <Pill tone="accent">
                 <UserCircle className="size-3" />
@@ -146,8 +179,8 @@ function PlayerRow({
             <p className="mt-1.5 text-xs mc-text-muted">Carried over as “{player.legacyName}”</p>
           )}
         </div>
-        <BigButton variant="quiet" onClick={onToggleEdit}>
-          {editing ? "Done" : "Edit"}
+        <BigButton variant="quiet" onClick={editing ? cancelEdit : onToggleEdit}>
+          {editing ? "Cancel" : "Edit"}
         </BigButton>
       </div>
 
@@ -157,18 +190,16 @@ function PlayerRow({
             <Field label="First name">
               <input
                 className={inputCls}
-                value={player.firstName}
-                onChange={(e) => actions.updatePlayer(player.id, { firstName: e.target.value })}
+                value={draft.firstName}
+                onChange={(e) => setDraft((d) => ({ ...d, firstName: e.target.value }))}
               />
             </Field>
             <Field label="Distinguishing label" hint="Only if two cards look the same">
               <input
                 className={inputCls}
                 placeholder="M."
-                value={player.label ?? ""}
-                onChange={(e) =>
-                  actions.updatePlayer(player.id, { label: e.target.value || undefined })
-                }
+                value={draft.label ?? ""}
+                onChange={(e) => setDraft((d) => ({ ...d, label: e.target.value }))}
               />
             </Field>
             <Field label="Jersey number" hint="0 and 00 are different people">
@@ -177,37 +208,57 @@ function PlayerRow({
                 inputMode="numeric"
                 maxLength={3}
                 placeholder="Not set"
-                value={player.number ?? ""}
+                value={draft.number ?? ""}
                 onChange={(e) => {
                   const v = e.target.value.replace(/[^0-9]/g, "").slice(0, 3);
-                  actions.updatePlayer(player.id, { number: v === "" ? null : v });
+                  setDraft((d) => ({ ...d, number: v === "" ? null : v }));
                 }}
               />
             </Field>
           </div>
 
           {activeTeams.length > 0 && (
-            <Field label="Sub-team" hint="Moving a player keeps their hours, tickets and history">
-              <select
-                className={inputCls}
-                value={player.subTeamId ?? "none"}
-                onChange={(e) =>
-                  actions.updatePlayer(player.id, {
-                    subTeamId: e.target.value === "none" ? null : e.target.value,
-                  })
-                }
-              >
-                <option value="none">Kaizen (no sub-team)</option>
-                {activeTeams.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            <SubTeamCheckboxes
+              activeTeams={activeTeams}
+              selected={draft.subTeamIds}
+              onChange={(subTeamIds) => setDraft((d) => ({ ...d, subTeamIds }))}
+              hint="Moving a player keeps their hours, tickets and history. Removing one membership never removes the others."
+            />
+          )}
+
+          {emptyName && (
+            <p className="text-sm font-medium text-red-500">First name cannot be empty.</p>
+          )}
+          {!emptyName && clash && (
+            <p className="text-sm font-medium text-red-500">
+              A card already reads “{candidateName}”. Add or change a label so the two can be told
+              apart.
+            </p>
           )}
 
           <div className="flex flex-wrap items-center gap-3">
+            <BigButton variant="quiet" onClick={cancelEdit}>
+              Cancel
+            </BigButton>
+            <BigButton
+              variant="primary"
+              disabled={!canSave}
+              onClick={() => {
+                actions.updatePlayer(player.id, {
+                  firstName: trimmedFirst,
+                  label: trimmedLabel,
+                  number: draft.number,
+                  subTeamIds: draft.subTeamIds,
+                  guest: draft.guest,
+                });
+                onToggleEdit();
+              }}
+            >
+              Save
+            </BigButton>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 border-t mc-border pt-4">
             {confirmRetire ? (
               <>
                 <p className="text-sm mc-text-secondary flex-1 min-w-[16rem]">
@@ -222,6 +273,7 @@ function PlayerRow({
                   onClick={() => {
                     actions.updatePlayer(player.id, { retired: true });
                     setConfirmRetire(false);
+                    onToggleEdit();
                   }}
                 >
                   Retire player
@@ -244,13 +296,60 @@ function PlayerRow({
   );
 }
 
+/** Shared by Add and Edit so both hold to the exact same membership control. */
+function SubTeamCheckboxes({
+  activeTeams,
+  selected,
+  onChange,
+  hint,
+}: {
+  activeTeams: SubTeam[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+  hint?: string;
+}) {
+  return (
+    <fieldset>
+      <legend className="block text-sm font-semibold mc-text">
+        Sub-teams <span className="font-normal text-xs mc-text-muted">— select every team this player is on</span>
+      </legend>
+      {hint && <p className="mt-0.5 text-xs mc-text-muted">{hint}</p>}
+      <div className="mt-1.5 flex flex-wrap gap-2">
+        {activeTeams.map((t) => {
+          const checked = selected.includes(t.id);
+          return (
+            <label
+              key={t.id}
+              className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm font-medium cursor-pointer transition-colors ${
+                checked
+                  ? "border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-300"
+                  : "mc-card mc-border mc-text-secondary"
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="size-4"
+                checked={checked}
+                onChange={(e) =>
+                  onChange(e.target.checked ? [...selected, t.id] : selected.filter((id) => id !== t.id))
+                }
+              />
+              {t.name}
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
 function AddPlayerForm({ onDone }: { onDone: () => void }) {
   const { state, actions } = usePrototypeStore();
   const activeTeams = state.subTeams.filter((t) => t.active);
   const [firstName, setFirstName] = useState("");
   const [label, setLabel] = useState("");
   const [number, setNumber] = useState("");
-  const [subTeamId, setSubTeamId] = useState<string>(activeTeams[0]?.id ?? "none");
+  const [subTeamIds, setSubTeamIds] = useState<string[]>([]);
   const [guest, setGuest] = useState(false);
 
   const candidate: Player = {
@@ -258,15 +357,11 @@ function AddPlayerForm({ onDone }: { onDone: () => void }) {
     firstName: firstName.trim(),
     label: label.trim() || undefined,
     number: number === "" ? null : number,
-    subTeamId: subTeamId === "none" ? null : subTeamId,
+    subTeamIds,
     guest,
     retired: false,
   };
-  const clash =
-    firstName.trim() !== "" &&
-    state.players.some(
-      (p) => !p.retired && displayName(p).toLowerCase() === displayName(candidate).toLowerCase(),
-    );
+  const clash = firstName.trim() !== "" && wouldCollide(state, displayName(candidate));
 
   return (
     <Panel>
@@ -289,19 +384,11 @@ function AddPlayerForm({ onDone }: { onDone: () => void }) {
         </Field>
       </div>
 
-      {/* R14: the sub-team question only appears when sub-teams exist. */}
+      {/* R14: the sub-team question only appears when sub-teams exist. A
+          player can check as many as apply at once (D07). */}
       {activeTeams.length > 0 && (
         <div className="mt-4">
-          <Field label="Sub-team">
-            <select className={inputCls} value={subTeamId} onChange={(e) => setSubTeamId(e.target.value)}>
-              <option value="none">Kaizen (no sub-team)</option>
-              {activeTeams.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+          <SubTeamCheckboxes activeTeams={activeTeams} selected={subTeamIds} onChange={setSubTeamIds} />
         </div>
       )}
 

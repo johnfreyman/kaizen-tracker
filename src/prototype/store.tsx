@@ -33,7 +33,10 @@ import type {
   SessionType,
 } from "./types";
 
-const STORAGE_KEY = "kaizen-stage2-prototype";
+// Bumped for the Stage 2 revision: Player.subTeamId (scalar) became
+// Player.subTeamIds (array). A browser holding an old-shaped cached state
+// would otherwise crash on the new array-based reads below.
+const STORAGE_KEY = "kaizen-stage2-prototype-v2";
 
 /** New sessions credit 1.5 hours (D05). Never 90. */
 export const NEW_SESSION_CREDIT_HOURS = 1.5;
@@ -59,8 +62,11 @@ type Action =
   | { type: "enterKiosk" }
   | { type: "exitKiosk" }
   | { type: "closeElsewhere" }
+  | { type: "acknowledgeClosedElsewhere" }
   | { type: "dismissSummary" }
   | { type: "setNetwork"; mode: PrototypeState["networkMode"] }
+  | { type: "setSimulateStorageFailure"; on: boolean }
+  | { type: "setLocalPersistenceFailed"; failed: boolean }
   | { type: "addPlayer"; player: Player }
   | { type: "updatePlayer"; playerId: string; patch: Partial<Player> }
   | { type: "addSubTeam"; name: string }
@@ -71,7 +77,7 @@ type Action =
   | { type: "setRaffle"; enabled: boolean }
   | { type: "startFreshRound" };
 
-function reducer(state: PrototypeState, action: Action): PrototypeState {
+export function reducer(state: PrototypeState, action: Action): PrototypeState {
   switch (action.type) {
     case "reset":
       return buildScenario(action.scenario);
@@ -134,9 +140,9 @@ function reducer(state: PrototypeState, action: Action): PrototypeState {
       const attendeeIds = Object.entries(s.present)
         .filter(([, v]) => v)
         .map(([id]) => id);
-      const teamAtSession: Record<string, string | null> = {};
+      const teamAtSession: Record<string, string[]> = {};
       for (const id of attendeeIds) {
-        teamAtSession[id] = state.players.find((p) => p.id === id)?.subTeamId ?? null;
+        teamAtSession[id] = state.players.find((p) => p.id === id)?.subTeamIds ?? [];
       }
       const finalized: FinalizedSession = {
         id: s.id,
@@ -189,11 +195,29 @@ function reducer(state: PrototypeState, action: Action): PrototypeState {
       return { ...state, activeSession: { ...s, closedElsewhere: true } };
     }
 
+    case "acknowledgeClosedElsewhere": {
+      // The coach's reconciliation exit from a session finished elsewhere
+      // (F04): clears the stale session so Home stops offering to "Resume"
+      // a training that is already finished. It never revives it.
+      const s = state.activeSession;
+      if (!s || !s.closedElsewhere) return state;
+      return { ...state, activeSession: null, kioskSessionId: null };
+    }
+
     case "dismissSummary":
       return { ...state, lastFinished: null };
 
     case "setNetwork":
       return { ...state, networkMode: action.mode };
+
+    case "setSimulateStorageFailure":
+      return { ...state, simulateStorageFailure: action.on };
+
+    case "setLocalPersistenceFailed":
+      // Bail out with the same reference when nothing changed, so the save
+      // effect below does not dispatch itself into an infinite loop.
+      if (state.localPersistenceFailed === action.failed) return state;
+      return { ...state, localPersistenceFailed: action.failed };
 
     case "addPlayer":
       return { ...state, players: [...state.players, action.player] };
@@ -272,9 +296,26 @@ function load(scenario: ScenarioId): PrototypeState {
     }
   } catch {
     // Private browsing or a quota failure. The prototype still runs; it just
-    // cannot demonstrate refresh recovery. Surfaced in the dev panel.
+    // cannot demonstrate refresh recovery.
   }
   return buildScenario(scenario);
+}
+
+/**
+ * Attempts the real write, or a simulated one when the dev toggle is on, and
+ * reports success instead of swallowing the failure. The simulated path
+ * exercises the exact same failure branch a genuine quota/private-browsing
+ * exception would take, including this toggle itself failing to persist on
+ * the next refresh — the same risk a real storage failure carries.
+ */
+function trySave(state: PrototypeState, simulateFailure: boolean): boolean {
+  try {
+    if (simulateFailure) throw new DOMException("Simulated quota exceeded", "QuotaExceededError");
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 interface StoreValue {
@@ -291,8 +332,10 @@ interface StoreValue {
     enterKiosk: () => void;
     exitKiosk: () => void;
     closeElsewhere: () => void;
+    acknowledgeClosedElsewhere: () => void;
     dismissSummary: () => void;
     setNetwork: (m: PrototypeState["networkMode"]) => void;
+    setSimulateStorageFailure: (on: boolean) => void;
     addPlayer: (p: Player) => void;
     updatePlayer: (id: string, patch: Partial<Player>) => void;
     addSubTeam: (name: string) => void;
@@ -311,11 +354,8 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, "team" as ScenarioId, load);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      /* ignore — see load() */
-    }
+    const ok = trySave(state, state.simulateStorageFailure);
+    dispatch({ type: "setLocalPersistenceFailed", failed: !ok });
   }, [state]);
 
   const actions = useMemo<StoreValue["actions"]>(
@@ -330,8 +370,10 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
       enterKiosk: () => dispatch({ type: "enterKiosk" }),
       exitKiosk: () => dispatch({ type: "exitKiosk" }),
       closeElsewhere: () => dispatch({ type: "closeElsewhere" }),
+      acknowledgeClosedElsewhere: () => dispatch({ type: "acknowledgeClosedElsewhere" }),
       dismissSummary: () => dispatch({ type: "dismissSummary" }),
       setNetwork: (mode) => dispatch({ type: "setNetwork", mode }),
+      setSimulateStorageFailure: (on) => dispatch({ type: "setSimulateStorageFailure", on }),
       addPlayer: (player) => dispatch({ type: "addPlayer", player }),
       updatePlayer: (playerId, patch) => dispatch({ type: "updatePlayer", playerId, patch }),
       addSubTeam: (name) => dispatch({ type: "addSubTeam", name }),
@@ -363,15 +405,20 @@ export function displayName(p: Player): string {
   return p.number === null ? name : `${name} · #${p.number}`;
 }
 
-export function subTeamName(state: PrototypeState, id: string | null): string {
-  if (id === null) return DEFAULT_GROUP_NAME;
+export function subTeamName(state: PrototypeState, id: string): string {
   return state.subTeams.find((t) => t.id === id)?.name ?? "Unknown team";
+}
+
+/** Every membership joined for a compact single-line display (D07). */
+export function subTeamLabel(state: PrototypeState, ids: string[]): string {
+  if (ids.length === 0) return DEFAULT_GROUP_NAME;
+  return ids.map((id) => subTeamName(state, id)).join(" + ");
 }
 
 /**
  * Cards collide when the same first name + label + number would render
  * identically. A shared number alone is fine; a shared first name alone is
- * fine (R03).
+ * fine (R03). Team membership never factors in: it is not part of identity.
  */
 export function collidingPlayerIds(players: Player[]): Set<string> {
   const seen = new Map<string, string[]>();
@@ -385,6 +432,42 @@ export function collidingPlayerIds(players: Player[]): Set<string> {
     if (ids.length > 1) ids.forEach((id) => out.add(id));
   }
   return out;
+}
+
+/**
+ * Would a player displaying as `candidateName` collide with an existing,
+ * non-retired card? Shared by the add and edit paths (F02) so an edit can
+ * never bypass the validation an add is held to.
+ */
+export function wouldCollide(
+  state: PrototypeState,
+  candidateName: string,
+  excludePlayerId?: string,
+): boolean {
+  const key = candidateName.toLowerCase();
+  return state.players.some(
+    (p) => p.id !== excludePlayerId && !p.retired && displayName(p).toLowerCase() === key,
+  );
+}
+
+export interface PlayerEditValidity {
+  valid: boolean;
+  reason?: "empty-name" | "duplicate-card";
+}
+
+/** Same rule an add is held to: no blank identity, no unresolved identical card. */
+export function playerEditIsValid(
+  state: PrototypeState,
+  playerId: string,
+  candidate: Pick<Player, "firstName" | "label" | "number">,
+): PlayerEditValidity {
+  const firstName = candidate.firstName.trim();
+  if (firstName === "") return { valid: false, reason: "empty-name" };
+  const label = candidate.label?.trim() || undefined;
+  const existing = state.players.find((p) => p.id === playerId);
+  const name = displayName({ ...(existing as Player), ...candidate, firstName, label });
+  if (wouldCollide(state, name, playerId)) return { valid: false, reason: "duplicate-card" };
+  return { valid: true };
 }
 
 /** Exact string match, so `0` and `00` never collapse (D02). */
@@ -402,12 +485,18 @@ export interface TicketLine {
  * One entitlement per (optional training, player). Derived from immutable
  * session/round membership rather than a separate counter that can drift
  * (§6, "Ticket entitlement").
+ *
+ * Eligibility follows each session's immutable round assignment alone
+ * (F05). `archived` is a reporting/organization flag (P10) and never
+ * excludes a session here: D03's "archived history is preserved, not
+ * pooled" is satisfied by seeding old archived fixtures into a non-current
+ * round (see ev-02), not by filtering on `archived` — that would revive or
+ * revoke a current-round ticket on every future archive/restore.
  */
 export function ticketLines(state: PrototypeState): TicketLine[] {
   const out: TicketLine[] = [];
   for (const s of state.sessions) {
     if (s.type !== "training") continue;
-    if (s.archived) continue; // D03: archived history is preserved, not pooled
     for (const playerId of s.attendeeIds) {
       out.push({ playerId, sessionId: s.id, roundId: s.roundId });
     }
@@ -417,6 +506,69 @@ export function ticketLines(state: PrototypeState): TicketLine[] {
 
 export function currentRoundTickets(state: PrototypeState): TicketLine[] {
   return ticketLines(state).filter((t) => t.roundId === state.currentRoundId);
+}
+
+export interface HistoricalTeamRow {
+  player: Player;
+  qualifyingSessionIds: string[];
+  creditedHours: number;
+  practices: number;
+  trainings: number;
+  tickets: number;
+  /** Other teams this same player also qualifies for historically (P12, F01). */
+  otherTeams: string[];
+}
+
+/**
+ * "Team at session" totals for one specific team, computed from session
+ * membership snapshots rather than each player's current membership (F01).
+ * A transfer never moves a past session's hours to the player's new team:
+ * only sessions whose own snapshot names `teamId` qualify. Sessions with no
+ * snapshot at all (legacy/unknown) never qualify for a specific team.
+ */
+export function historicalTeamRows(state: PrototypeState, teamId: string): HistoricalTeamRow[] {
+  const rows: HistoricalTeamRow[] = [];
+  for (const p of state.players) {
+    const qualifying = state.sessions.filter((s) => {
+      if (!s.attendeeIds.includes(p.id) || !s.teamAtSession) return false;
+      return (s.teamAtSession[p.id] ?? []).includes(teamId);
+    });
+    if (qualifying.length === 0) continue;
+
+    let creditedHours = 0;
+    let practices = 0;
+    let trainings = 0;
+    const qualifyingIds = new Set<string>();
+    for (const s of qualifying) {
+      creditedHours += s.creditHours;
+      if (s.type === "practice") practices += 1;
+      else trainings += 1;
+      qualifyingIds.add(s.id);
+    }
+    const tickets = currentRoundTickets(state).filter(
+      (t) => t.playerId === p.id && qualifyingIds.has(t.sessionId),
+    ).length;
+
+    // Explicitly label overlap: every other team this player also qualifies
+    // for historically, so a reader never mistakes per-team totals as additive.
+    const otherTeamIds = new Set<string>();
+    for (const s of state.sessions) {
+      if (!s.attendeeIds.includes(p.id) || !s.teamAtSession) continue;
+      for (const id of s.teamAtSession[p.id] ?? []) if (id !== teamId) otherTeamIds.add(id);
+    }
+    const otherTeams = [...otherTeamIds].map((id) => subTeamName(state, id));
+
+    rows.push({
+      player: p,
+      qualifyingSessionIds: [...qualifyingIds],
+      creditedHours,
+      practices,
+      trainings,
+      tickets,
+      otherTeams,
+    });
+  }
+  return rows;
 }
 
 export interface PlayerTotals {

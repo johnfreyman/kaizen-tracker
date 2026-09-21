@@ -3,7 +3,8 @@
   "git": {
     "deploymentEnabled": {
       "codex/simplification-plan": false,
-      "claude/stage-2-prototype": false
+      "claude/stage-2-prototype": false,
+      "claude/dazzling-sagan-hxrwfp": false
     }
   }
 }

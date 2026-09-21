@@ -6,6 +6,10 @@ export default function RaffleScreen() {
   const current = currentRoundTickets(state);
   const all = ticketLines(state);
   const archivedTrainings = state.sessions.filter((s) => s.type === "training" && s.archived);
+  // F05: eligibility follows round assignment, not the archived flag, so an
+  // archived training can still be inside the current round.
+  const archivedOutsideCurrentRound = archivedTrainings.filter((s) => s.roundId !== state.currentRoundId);
+  const archivedInCurrentRound = archivedTrainings.filter((s) => s.roundId === state.currentRoundId);
 
   const byPlayer = new Map<string, number>();
   for (const t of current) byPlayer.set(t.playerId, (byPlayer.get(t.playerId) ?? 0) + 1);
@@ -21,10 +25,16 @@ export default function RaffleScreen() {
         <div className="flex flex-wrap gap-2">
           <Pill tone="accent">Current round: {state.currentRoundId}</Pill>
           <Pill>{all.length - current.length} tickets in earlier rounds</Pill>
-          {archivedTrainings.length > 0 && (
+          {archivedOutsideCurrentRound.length > 0 && (
             <Pill tone="warn">
-              {archivedTrainings.length} archived training
-              {archivedTrainings.length === 1 ? "" : "s"} kept out of the pool
+              {archivedOutsideCurrentRound.length} archived training
+              {archivedOutsideCurrentRound.length === 1 ? "" : "s"} from earlier rounds
+            </Pill>
+          )}
+          {archivedInCurrentRound.length > 0 && (
+            <Pill tone="ok">
+              {archivedInCurrentRound.length} archived training
+              {archivedInCurrentRound.length === 1 ? "" : "s"} still counted in this round
             </Pill>
           )}
         </div>
@@ -63,7 +73,9 @@ export default function RaffleScreen() {
       <Note>
         Drawing is Stage 6 work and is not prototyped here. The behaviors to preserve: a draw
         records a winner without consuming tickets, optional last-N exclusion filters the draw pool
-        only, and archived history stays out of the initial current pool (D03).
+        only, and ticket eligibility follows each session's immutable round assignment — archiving
+        or restoring a session never adds or removes a current-round ticket (F05). The initial
+        migration still seeds old archived history outside the first current pool (D03).
       </Note>
     </div>
   );

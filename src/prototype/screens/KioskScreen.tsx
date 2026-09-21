@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Check, Delete, Search, Undo2 } from "lucide-react";
 import { formatDate } from "@/lib/dates";
 import { Panel } from "../components/ui";
-import { displayName, matchByNumber, subTeamName, usePrototypeStore } from "../store";
+import { displayName, matchByNumber, subTeamLabel, usePrototypeStore } from "../store";
 import type { Player } from "../types";
 
 type Phase =
@@ -33,7 +33,9 @@ export default function KioskScreen({ onExit }: { onExit: () => void }) {
     return () => clearTimeout(t);
   }, [phase]);
 
-  if (!session || session.closedElsewhere) {
+  const exitTarget = state.exitCode.mode === "pin" ? state.exitCode.pin : "0000";
+
+  if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: "var(--mc-bg)" }}>
         <Panel className="max-w-md text-center">
@@ -47,7 +49,17 @@ export default function KioskScreen({ onExit }: { onExit: () => void }) {
     );
   }
 
-  const exitTarget = state.exitCode.mode === "pin" ? state.exitCode.pin : "0000";
+  /*
+   * F04: a session finished elsewhere still needs a way back for the coach.
+   * Check-in stays fully disabled (the reducer already rejects setPresent
+   * once closedElsewhere is true), but the exit code still works, so the
+   * coach is never stranded on a dead screen. Entering the code hands off to
+   * the same onExit the number pad uses, which lands on AttendanceScreen's
+   * existing "finished on another device" reconciliation panel.
+   */
+  if (session.closedElsewhere) {
+    return <ClosedKiosk exitTarget={exitTarget} onExit={onExit} />;
+  }
 
   const press = (d: string) => {
     if (entry.length >= 4) return;
@@ -95,6 +107,22 @@ export default function KioskScreen({ onExit }: { onExit: () => void }) {
         </p>
         <h1 className="mt-1 text-xl font-bold mc-text">Check in</h1>
       </header>
+
+      {/*
+       * Dev-only, not a product surface (same framing as PrototypeApp's
+       * walkthrough banner). The normal walkthrough controls are hidden
+       * while kiosk owns the screen, so F04's "closed while kiosk is
+       * active" scenario needs its own reachable trigger here.
+       */}
+      <div className="border-b border-amber-500/30 bg-amber-500/10 px-5 py-2 text-center">
+        <button
+          type="button"
+          onClick={actions.closeElsewhere}
+          className="text-[11px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300 underline underline-offset-2 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        >
+          Dev: finish this session on another device
+        </button>
+      </div>
 
       <main className="flex-1 w-full max-w-xl mx-auto p-5 space-y-5">
         {phase.k === "confirmed" ? (
@@ -177,7 +205,7 @@ export default function KioskScreen({ onExit }: { onExit: () => void }) {
                           {p.label ? `${p.firstName} ${p.label}` : p.firstName}
                         </div>
                         <div className="text-xs mc-text-secondary truncate">
-                          {subTeamName(state, p.subTeamId)}
+                          {subTeamLabel(state, p.subTeamIds)}
                         </div>
                         {isPresent && (
                           <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
@@ -259,6 +287,85 @@ export default function KioskScreen({ onExit }: { onExit: () => void }) {
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+/**
+ * F04: the session was finished elsewhere while this device stayed in
+ * kiosk. Check-in is gone entirely — there is no player lookup here, only
+ * the exit code — so a player at this screen cannot do anything with it.
+ * A correct code still hands off to onExit, the coach's way back.
+ */
+function ClosedKiosk({ exitTarget, onExit }: { exitTarget: string; onExit: () => void }) {
+  const [entry, setEntry] = useState("");
+  const [wrong, setWrong] = useState(false);
+
+  const press = (d: string) => {
+    if (entry.length >= 4) return;
+    setEntry(entry + d);
+    setWrong(false);
+  };
+
+  const submit = () => {
+    if (!entry) return;
+    if (entry === exitTarget) {
+      setEntry("");
+      onExit();
+      return;
+    }
+    setWrong(true);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: "var(--mc-bg)" }}>
+      <Panel className="max-w-md w-full text-center space-y-5">
+        <div>
+          <h1 className="text-2xl font-bold mc-text">Session finished — ask your coach</h1>
+          <p className="mt-2 text-sm mc-text-secondary">
+            This device is no longer checking anyone in. A coach can enter the exit code below to
+            leave this screen and reconcile the session — it does not reveal the coach dashboard.
+          </p>
+        </div>
+
+        <output aria-live="polite" className="block text-4xl font-bold mc-mono mc-text tracking-widest min-h-[3rem]">
+          {entry || "—"}
+        </output>
+
+        {wrong && (
+          <p role="alert" className="text-sm font-semibold text-red-500">
+            That code did not match. Try again.
+          </p>
+        )}
+
+        <div className="grid grid-cols-3 gap-3">
+          {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
+            <PadKey key={d} onClick={() => press(d)}>
+              {d}
+            </PadKey>
+          ))}
+          <PadKey onClick={() => { setEntry(""); setWrong(false); }} aria-label="Clear" muted>
+            Clear
+          </PadKey>
+          <PadKey onClick={() => press("0")}>0</PadKey>
+          <PadKey
+            onClick={() => { setEntry(entry.slice(0, -1)); setWrong(false); }}
+            aria-label="Backspace"
+            muted
+          >
+            <Delete className="size-6" />
+          </PadKey>
+        </div>
+
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!entry}
+          className="w-full min-h-16 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-lg font-bold disabled:opacity-40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        >
+          Coach exit
+        </button>
+      </Panel>
     </div>
   );
 }

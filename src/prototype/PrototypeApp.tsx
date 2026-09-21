@@ -64,6 +64,7 @@ function Shell() {
     <div className={resolved === "light" ? "mc-light" : "dark"}>
       <div className="min-h-screen flex flex-col" style={{ backgroundColor: "var(--mc-bg)" }}>
         <DevBanner />
+        {state.localPersistenceFailed && <PersistenceFailureBanner />}
 
         <header
           className="sticky top-0 z-30 border-b mc-border backdrop-blur-sm"
@@ -177,6 +178,22 @@ function DevBanner() {
               </DevChip>
             </Row>
 
+            <Row label="Storage">
+              <DevChip
+                active={!state.simulateStorageFailure}
+                onClick={() => actions.setSimulateStorageFailure(false)}
+              >
+                OK
+              </DevChip>
+              <DevChip
+                active={state.simulateStorageFailure}
+                onClick={() => actions.setSimulateStorageFailure(true)}
+                title="A refresh while this is on reverts to the last successful save, including this toggle — the same risk a real quota/private-browsing failure carries."
+              >
+                Simulate save failure
+              </DevChip>
+            </Row>
+
             <div className="flex flex-wrap gap-2 pt-1">
               <Pill>{state.players.filter((p) => !p.retired).length} players</Pill>
               <Pill>{state.sessions.length} finalized sessions</Pill>
@@ -184,6 +201,25 @@ function DevBanner() {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Replaces the silent swallow that used to sit under "Saved on this device"
+ * (audit limits section): a local write actually failed, so this is shown
+ * instead of quietly claiming the save succeeded.
+ */
+function PersistenceFailureBanner() {
+  return (
+    <div className="border-b border-red-500/30 bg-red-500/10" role="alert">
+      <div className="mx-auto max-w-5xl px-4 py-2.5">
+        <p className="text-xs font-semibold text-red-700 dark:text-red-300">
+          This device could not save your latest changes locally — storage may be full or private
+          browsing is blocking it. Keep this tab open; changes only exist in memory until it
+          recovers.
+        </p>
       </div>
     </div>
   );

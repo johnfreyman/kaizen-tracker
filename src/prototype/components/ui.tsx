@@ -6,6 +6,7 @@
  * walkthrough looks like the product, not like a separate design.
  */
 
+import { forwardRef } from "react";
 import type { ReactNode } from "react";
 import { cn } from "@/app/components/ui/utils";
 
@@ -60,21 +61,24 @@ export function Note({ children, tone = "info" }: { children: ReactNode; tone?: 
   );
 }
 
-/** Minimum 56px tall: usable on a phone with a ball in the other hand. */
-export function BigButton({
-  children,
-  onClick,
-  variant = "default",
-  disabled,
-  className,
-  ...rest
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-  variant?: "default" | "primary" | "quiet" | "danger";
-  disabled?: boolean;
-  className?: string;
-} & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onClick">) {
+/**
+ * Minimum 56px tall: usable on a phone with a ball in the other hand.
+ *
+ * Forwards its ref so a Radix `DialogTrigger asChild` (or any other
+ * `asChild` consumer) can actually reach the underlying `<button>` — without
+ * this, Radix silently fails to attach its trigger ref, and closing a
+ * dialog it opened cannot return focus here.
+ */
+export const BigButton = forwardRef<
+  HTMLButtonElement,
+  {
+    children: ReactNode;
+    onClick?: () => void;
+    variant?: "default" | "primary" | "quiet" | "danger";
+    disabled?: boolean;
+    className?: string;
+  } & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onClick">
+>(function BigButton({ children, onClick, variant = "default", disabled, className, ...rest }, ref) {
   const styles: Record<string, string> = {
     primary: "bg-blue-600 hover:bg-blue-500 text-white border-transparent",
     default: "mc-card mc-card-hover mc-text border mc-border",
@@ -84,6 +88,7 @@ export function BigButton({
   };
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onClick}
       disabled={disabled}
@@ -100,7 +105,7 @@ export function BigButton({
       {children}
     </button>
   );
-}
+});
 
 export function Pill({
   children,

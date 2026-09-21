@@ -7,7 +7,7 @@ import {
   deliveryLabel,
   displayName,
   presentCount,
-  subTeamName,
+  subTeamLabel,
   todayIso,
   usePrototypeStore,
 } from "../store";
@@ -28,7 +28,12 @@ export default function AttendanceScreen({ go }: { go: (s: ScreenId) => void }) 
   const colliding = useMemo(() => collidingPlayerIds(state.players), [state.players]);
 
   const visible = useMemo(() => {
-    const list = teamFilter === "all" ? active : active.filter((p) => (p.subTeamId ?? "none") === teamFilter);
+    const list =
+      teamFilter === "all"
+        ? active
+        : active.filter((p) =>
+            teamFilter === "none" ? p.subTeamIds.length === 0 : p.subTeamIds.includes(teamFilter),
+          );
     const copy = [...list];
     copy.sort((a, b) => {
       if (sort === "number") {
@@ -37,7 +42,7 @@ export default function AttendanceScreen({ go }: { go: (s: ScreenId) => void }) 
         return a.number.localeCompare(b.number, undefined, { numeric: true });
       }
       if (sort === "team") {
-        const t = subTeamName(state, a.subTeamId).localeCompare(subTeamName(state, b.subTeamId));
+        const t = subTeamLabel(state, a.subTeamIds).localeCompare(subTeamLabel(state, b.subTeamIds));
         if (t !== 0) return t;
       }
       return a.firstName.localeCompare(b.firstName);
@@ -67,7 +72,13 @@ export default function AttendanceScreen({ go }: { go: (s: ScreenId) => void }) 
           hint="Your marks were not discarded, but they cannot be added to a session that is already final."
         />
         <div className="flex flex-wrap gap-3">
-          <BigButton variant="primary" onClick={() => go("home")}>
+          <BigButton
+            variant="primary"
+            onClick={() => {
+              actions.acknowledgeClosedElsewhere();
+              go("home");
+            }}
+          >
             Back to Home
           </BigButton>
         </div>
@@ -82,7 +93,12 @@ export default function AttendanceScreen({ go }: { go: (s: ScreenId) => void }) 
   const hiddenSelected = active.filter(
     (p) => session.present[p.id] && !visible.some((v) => v.id === p.id),
   ).length;
-  const delivery = deliveryLabel(session.delivery);
+  // "Saved on this device" is only true if the local write actually
+  // succeeded — a real quota/private-browsing failure must say so instead.
+  const delivery =
+    state.localPersistenceFailed && session.delivery === "device"
+      ? { text: "Local save failed — your marks are still here in memory", tone: "bad" as const }
+      : deliveryLabel(session.delivery);
   const isToday = session.date === todayIso();
   const hasSubTeams = state.subTeams.some((t) => t.active);
 
@@ -167,7 +183,7 @@ export default function AttendanceScreen({ go }: { go: (s: ScreenId) => void }) 
                   {t.name}
                 </FilterChip>
               ))}
-            {active.some((p) => p.subTeamId === null) && (
+            {active.some((p) => p.subTeamIds.length === 0) && (
               <FilterChip active={teamFilter === "none"} onClick={() => setTeamFilter("none")}>
                 Kaizen (no sub-team)
               </FilterChip>
@@ -227,9 +243,9 @@ export default function AttendanceScreen({ go }: { go: (s: ScreenId) => void }) 
                 <div className="text-sm font-semibold leading-tight mc-text">
                   {p.label ? `${p.firstName} ${p.label}` : p.firstName}
                 </div>
-                {p.subTeamId !== null && (
+                {p.subTeamIds.length > 0 && (
                   <div className="text-[10px] uppercase tracking-wider mc-text-muted">
-                    {subTeamName(state, p.subTeamId)}
+                    {subTeamLabel(state, p.subTeamIds)}
                   </div>
                 )}
                 {p.guest && (

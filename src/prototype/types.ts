@@ -24,8 +24,12 @@ export interface Player {
   label?: string;
   /** Digit string, 1-3 chars. `null` means "setup needed" (legacy card). */
   number: string | null;
-  /** `null` means the default Kaizen grouping (no custom sub-teams chosen). */
-  subTeamId: string | null;
+  /**
+   * Simultaneous sub-team memberships (D07). An empty array means the
+   * default Kaizen grouping (no custom sub-teams chosen for this player).
+   * The jersey number lives on the player, never per membership (D08).
+   */
+  subTeamIds: string[];
   guest: boolean;
   retired: boolean;
   /** Retained raw legacy name, for historical readability. */
@@ -42,12 +46,15 @@ export interface FinalizedSession {
   attendeeIds: string[];
   /** Immutable round assignment, fixed at record creation. */
   roundId: string;
+  /** Reporting/organization flag only. Never changes round eligibility (F05). */
   archived: boolean;
   /**
-   * Sub-team membership snapshot taken when the session was recorded.
-   * Absent => membership is unknown for that session (legacy records).
+   * Sub-team membership-set snapshot taken when the session was recorded.
+   * Map absent => membership is entirely unknown for that session (legacy
+   * records). A present entry mapped to `[]` is a known fact: that player
+   * had no sub-team (default Kaizen) at the time, not an unknown value.
    */
-  teamAtSession?: Record<string, string | null>;
+  teamAtSession?: Record<string, string[]>;
 }
 
 export interface RaffleRound {
@@ -92,6 +99,10 @@ export interface PrototypeState {
   lastFinished: { id: string; summary: string } | null;
   /** Dev-only switch: makes the next finish fail or stay pending. */
   networkMode: "online" | "offline" | "failing";
+  /** True after a local (browser storage) write actually failed. */
+  localPersistenceFailed: boolean;
+  /** Dev-only switch: makes the next local storage write fail on purpose. */
+  simulateStorageFailure: boolean;
   scenario: ScenarioId;
 }
 

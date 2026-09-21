@@ -1,5 +1,13 @@
 import { useState } from "react";
 import { KeyRound, Plus, Users } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/app/components/ui/dialog";
 import { BigButton, Note, Panel, Pill, SectionTitle } from "../components/ui";
 import { currentRoundTickets, usePrototypeStore } from "../store";
 
@@ -12,7 +20,10 @@ export default function SettingsScreen() {
 
   const activeTeams = state.subTeams.filter((t) => t.active);
   const tickets = currentRoundTickets(state).length;
-  const playersOnTeam = (id: string) => state.players.filter((p) => !p.retired && p.subTeamId === id).length;
+  // A player on several teams is correctly counted once per team they are
+  // actually on (D07) — that is a roster-size count, not a credit total.
+  const playersOnTeam = (id: string) =>
+    state.players.filter((p) => !p.retired && p.subTeamIds.includes(id)).length;
 
   return (
     <div className="space-y-5">
@@ -151,9 +162,15 @@ export default function SettingsScreen() {
           {state.raffleEnabled ? (
             <BigButton onClick={() => actions.setRaffle(false)}>Turn raffle off</BigButton>
           ) : (
-            <BigButton variant="primary" onClick={() => setDialogOpen(true)}>
-              Turn raffle on
-            </BigButton>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              {/* DialogTrigger (not a plain onClick) is what lets Radix return
+                  focus here on close — without it, Escape/close drops focus
+                  to <body> instead of back onto this button. */}
+              <DialogTrigger asChild>
+                <BigButton variant="primary">Turn raffle on</BigButton>
+              </DialogTrigger>
+              <ActivationDialogContent onDone={() => setDialogOpen(false)} />
+            </Dialog>
           )}
         </div>
 
@@ -164,79 +181,74 @@ export default function SettingsScreen() {
           </Note>
         )}
       </Panel>
-
-      {dialogOpen && <ActivationDialog onClose={() => setDialogOpen(false)} />}
     </div>
   );
 }
 
 /**
- * OFF -> ON activation. The count is read at render time, so a stale dialog
- * shows the current number rather than silently resetting a newer round.
+ * OFF -> ON activation content. The count is read at render time, so a
+ * stale dialog shows the current number rather than silently resetting a
+ * newer round.
+ *
+ * Built on the app's existing Radix dialog primitives rather than a raw
+ * `role="dialog"` div: focus trapping, Escape dismissal and focus return to
+ * the trigger all come from there instead of being reimplemented by hand —
+ * which requires the opening button to be a real `DialogTrigger`, not just
+ * a button that calls `setOpen(true)` next to an independent `Dialog`.
  */
-function ActivationDialog({ onClose }: { onClose: () => void }) {
+function ActivationDialogContent({ onDone }: { onDone: () => void }) {
   const { state, actions } = usePrototypeStore();
   const n = currentRoundTickets(state).length;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="raffle-dialog-title"
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-4"
-    >
-      <div
-        className="w-full max-w-lg rounded-2xl border mc-border p-6"
-        style={{ backgroundColor: "var(--mc-surface)" }}
-      >
-        <h2 id="raffle-dialog-title" className="text-xl font-bold mc-text">
-          Use existing raffle tickets?
-        </h2>
-        <p className="mt-2 text-sm mc-text-secondary">
+    <DialogContent className="max-w-lg mc-border" style={{ backgroundColor: "var(--mc-surface)" }}>
+      <DialogHeader>
+        <DialogTitle className="mc-text">Use existing raffle tickets?</DialogTitle>
+        <DialogDescription className="mc-text-secondary">
           {n === 0
             ? "Your players have not earned any tickets from optional trainings yet."
             : `Your players have earned ${n} ticket${n === 1 ? "" : "s"} from optional trainings.`}
-        </p>
+        </DialogDescription>
+      </DialogHeader>
 
-        <div className="mt-6 space-y-3">
+      <div className="space-y-3">
+        <BigButton
+          variant="primary"
+          className="w-full"
+          onClick={() => {
+            actions.setRaffle(true);
+            onDone();
+          }}
+        >
+          {n === 0 ? "Start with zero tickets" : `Keep ${n} ticket${n === 1 ? "" : "s"}`}
+        </BigButton>
+
+        <div className="rounded-xl border mc-border p-4">
           <BigButton
-            variant="primary"
             className="w-full"
             onClick={() => {
-              actions.setRaffle(true);
-              onClose();
+              actions.startFreshRound();
+              onDone();
             }}
           >
-            {n === 0 ? "Start with zero tickets" : `Keep ${n} ticket${n === 1 ? "" : "s"}`}
+            Start fresh
           </BigButton>
-
-          <div className="rounded-xl border mc-border p-4">
-            <BigButton
-              className="w-full"
-              onClick={() => {
-                actions.startFreshRound();
-                onClose();
-              }}
-            >
-              Start fresh
-            </BigButton>
-            <p className="mt-2.5 text-xs mc-text-secondary">
-              Begin a new raffle round with zero eligible tickets. Attendance, credited hours and
-              previous raffle results stay unchanged.
-            </p>
-          </div>
-
-          <BigButton variant="quiet" className="w-full" onClick={onClose}>
-            Cancel
-          </BigButton>
+          <p className="mt-2.5 text-xs mc-text-secondary">
+            Begin a new raffle round with zero eligible tickets. Attendance, credited hours and
+            previous raffle results stay unchanged.
+          </p>
         </div>
 
-        <Note>
-          The real enable-and-choose-round step must be one atomic server operation, and Start fresh
-          must require an online, fully synchronized state with no active session (P03). The
-          prototype shows the copy and the choice, not that guarantee.
-        </Note>
+        <BigButton variant="quiet" className="w-full" onClick={onDone}>
+          Cancel
+        </BigButton>
       </div>
-    </div>
+
+      <Note>
+        The real enable-and-choose-round step must be one atomic server operation, and Start fresh
+        must require an online, fully synchronized state with no active session (P03). The
+        prototype shows the copy and the choice, not that guarantee.
+      </Note>
+    </DialogContent>
   );
 }
