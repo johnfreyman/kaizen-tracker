@@ -15,6 +15,7 @@ import { Pill } from "./components/ui";
 import { PrototypeStoreProvider, usePrototypeStore } from "./store";
 import { SCENARIOS } from "./fixtures";
 import HomeScreen from "./screens/HomeScreen";
+import ExpectedScreen from "./screens/ExpectedScreen";
 import AttendanceScreen from "./screens/AttendanceScreen";
 import KioskScreen from "./screens/KioskScreen";
 import RosterScreen from "./screens/RosterScreen";
@@ -22,7 +23,15 @@ import SettingsScreen from "./screens/SettingsScreen";
 import ProgressScreen from "./screens/ProgressScreen";
 import RaffleScreen from "./screens/RaffleScreen";
 
-export type ScreenId = "home" | "attendance" | "kiosk" | "roster" | "settings" | "progress" | "raffle";
+export type ScreenId =
+  | "home"
+  | "expected"
+  | "attendance"
+  | "kiosk"
+  | "roster"
+  | "settings"
+  | "progress"
+  | "raffle";
 
 const NAV: { id: ScreenId; label: string; Icon: typeof Home }[] = [
   { id: "home", label: "Home", Icon: Home },
@@ -90,6 +99,7 @@ function Shell() {
 
         <main className="flex-1 mx-auto w-full max-w-5xl p-4 md:p-6 pb-24">
           {screen === "home" && <HomeScreen go={setScreen} />}
+          {screen === "expected" && <ExpectedScreen go={setScreen} />}
           {screen === "attendance" && <AttendanceScreen go={setScreen} />}
           {screen === "roster" && <RosterScreen />}
           {screen === "progress" && <ProgressScreen />}

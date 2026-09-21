@@ -22,7 +22,7 @@ export default function HomeScreen({ go }: { go: (s: ScreenId) => void }) {
             month: "long",
             day: "numeric",
           })}
-          hint="One tap opens attendance. There is no setup form, no start time and no timer."
+          hint="Optional Training opens attendance directly. Practice starts with a short Who's expected? step — still no start time, duration or timer."
         />
 
         {session ? (
@@ -51,10 +51,7 @@ export default function HomeScreen({ go }: { go: (s: ScreenId) => void }) {
               variant="primary"
               className="w-full text-base"
               disabled={rosterEmpty}
-              onClick={() => {
-                actions.start("practice");
-                go("attendance");
-              }}
+              onClick={() => go("expected")}
             >
               <Dumbbell className="size-5" />
               Start Practice

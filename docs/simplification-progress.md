@@ -541,3 +541,55 @@ After prototype acceptance and a separate Stage 3 request, use the revised speci
 ### Validation and limits
 
 Documentation-only update: checked numbered IDs, code fences, local links, whitespace, exact changed-file scope and existing branch no-deploy guard. Application tests/browser checks were not rerun because no application code changed. Production data/settings, schema, dependencies and local unrelated changes remain untouched. This publication preserves all commits through `79f4021` and the earlier confirmation evidence. The new prototype flow, offline implementation and database foundation are not claimed complete.
+
+
+## Stage 2 expected-team practice prototype — 2026-09-21
+
+Fulfills the "Exact next-stage handoff" immediately above and [simplification-next-prototype-prompt.md](simplification-next-prototype-prompt.md), continuing from `79f4021` after pulling the owner's planning publication at `a46baed`. R01/R02 were not touched — already complete; see the confirmation entry above.
+
+### What was implemented
+
+- **D10 "Who's expected?"**: a new step between Start Practice and attendance (`src/prototype/screens/ExpectedScreen.tsx`). Selectable active sub-team cards plus an explicit **All Kaizen** card; **Take attendance** stays disabled until one is chosen — an empty selection is never silently treated as everyone. **Cancel** dispatches nothing at all, so it cannot create an orphan session or touch one already in progress. With no active sub-teams, the screen shows the single default Kaizen choice already reachable, with no empty picker.
+- Selecting several teams resolves their union once per player (`resolveExpectedPlayerIds` in `store.tsx`): a player on two selected teams is expected once, and a player on an unselected team never appears. All Kaizen resolves the whole non-retired roster, including players with no sub-team (e.g. guests), which a team-card union alone would miss.
+- The chosen team IDs and resolved player IDs are saved once, at confirmation, on the session (`ActiveSession.expected` / `FinalizedSession.expected`, both optional — absent means "no saved expectation," the same convention already used for `teamAtSession`). Later roster/membership edits never rewrite a saved snapshot; a regression test proves this by editing the exact membership that made a player expected, after the session is finalized.
+- Attendance and kiosk are otherwise unchanged: number lookup (0 vs 00), undo, exit, save-failure feedback and the retired-history fixes all still work exactly as before. `AttendanceScreen` adds one small **Expected: `<scope>` · `<count>`** pill for practice sessions (or "No saved expectation (legacy)" for a session resumed from before D10), so the saved snapshot is visible while taking attendance, not only internal state.
+- Optional Training is unchanged: it still opens attendance directly, with no Who's-expected step and no practice-absence penalty.
+- **Small fixture demonstration, not a rebuild**: `expectedPracticeStats` (`store.tsx`) computes an expected-only attendance percentage and current streak from only the practices whose saved snapshot names a player — never every practice on today's roster. Two new fixture practices (`ev-08`, `ev-09`, Blue 6th Grade) exercise it end to end and are shown in a clearly labelled "Expected-practice attendance" demonstration panel on Progress. It is additive only: the existing totals table, its denominator and its own tests are untouched, matching the instruction not to rebuild all analytics yet.
+- D09 (offline gym use) and D11/D12 (test-data scope, rich-analytics preservation) were not implemented here — see below.
+
+### Labelled assumptions — not settled policy
+
+- With no active sub-teams, **Take attendance** is enabled immediately on the default Kaizen choice rather than requiring a redundant tap on a single option with no alternative. Cancel is still available.
+- "All Kaizen" and each team's expected set are every **non-retired** player matching the rule, guests included. The prototype does not exclude guests from this denominator, the same way the existing Progress totals table does not; that exclusion belongs to the old `src/lib/stats.ts` module and is out of scope here.
+- Excused absences, correcting an already-saved expected list, and whether an unexpected attendee affects a streak are explicitly left as open recommendations (spec §4), not settled by this work, per the bounded prompt.
+
+### Verification — what was run, fresh
+
+- `npx tsc --noEmit`: 0 errors.
+- `npx vitest run`: 55 passed, 1 failed of 56 collected, across 9 files. **Reported separately:** the 1 failure is `LaunchPage.test.tsx`'s pre-existing dated `9:00 AM` preset assertion, and `src/lib/stats.test.ts` still fails collection for the pre-existing missing `VITE_SUPABASE_URL`. Both predate this branch and are not regressions from this work. New, passing: 5 tests in `store.test.ts` (union dedup, All Kaizen vs. a team union, never-overwrite guard, a saved snapshot surviving a later membership edit, 50%/streak/exclusion against an isolated two-player fixture), 4 in a new `ExpectedScreen.test.tsx` (disabled-until-chosen, saved snapshot content, Cancel creates nothing, the no-sub-teams path), and 1 in `ProgressScreen.test.tsx` (the demonstration panel).
+- `npx vite build`: succeeded; `index-DZ3ExIO7.css` and `index-CAFHf2CU.js` are byte-identical to every prior hash recorded on this branch. This update touched no `src/app` file, so the prototype stays fully excluded from the production bundle.
+- Browser walkthrough: headless Chromium, phone 430×932 then a tablet 1024×768 spot check. **23 scripted checks, all passing:** Start Practice opens Who's expected? (not attendance) with Take attendance disabled until a choice is made; Cancel returns Home with no in-progress session; selecting Blue 6th Grade (3 players) and Blue 7th Grade (6 players, shared member Kayla) previews exactly 8, not 9; confirming shows the matching Expected pill on Attendance; a full page refresh keeps both the saved Expected scope and the in-progress present mark (Resume, not a recomputed selection); Optional Training still opens attendance directly with no Expected pill; the no-sub-teams scenario shows the default Kaizen choice already enabled and saves as All Kaizen; the Progress demonstration panel renders; no horizontal overflow at either width; no unexpected console/page errors.
+
+### D09 (offline gym use) — preserved, not implemented
+
+Unchanged from the confirmation entry above: D09 stays in the Stage 3 data handoff below and in its own row of the confirmed-decisions table only. No service worker, offline queue, IndexedDB or Stage 3 code was written in this pass.
+
+### Unresolved product policies
+
+Unchanged, plus one addition from this task: PIN replacement/recovery detail, backdated training round assignment, player retirement behavior, and now excused absences, correcting an already-saved expected list, and unexpected-attendance streak treatment. None of these are approved by this prototype's current behavior.
+
+No Supabase/production calls, migrations, deployments, merges or PRs were made. The branch-specific no-deploy guard in `vercel.json` is unchanged. Stopping here, before Stage 3, as requested.
+
+### Stage 3 data handoff
+
+Use Claude Opus 5, High effort. Pull `claude/dazzling-sagan-hxrwfp` at or after this entry's commit before starting. Read `simplification-spec.md` §6–9, this document in full, and `simplification-analytics-inventory.md`.
+
+In an isolated, non-production database only:
+
+1. Design stable coach-owned players, multiple simultaneous memberships (D07/D08), sessions, **saved expected-player snapshots (D10)**, attendance, independent raffle rounds and durable per-operation identities for the offline outbox (D09). Preserve the sole super-admin and the secured `admin-coach-actions` backend boundary.
+2. Verify with invented fixtures only: repeat-safe setup, cross-coach rejection, idempotent start/mark/undo/finish/reset, and that replaying a delivered operation never duplicates attendance, hours, expected-player sets, rounds or tickets, nor clears a newer active session. Include multiple locally finished sessions awaiting sync (D09) and a same-day multi-session ordering case.
+3. D11 removes any real-history reconstruction requirement: do not attempt legacy name-matching, archive backfill or live-data import. Existing sample data stays untouched unless separately authorized.
+4. Keep the original report metrics representable (D12 / `simplification-analytics-inventory.md`): shared IDs, the expected-attendance denominator, multiple memberships and pending/synced status must all fit the schema this stage designs, even though the reports themselves are Stage 6 work.
+5. If no isolated environment is available, report that gap rather than substituting production.
+
+Stage 4 implements the real coach/offline flow against this contract; Stage 5 kiosk; Stage 6 restores/adapts the full analytics inventory and exports; Stage 7 verifies A01–A33, including the offline/reconnection scenarios. STOP after Stage 3 for review — do not implement Stage 4 behavior early.

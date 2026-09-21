@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Note, Panel, Pill, SectionTitle } from "../components/ui";
 import { DEFAULT_GROUP_NAME } from "../fixtures";
 import {
+  expectedPracticeStats,
   historicalTeamRows,
   playerTotals,
   programTotals,
@@ -57,6 +58,14 @@ export default function ProgressScreen() {
   }, [attribution, activeTeams, historicalTeamIds, state.subTeams]);
 
   const hasUnknownHistory = useMemo(() => state.sessions.some((s) => !s.teamAtSession), [state.sessions]);
+
+  // D10 demonstration only: players named in at least one saved "Who's
+  // expected?" snapshot. Not wired into the totals/table above (spec: do
+  // not rebuild all analytics yet).
+  const expectedDemoPlayers = useMemo(
+    () => everyPlayer.filter((p) => expectedPracticeStats(state, p.id).expectedCount > 0),
+    [everyPlayer, state],
+  );
 
   /**
    * "Current roster" groups by who a player plays for today, and totals are
@@ -271,6 +280,54 @@ export default function ProgressScreen() {
           </table>
         </div>
       </Panel>
+
+      {expectedDemoPlayers.length > 0 && (
+        <Panel className="p-0 overflow-hidden">
+          <div className="p-5 md:p-6 pb-0">
+            <SectionTitle
+              eyebrow="Demonstration (D10)"
+              title="Expected-practice attendance"
+              hint="Counts only practices with a saved Who's expected? snapshot naming the player — not every practice on today's roster. A small proof of the expected-only denominator and streak, not the final shared analytics (D12, Stage 6)."
+            />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <caption className="sr-only">Expected-only practice attendance and streak per player</caption>
+              <thead>
+                <tr className="border-b mc-border text-left mc-text-secondary">
+                  <th scope="col" className="px-4 py-3 font-semibold">Player</th>
+                  <th scope="col" className="px-4 py-3 font-semibold text-right">Expected</th>
+                  <th scope="col" className="px-4 py-3 font-semibold text-right">Present</th>
+                  <th scope="col" className="px-4 py-3 font-semibold text-right">Percent</th>
+                  <th scope="col" className="px-4 py-3 font-semibold text-right">Current streak</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expectedDemoPlayers.map((p) => {
+                  const s = expectedPracticeStats(state, p.id);
+                  return (
+                    <tr key={p.id} className="border-b mc-border last:border-0">
+                      <th scope="row" className="px-4 py-3 text-left font-semibold mc-text">
+                        {p.label ? `${p.firstName} ${p.label}` : p.firstName}
+                      </th>
+                      <td className="px-4 py-3 text-right mc-mono mc-text">{s.expectedCount}</td>
+                      <td className="px-4 py-3 text-right mc-mono mc-text">{s.presentCount}</td>
+                      <td className="px-4 py-3 text-right mc-mono mc-text">{s.percent}%</td>
+                      <td className="px-4 py-3 text-right mc-mono mc-text">{s.currentStreak}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="p-5 md:p-6 pt-0">
+            <Note tone="assumption">
+              Guest exclusion, excused absences and unexpected-attendance streak treatment are not
+              decided yet. This table never feeds the totals above.
+            </Note>
+          </div>
+        </Panel>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <Pill>Practices and optional trainings are counted separately</Pill>

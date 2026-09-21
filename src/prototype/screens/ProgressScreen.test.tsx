@@ -4,7 +4,7 @@
  * historical "Team at session" reporting, and retiring every sub-team must
  * not strand a coach without a way back into that historical view.
  */
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import ProgressScreen from "./ProgressScreen";
 import { buildScenario } from "../fixtures";
@@ -111,5 +111,21 @@ describe("R01: historical controls survive every sub-team being retired", () => 
     // up, just with no active-team filter chips beyond "All teams".
     expect(screen.getByRole("button", { name: "All teams" })).toBeDefined();
     expect(screen.getByText("Alex M.")).toBeDefined();
+  });
+});
+
+describe("D10: expected-practice attendance demonstration", () => {
+  it("shows a labelled demonstration table with expected-only percentages, excluding another team's player", () => {
+    renderWithState(buildScenario("team"));
+
+    // Scoped by the table's own accessible name: "Owen"/"Marcus" also
+    // appear in the main Current roster table above, which is a different,
+    // unscoped match this must not collide with.
+    const demoTable = screen.getByRole("table", { name: /Expected-only practice attendance/ });
+    const owenRow = within(demoTable).getByText("Owen").closest("tr")!;
+    expect(within(owenRow).getByText("50%")).toBeDefined();
+
+    // Priya (Gray 7th) was never named in the Blue 6th expected snapshot.
+    expect(within(demoTable).queryByText("Priya")).toBeNull();
   });
 });

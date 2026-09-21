@@ -8,6 +8,7 @@ import {
   displayName,
   presentCount,
   subTeamLabel,
+  subTeamName,
   todayIso,
   usePrototypeStore,
 } from "../store";
@@ -101,6 +102,15 @@ export default function AttendanceScreen({ go }: { go: (s: ScreenId) => void }) 
       : deliveryLabel(session.delivery);
   const isToday = session.date === todayIso();
   const hasSubTeams = state.subTeams.some((t) => t.active);
+  // D10: practice carries a saved expected-player snapshot; a session
+  // resumed from before D10 (or optional training, which never has one)
+  // shows no such pill.
+  const expectedLabel =
+    session.type !== "practice" || !session.expected
+      ? null
+      : session.expected.allKaizen
+        ? "All Kaizen"
+        : session.expected.teamIds.map((id) => subTeamName(state, id)).join(" + ");
 
   return (
     <div className="space-y-5">
@@ -117,6 +127,13 @@ export default function AttendanceScreen({ go }: { go: (s: ScreenId) => void }) 
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <Pill>{isToday ? `Today · ${formatDate(session.date)}` : formatDate(session.date)}</Pill>
               <Pill>{session.creditHours} hours each</Pill>
+              {session.type === "practice" && (
+                <Pill tone={expectedLabel ? "accent" : "neutral"}>
+                  {expectedLabel
+                    ? `Expected: ${expectedLabel} · ${session.expected!.playerIds.length}`
+                    : "No saved expectation (legacy)"}
+                </Pill>
+              )}
               <Pill tone={delivery.tone === "ok" ? "ok" : delivery.tone === "warn" ? "warn" : "bad"}>
                 {delivery.text}
               </Pill>

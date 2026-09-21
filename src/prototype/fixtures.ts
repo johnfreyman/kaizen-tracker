@@ -69,6 +69,12 @@ const FULL_ROSTER: Player[] = [
 const ROUND_PREV = "round-1";
 const ROUND_CURRENT = "round-2";
 
+// D10 demonstration fixture: Blue 6th Grade's real current roster, used as
+// the "expected" snapshot for ev-08/ev-09 below.
+const ST_B6_MEMBERS = FULL_ROSTER.filter((x) => !x.retired && x.subTeamIds.includes("st-b6")).map(
+  (x) => x.id,
+);
+
 function snapshot(ids: string[], roster: Player[]): Record<string, string[]> {
   const map: Record<string, string[]> = {};
   for (const id of ids) {
@@ -175,6 +181,36 @@ const FULL_SESSIONS: FinalizedSession[] = [
     archived: true,
     teamAtSession: snapshot(A("pl-02", "pl-14"), FULL_ROSTER),
   },
+  {
+    // D10 demonstration pair: a coach targets Blue 6th Grade for two
+    // practices. Owen attends the first and misses the second; Marcus
+    // misses the first and attends the second — each ends at 50% against
+    // the *expected* denominator alone. Kayla (also Blue 6th) is expected
+    // both times but attends neither. Priya (Gray 7th) is never named in
+    // either snapshot, so she is excluded entirely rather than counted as
+    // two missed practices she was never called to (analytics-inventory
+    // finding #2) — the small demo panel on Progress reads this directly.
+    id: "ev-08",
+    type: "practice",
+    date: "2026-09-20",
+    creditHours: 1.5,
+    attendeeIds: A("pl-10"),
+    roundId: ROUND_CURRENT,
+    archived: false,
+    teamAtSession: snapshot(A("pl-10"), FULL_ROSTER),
+    expected: { teamIds: ["st-b6"], allKaizen: false, playerIds: ST_B6_MEMBERS },
+  },
+  {
+    id: "ev-09",
+    type: "practice",
+    date: "2026-09-21",
+    creditHours: 1.5,
+    attendeeIds: A("pl-12"),
+    roundId: ROUND_CURRENT,
+    archived: false,
+    teamAtSession: snapshot(A("pl-12"), FULL_ROSTER),
+    expected: { teamIds: ["st-b6"], allKaizen: false, playerIds: ST_B6_MEMBERS },
+  },
 ];
 
 export interface Scenario {
@@ -262,7 +298,10 @@ export function buildScenario(scenario: ScenarioId): PrototypeState {
       scenario,
       subTeams: [],
       players: FULL_ROSTER.map((x) => ({ ...x, subTeamIds: [] })),
-      sessions: FULL_SESSIONS.map((s) => ({ ...s, teamAtSession: undefined })),
+      // No sub-team ever existed in this scenario, so no session can have a
+      // team-scoped expected snapshot either — consistent with stripping
+      // teamAtSession below.
+      sessions: FULL_SESSIONS.map((s) => ({ ...s, teamAtSession: undefined, expected: undefined })),
     };
   }
 

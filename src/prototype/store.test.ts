@@ -11,11 +11,13 @@ import { describe, expect, it } from "vitest";
 import { buildScenario } from "./fixtures";
 import {
   currentRoundTickets,
+  expectedPracticeStats,
   historicalTeamRows,
   playerEditIsValid,
   playerTotals,
   programTotals,
   reducer,
+  resolveExpectedPlayerIds,
   wouldCollide,
 } from "./store";
 import type { FinalizedSession, PrototypeState } from "./types";
@@ -186,5 +188,110 @@ describe("F05: raffle eligibility follows immutable round assignment, not archiv
     expect(archivedCount).toBe(fixture.attendeeIds.length);
     expect(restoredCount).toBe(fixture.attendeeIds.length);
     expect(currentRoundTickets(state).length).toBe(currentRoundTickets(restored).length);
+  });
+});
+
+describe("D10: Who's expected? practice selection", () => {
+  it("counts a player on two selected teams once, and excludes another team's player", () => {
+    const state = buildScenario("team");
+    // Kayla (pl-11) is on both st-b6 and st-b7; selecting both must not
+    // double-count her. Priya (pl-07, st-g7 only) must not appear.
+    const ids = resolveExpectedPlayerIds(state, ["st-b6", "st-b7"], false);
+    expect(ids.filter((id) => id === "pl-11")).toHaveLength(1);
+    expect(ids).not.toContain("pl-07");
+  });
+
+  it("All Kaizen resolves the whole eligible roster, distinct from any specific team union", () => {
+    const state = buildScenario("team");
+    const allTeamsUnion = resolveExpectedPlayerIds(
+      state,
+      state.subTeams.map((t) => t.id),
+      false,
+    );
+    const allKaizen = resolveExpectedPlayerIds(state, [], true);
+    const nonRetired = state.players.filter((p) => !p.retired).length;
+    expect(allKaizen).toHaveLength(nonRetired);
+    // Guests (Elena, Tomas) belong to no sub-team, so a team union misses
+    // them while the explicit All Kaizen choice reaches everyone.
+    expect(allTeamsUnion.length).toBeLessThan(allKaizen.length);
+    expect(allKaizen).toContain("pl-16");
+  });
+
+  it("never overwrites or orphans an existing active session", () => {
+    let state: PrototypeState = buildScenario("team");
+    state = reducer(state, { type: "startPractice", teamIds: ["st-b7"], allKaizen: false });
+    const firstId = state.activeSession!.id;
+
+    state = reducer(state, { type: "startPractice", teamIds: ["st-g6"], allKaizen: false });
+    expect(state.activeSession!.id).toBe(firstId);
+    expect(state.activeSession!.expected!.teamIds).toEqual(["st-b7"]);
+  });
+
+  it("saves the expected snapshot on the finalized session and keeps it after a later membership change", () => {
+    let state: PrototypeState = buildScenario("team");
+    state = reducer(state, { type: "startPractice", teamIds: ["st-b7"], allKaizen: false });
+    const expectedAtStart = state.activeSession!.expected!.playerIds;
+    expect(expectedAtStart).toContain("pl-11"); // Kayla, via st-b7
+
+    state = reducer(state, { type: "setPresent", playerId: "pl-02", present: true, opId: "op-e1" });
+    state = reducer(state, { type: "finish" });
+
+    const finalized = state.sessions.find((s) => s.id === state.lastFinished!.id)!;
+    expect(finalized.expected!.playerIds.slice().sort()).toEqual(expectedAtStart.slice().sort());
+
+    // Remove Kayla from the very team that made her expected here.
+    state = reducer(state, { type: "updatePlayer", playerId: "pl-11", patch: { subTeamIds: ["st-b6"] } });
+    const finalizedAgain = state.sessions.find((s) => s.id === finalized.id)!;
+    expect(finalizedAgain.expected!.playerIds).toContain("pl-11");
+  });
+
+  it("is 50% for two players with mixed present/absent against the expected denominator, excluding another team's player entirely", () => {
+    // A tiny two-player team, decoupled from the shared fixture roster so
+    // these percentages are exact. Both practices land on today's date
+    // (todayIso() is used for every new session), so this also proves the
+    // id tie-breaker keeps chronological order stable for same-day sessions.
+    let state: PrototypeState = {
+      ...buildScenario("empty"),
+      subTeams: [
+        { id: "t-x", name: "Team X", active: true },
+        { id: "t-y", name: "Team Y", active: true },
+      ],
+      players: [
+        { id: "p-a", firstName: "A", number: "1", subTeamIds: ["t-x"], guest: false, retired: false },
+        { id: "p-c", firstName: "C", number: "2", subTeamIds: ["t-x"], guest: false, retired: false },
+        { id: "p-b", firstName: "B", number: "3", subTeamIds: ["t-y"], guest: false, retired: false },
+      ],
+    };
+
+    // Practice 1: A present, C absent.
+    state = reducer(state, { type: "startPractice", teamIds: ["t-x"], allKaizen: false });
+    state = reducer(state, { type: "setPresent", playerId: "p-a", present: true, opId: "op-1" });
+    state = reducer(state, { type: "finish" });
+
+    // Practice 2: C present, A absent.
+    state = reducer(state, { type: "startPractice", teamIds: ["t-x"], allKaizen: false });
+    state = reducer(state, { type: "setPresent", playerId: "p-c", present: true, opId: "op-2" });
+    state = reducer(state, { type: "finish" });
+
+    expect(expectedPracticeStats(state, "p-a")).toEqual({
+      expectedCount: 2,
+      presentCount: 1,
+      percent: 50,
+      currentStreak: 0, // most recent practice (2) was a miss
+    });
+    expect(expectedPracticeStats(state, "p-c")).toEqual({
+      expectedCount: 2,
+      presentCount: 1,
+      percent: 50,
+      currentStreak: 1, // most recent practice (2) was a hit
+    });
+    // B is on a different, unselected team and was never named in either
+    // snapshot: excluded entirely, not counted as two missed practices.
+    expect(expectedPracticeStats(state, "p-b")).toEqual({
+      expectedCount: 0,
+      presentCount: 0,
+      percent: null,
+      currentStreak: 0,
+    });
   });
 });

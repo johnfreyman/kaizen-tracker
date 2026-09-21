@@ -55,6 +55,8 @@ export interface FinalizedSession {
    * had no sub-team (default Kaizen) at the time, not an unknown value.
    */
   teamAtSession?: Record<string, string[]>;
+  /** Carried over from the active session unchanged (D10). Practice only. */
+  expected?: ExpectedSnapshot;
 }
 
 export interface RaffleRound {
@@ -64,6 +66,23 @@ export interface RaffleRound {
 
 /** How the *current* attendance draft has been delivered, not a session kind. */
 export type DeliveryState = "device" | "pending" | "failed" | "cloud";
+
+/**
+ * D10: who a practice is for, resolved once when the coach confirms
+ * "Who's expected?" and never recomputed from later roster/membership
+ * changes. Optional training never has one. A practice created before D10
+ * (or restored from old localStorage) also has none — treated as unknown,
+ * the same way a session with no `teamAtSession` snapshot is legacy/unknown.
+ */
+export interface ExpectedSnapshot {
+  /** Selected sub-team ids. Empty when `allKaizen` is true. */
+  teamIds: string[];
+  /** The explicit "All Kaizen" choice — distinct from selecting every team,
+   *  since it also reaches players with no sub-team (e.g. guests). */
+  allKaizen: boolean;
+  /** Deduplicated player ids resolved at confirmation time. */
+  playerIds: string[];
+}
 
 export interface ActiveSession {
   id: string;
@@ -77,6 +96,8 @@ export interface ActiveSession {
   delivery: DeliveryState;
   /** Set when another device finalized this session out from under the kiosk. */
   closedElsewhere: boolean;
+  /** Practice only (D10). */
+  expected?: ExpectedSnapshot;
 }
 
 export interface ExitCode {

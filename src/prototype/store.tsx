@@ -51,9 +51,29 @@ export function todayIso(): string {
 let opCounter = 0;
 const nextOpId = () => `op-${Date.now().toString(36)}-${++opCounter}`;
 
+/**
+ * Who D10's "Who's expected?" step would snapshot right now: the whole
+ * eligible roster for the explicit All Kaizen choice (reaching players with
+ * no sub-team, e.g. guests), or the union of current members of the
+ * selected teams. Each player is visited once, so one on several selected
+ * teams is never counted twice.
+ */
+export function resolveExpectedPlayerIds(
+  state: PrototypeState,
+  teamIds: string[],
+  allKaizen: boolean,
+): string[] {
+  const eligible = state.players.filter((p) => !p.retired);
+  const chosen = allKaizen
+    ? eligible
+    : eligible.filter((p) => p.subTeamIds.some((id) => teamIds.includes(id)));
+  return chosen.map((p) => p.id);
+}
+
 type Action =
   | { type: "reset"; scenario: ScenarioId }
   | { type: "start"; sessionType: SessionType }
+  | { type: "startPractice"; teamIds: string[]; allKaizen: boolean }
   | { type: "setPresent"; playerId: string; present: boolean; opId: string }
   | { type: "changeDate"; date: string }
   | { type: "finish" }
@@ -98,6 +118,34 @@ export function reducer(state: PrototypeState, action: Action): PrototypeState {
           revision: 0,
           delivery: "device",
           closedElsewhere: false,
+        },
+      };
+    }
+
+    case "startPractice": {
+      // Same P02 guard as "start": never silently replace or orphan an
+      // existing session. Cancel on the "Who's expected?" screen never
+      // reaches here at all, so it cannot create anything either.
+      if (state.activeSession) return state;
+      const playerIds = resolveExpectedPlayerIds(state, action.teamIds, action.allKaizen);
+      return {
+        ...state,
+        lastFinished: null,
+        activeSession: {
+          id: `sess-${Date.now().toString(36)}`,
+          type: "practice",
+          date: todayIso(),
+          creditHours: NEW_SESSION_CREDIT_HOURS,
+          roundId: state.currentRoundId,
+          present: {},
+          revision: 0,
+          delivery: "device",
+          closedElsewhere: false,
+          expected: {
+            teamIds: action.allKaizen ? [] : action.teamIds,
+            allKaizen: action.allKaizen,
+            playerIds,
+          },
         },
       };
     }
@@ -153,6 +201,7 @@ export function reducer(state: PrototypeState, action: Action): PrototypeState {
         roundId: s.roundId, // keeps its original round even if backdated (P08)
         archived: false,
         teamAtSession,
+        expected: s.expected, // saved once at creation; never recomputed (D10)
       };
       return {
         ...state,
@@ -325,6 +374,7 @@ interface StoreValue {
   actions: {
     reset: (s: ScenarioId) => void;
     start: (t: SessionType) => void;
+    startPractice: (teamIds: string[], allKaizen: boolean) => void;
     setPresent: (playerId: string, present: boolean) => void;
     changeDate: (date: string) => void;
     finish: () => void;
@@ -376,6 +426,7 @@ export function PrototypeStoreProvider({
     () => ({
       reset: (scenario) => dispatch({ type: "reset", scenario }),
       start: (sessionType) => dispatch({ type: "start", sessionType }),
+      startPractice: (teamIds, allKaizen) => dispatch({ type: "startPractice", teamIds, allKaizen }),
       setPresent: (playerId, present) =>
         dispatch({ type: "setPresent", playerId, present, opId: nextOpId() }),
       changeDate: (date) => dispatch({ type: "changeDate", date }),
@@ -604,6 +655,42 @@ export function playerTotals(state: PrototypeState, playerId: string): PlayerTot
   }
   const tickets = currentRoundTickets(state).filter((t) => t.playerId === playerId).length;
   return { creditedHours, practices, trainings, tickets };
+}
+
+export interface ExpectedPracticeStats {
+  expectedCount: number;
+  presentCount: number;
+  /** null when the player was never named in any saved expected snapshot. */
+  percent: number | null;
+  currentStreak: number;
+}
+
+/**
+ * D10 demonstration only (spec: expose a small fixture demonstration of
+ * expected-only practice attendance/streak behavior; do not rebuild all
+ * analytics yet). The denominator and streak use only practices whose
+ * *saved* expected snapshot names this player — never every practice on
+ * today's roster, and never recomputed from today's membership. A practice
+ * the player was not expected at neither counts as a miss nor breaks the
+ * streak, because it never enters `qualifying` at all.
+ */
+export function expectedPracticeStats(state: PrototypeState, playerId: string): ExpectedPracticeStats {
+  const qualifying = state.sessions
+    .filter((s) => s.type === "practice" && s.expected?.playerIds.includes(playerId))
+    // Stable tie-breaker for same-day sessions; date alone is not unique.
+    .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+
+  const expectedCount = qualifying.length;
+  const presentCount = qualifying.filter((s) => s.attendeeIds.includes(playerId)).length;
+  const percent = expectedCount === 0 ? null : Math.round((presentCount / expectedCount) * 100);
+
+  let currentStreak = 0;
+  for (let i = qualifying.length - 1; i >= 0; i--) {
+    if (!qualifying[i].attendeeIds.includes(playerId)) break;
+    currentStreak += 1;
+  }
+
+  return { expectedCount, presentCount, percent, currentStreak };
 }
 
 /** Session-hours counts each session once; player-hours sums attendee credit. */
