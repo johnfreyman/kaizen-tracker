@@ -7,7 +7,7 @@ Baseline application commit: `40d9b0c2f57692cdc8439d453816418be3db5a39`.
 
 ## Scope and current status
 
-Stage 1 documentation is complete. Stage 2 is complete: an isolated, fixture-driven prototype now exists on `claude/stage-2-prototype` and is ready for the owner walkthrough. D01–D06 are confirmed; P01–P12 are demonstrated in the prototype as labelled recommendations and are still awaiting review. Stage 3 has not been started, and no database, migration or production change has been made. Do not equate a working prototype with approval of the recommendations it shows.
+Stage 1 documentation is complete. The initial Stage 2 prototype is implemented and independently audited; a focused Stage 2 revision is next before the Stage 3 data contract is finalized. The owner says the design is on the right track and has confirmed D07–D08: multiple simultaneous sub-team memberships and one jersey number per player across teams. D01–D08 are confirmed; the remaining recommendations are not blanket-approved. Stage 3 has not started. See [the audit](simplification-stage2-audit.md) for findings, evidence and limits.
 
 Canonical continuation branch: `codex/simplification-plan` in `johnfreyman/kaizen-tracker`. Stage 2 work continues on `claude/stage-2-prototype`, branched from that head. Use these documents from the newer branch, not the unchanged `main` checkout or the superseded seven-stage draft.
 
@@ -16,7 +16,7 @@ Published review: [draft PR #1](https://github.com/johnfreyman/kaizen-tracker/pu
 | Stage | State | Deliverable / next gate |
 | --- | --- | --- |
 | 1. Product specification and migration plan | Complete | Source audit, approved requirements/decisions, recommendations, flows, data invariants, acceptance matrix and recovery plan documented. |
-| 2. Screen flows and prototype | Complete | Isolated fixture prototype at `/prototype.html`; confirmed choices demonstrated and recommendations surfaced for review. Owner walkthrough is the next gate. |
+| 2. Screen flows and prototype | Initial prototype complete; audit revision required | Multiple memberships plus audit U01/F01–F05, repeatable checks and revised walkthrough. |
 | 3. Data foundation | Not started | Resolve data-affecting choices including sub-team membership, inspect real schema in an isolated environment, rehearse additive migration. |
 | 4. Coach attendance | Not started | Reliable session/attendance operations and simplified cards. |
 | 5. Kiosk | Not started | Number matching, correction, exit and recovery. |
@@ -56,7 +56,12 @@ Additional owner decisions on 2026-09-20:
 5. **D05:** store new credit as `1.5` hours.
 6. **D06:** store team membership, allow Settings-managed sub-teams and offer roster assignment plus team sorting/filtering; default grouping can be Kaizen.
 
-P12 describes proposed sub-team reporting behavior. One versus multiple simultaneous memberships was asked separately; pending an answer, prototype one and clearly label it as an assumption. This choice blocks final data cardinality, not the fixture prototype.
+Additional owner decisions during the prototype audit:
+
+7. **D07:** players can belong to multiple sub-teams simultaneously. Keep one stable player identity and do not duplicate attendance, hours or tickets across memberships.
+8. **D08:** each player uses one jersey number across all teams; the number belongs to the player, not to a membership.
+
+P12 still contains proposed reporting/attribution policies. Membership cardinality and jersey placement are now resolved; update the single-membership prototype rather than treating its old assumption as the data contract.
 
 ## Reconciliation of Claude's plan — 2026-09-20
 
@@ -141,7 +146,7 @@ Review these during the walkthrough. None of them is settled by the prototype sh
 
 | # | Question | Blocks |
 | --- | --- | --- |
-| 1 | **Can a player belong to more than one sub-team at once?** Still unanswered. The prototype uses one membership and labels it an assumption on screen. | Stage 3 cardinality. Nothing else. |
+| 1 | **Resolved by D07–D08:** multiple simultaneous memberships, one player-wide jersey number. Initial prototype uses one membership; revise it. | Stage 2 revision; Stage 3 uses many-to-many membership. |
 | 2 | Should a coach-set PIN **replace** `0000`, or should `0000` keep working as a fallback? The prototype replaces it. | Stage 3 coach setting, Stage 5 exit. |
 | 3 | Should a backdated optional training join the **current** round (P08), or the round that was open on the date entered? The prototype uses the current round. | Stage 3 round assignment. |
 | 4 | Should a pending offline finish **block** starting a different session (P02)? The prototype blocks it. | Stage 4 queue design. |
@@ -164,73 +169,95 @@ Review these during the walkthrough. None of them is settled by the prototype sh
 - Full offline cold-start, payment verification and device-level kiosk lockdown are not included.
 - Baseline LaunchPage failure and stats test setup failure are recorded above; do not describe them as regressions from this documentation stage.
 
+## Independent Stage 2 audit — 2026-09-20
+
+Audited source: `d54c587ed4bdb10d23122b8357ba849348da8278`. Full report: [simplification-stage2-audit.md](simplification-stage2-audit.md).
+
+- Recorded approved D07–D08 in the specification, including multi-select roster assignment, membership-set snapshots, player-wide jersey numbers and one credit/ticket per player/session.
+- Browser-confirmed incorrect historical filtering after a transfer (F01), ambiguous identities saved through Edit (F02), and raffle off for the new-coach fixture (F03).
+- Source-confirmed missing coach exit from closed kiosk (F04) and archive-dependent ticket derivation conflicting with immutable rounds (F05). Their browser-reproduction limits are stated in the report.
+- Independently verified manual marks, filtering, native backdating and refresh, kiosk lookup/undo/refresh/default exit, fixture raffle reset preserving hours, and simulated pending save/retry. No browser warning/error logs for the exercised paths; no page-level overflow at phone/tablet widths tested.
+- Type checking and temporary production build passed. Existing tests remain 15 passed / 1 failed plus stats collection blocked by missing configuration. No test failures were hidden or rewritten.
+- Changes in this audit: `docs/simplification-spec.md`, this progress file and new `docs/simplification-stage2-audit.md`. No prototype/application code, migration, dependency or deployment settings changed. The existing no-deploy rule for `claude/stage-2-prototype` remains in place; unrelated `.DS_Store` is preserved.
+- This audit is not a bug-fix pass. Findings remain open. The next step is a bounded Stage 2 revision, not an automatic advance into Stage 3.
+
 ## Exact next-stage handoff
 
-Recommended model: **Claude Opus 5, High effort**. Stage 3 has not been authorized or started by this handoff, and it must not begin until the owner has walked through the Stage 2 prototype and answered at least question 1 in the table above.
+Recommended model: **Claude Sonnet, High effort** for the focused Stage 2 revision. Stage 3 remains **Claude Opus 5, High effort** after the revised walkthrough and resolution of consequential data policies. This handoff does not authorize another stage by itself.
 
-Copy this when the owner requests Stage 3:
+Copy this when requesting the revision:
 
 ```text
 Work only in johnfreyman/kaizen-tracker, starting from the latest
-claude/stage-2-prototype branch, which is based on codex/simplification-plan.
-Do not work in johnfreyman/seating-charts. Verify the remote and the branch
-head before editing, and preserve unrelated local changes including .DS_Store.
-If your environment requires a differently named work branch, base it on
-claude/stage-2-prototype and extend the branch-specific no-deploy rule in
-vercel.json for that exact branch before any push; do not disable production.
+claude/stage-2-prototype branch, including the independent audit documents.
+Verify the remote and head before editing. Preserve unrelated changes,
+including .DS_Store. Do not work in seating-charts or start from main.
 
-Read repository instructions, docs/simplification-spec.md and
-docs/simplification-progress.md. These supersede the seven-stage plan in
-commit 6486e64. Read the Stage 2 section for what was built, what was
-verified and the seven open decisions. If these files are absent, retrieve
-the correct branch; do not invent a replacement plan or start from main.
+Read repository instructions, docs/simplification-spec.md,
+docs/simplification-progress.md and docs/simplification-stage2-audit.md.
+Implement only the Stage 2 prototype revision described below. The audited
+prototype commit was d54c587; use the newer branch head containing the audit.
 
-Implement Stage 3 only: the data foundation and a migration REHEARSAL.
-Before writing any migration, check the owner's answers recorded above.
-Question 1, multiple simultaneous sub-team memberships, sets membership
-cardinality and must be answered before that table is designed. Questions 2,
-3, 4 and 5 change stored behavior; if any is still unanswered, implement the
-reversible option, record it as unresolved, and do not treat the prototype's
-choice as approval.
+Confirmed D07-D08: one player can belong to several sub-teams simultaneously,
+but uses ONE jersey number across them. Retain one stable player identity.
+Use multiple membership selection in add/edit, membership-set history
+snapshots, and correct matching in roster, attendance, kiosk and reports.
+All teams and kiosk show the player once. One training attendance yields
+1.5 hours and one raffle ticket even if several team filters match. Removing
+one membership preserves others and historical memberships. Keep 0 and 00
+as distinct strings. Update the stale single-membership assumption copy.
 
-Work in an ISOLATED environment only. Inspect the deployed-like schema,
-constraints, grants, views, triggers and RPC definitions rather than
-replaying the numbered files in migrations/, which may not match what is
-deployed. Never point any of this at production, and never run a migration
-against it.
+Address audit F01-F05:
+- Historical team filtering must use session membership snapshots and sum
+  only qualifying attendance; preserve unknown and retired history. Team
+  transfer must not move past hours to the new team. Explicitly label any
+  overlapping team totals and deduplicate whole-program totals.
+- Validate edits as well as adds. Draft edits with Save/Cancel; do not persist
+  empty names or unresolved identical cards. Preserve stable identity.
+- New-coach fixtures start with raffle enabled. Keep a separate existing
+  coach/off fixture for the activation dialog and preserved old settings.
+- Closed-session kiosk stops check-in but offers code-protected coach exit;
+  demonstrate closure while kiosk is active and recovery after refresh.
+- Derive raffle eligibility from immutable round membership, independent of
+  later archive/restore. Seed old archived fixtures outside the initial current
+  pool; include a current-round archive/restore regression fixture.
 
-Carry forward R01-R14 and confirmed D01-D06. Deliver:
-- Stable player identity reusing existing roster UUIDs where unambiguous,
-  with retained raw legacy names and an explicit exceptions list. Never merge
-  two people by first name or jersey number.
-- Sub-team and membership entities, with a default Kaizen grouping and
-  session membership snapshots so a transfer never rewrites history.
-- Session, attendance and revision entities; 1.5-hour credit for new
-  sessions and untouched historical durations.
-- Raffle round and ticket entitlement derived from immutable session/round
-  membership, seeded per D03 from current unarchived trainings only.
-- Versioned, idempotent RPCs with operation ids and revision checks. Finishing
-  must target a session id and must never delete a different active session
-  by coach alone.
-- Additive changes only: no dropped fields, no rewritten history.
-Make the 1-3 character jersey number rule a real constraint, so a four-digit
-kiosk exit code can never collide with a jersey lookup (Stage 2 finding 3).
+Demonstrate a visible local-persistence failure state instead of claiming
+Saved on this device after a failed write. Keep reliability limitations clear:
+fixture network switches are not proof of real offline recovery. Use the
+existing accessible dialog primitives for modal focus/keyboard behavior.
 
-Test cross-coach isolation with actual access roles in the isolated
-database, not UI mocks. Rehearse the backfill twice; the second pass must
-add no attendance, ticket, draw or round records. Keep johnfreyman70@gmail.com
-as the sole authorized super admin, preserve the secured admin-coach-actions
-backend and its authorization checks, and do not grant browser SELECT on
-admin_coach_summary_view.
+Add focused committed tests with expected totals for multiple memberships,
+transfer/history filtering, rejected edits, raffle defaults and archive/round
+eligibility. Browser-check the existing core flows plus new multi-team and
+closed-kiosk recovery journeys at phone and tablet sizes. Re-run type/build
+checks and distinguish existing baseline failures from new regressions.
+Keep the production bundle free of prototype code.
 
-Leave the Stage 2 prototype in place and unchanged unless a data decision
-makes one of its screens wrong; if so, update the screen and say why.
-State exactly what was run and what was not. Update this progress file with
-files changed, findings, resolved and remaining decisions, reconciliation
-counts, and the Stage 4 handoff. Stop at Stage 3. Do not deploy, merge the
-PR, change production, run a migration against production, or start the
-coach attendance rewrite.
+Fixture-only work: no Supabase or production calls, migrations, real roster
+data, backend authorization changes, deployments or PR merges. Preserve the
+normal app and secured admin-coach-actions backend. If using a differently
+named branch, extend the existing branch-specific no-deploy guard for that
+exact branch before pushing, without disabling production.
+
+Update progress and audit finding statuses with actual results. Record which
+product recommendations remain unresolved; do not infer approval from this
+prototype. Prepare a Stage 3 handoff using many-to-many memberships, one
+player-owned jersey number, stable IDs, independent raffle rounds and an
+isolated migration rehearsal. STOP after the Stage 2 revision; do not start
+Stage 3 or the real coach attendance rewrite.
 ```
+
+### Stage 3 gate after the revision
+
+Resolve the applicable PIN, backdated-training round, pending-finish,
+retirement and team-attribution policies before finalizing operations that
+encode them. A labeled recommendation is not approval. Do not copy the
+prototype's simplified local storage or name/group filters into production.
+Stage 3 must inspect an isolated deployed-like schema, preserve historical
+records, rehearse additive backfill twice, and verify cross-coach ownership
+and idempotent operations using actual database roles. If an isolated
+environment is unavailable, report that gap rather than using production.
 
 ### Before the walkthrough
 

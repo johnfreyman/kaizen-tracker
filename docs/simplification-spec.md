@@ -1,12 +1,12 @@
 # Kaizen Tracker simplification specification
 
-Status: Stage 1 planning complete; reconciled with Claude's documentation branch on 2026-09-20. D01–D06 are confirmed by the owner. Recommendations remain for the Stage 2 walkthrough. No implementation or production changes authorized by this document alone.
+Status: Stage 1 planning complete; Stage 2 prototype audited on 2026-09-20. D01–D08 are confirmed by the owner. Multiple simultaneous sub-team memberships with one jersey number per player are required; the initial single-membership prototype needs revision. Recommendations remain for review. No implementation or production changes authorized by this document alone.
 
 Prepared: 2026-09-19. Repository baseline: `40d9b0c2f57692cdc8439d453816418be3db5a39`.
 
 Related handoff: [simplification-progress.md](simplification-progress.md).
 
-Canonical continuation branch: `codex/simplification-plan` in `johnfreyman/kaizen-tracker`. This revision supersedes the seven-stage draft in commit `6486e646361d11b1f9831c93f532a7bb090adaa6` on `claude/inspiring-knuth-eovah7`. Keep the original eight-stage sequence below: Stage 1 is planning, Stage 2 is the isolated prototype, and Stage 3 is the data foundation. Do not interpret the superseded draft's stage numbers as this plan's stages.
+Canonical continuation branch: `claude/stage-2-prototype` in `johnfreyman/kaizen-tracker`, based on the reconciled `codex/simplification-plan`. This revision supersedes the seven-stage draft in commit `6486e646361d11b1f9831c93f532a7bb090adaa6` on `claude/inspiring-knuth-eovah7`. Keep the original eight-stage sequence below: Stage 1 is planning, Stage 2 is the isolated prototype, and Stage 3 is the data foundation. Do not interpret the superseded draft's stage numbers as this plan's stages. See [the Stage 2 audit](simplification-stage2-audit.md) before further implementation.
 
 ## 1. Authority and scope
 
@@ -38,7 +38,7 @@ Stage 1 creates only this document and the progress document. Stages 2–7 opera
 | R11 | Keep analytics. |
 | R12 | `johnfreyman70@gmail.com` is the sole authorized super admin. Preserve the secured `admin-coach-actions` backend and authorization checks. |
 | R13 | Default new sessions to today, with a low-prominence date option for entering attendance from paper later. No time or duration input. Store new session credit as `1.5` hours. |
-| R14 | Store each player's first name, distinguishing initial/label when needed, jersey number and team membership. Default grouping can be **Kaizen**; Settings allows custom sub-teams. Offer sub-team selection when adding players if sub-teams exist, and let coaches sort/filter by team for decisions. |
+| R14 | Store each player's first name, distinguishing initial/label when needed, jersey number and team memberships. A player can belong to multiple sub-teams simultaneously (D07). Default grouping can be **Kaizen**; Settings allows custom sub-teams. Offer membership selection when adding players if sub-teams exist, and let coaches sort/filter by team for decisions. |
 
 ### Non-goals
 
@@ -74,7 +74,7 @@ Relevant existing documents: `BRAINSTORM_BRIEF.md`, `RAFFLE-SPEC.md`, `RAFFLE-DI
 
 ### Confirmed owner decisions
 
-The owner confirmed D01–D03 on 2026-09-19 and D04–D06 on 2026-09-20. They are approved requirements, not assumptions.
+The owner confirmed D01–D03 on 2026-09-19 and D04–D08 on 2026-09-20. They are approved requirements, not assumptions.
 
 | ID | Choice | Approved behavior | Affected stages |
 | --- | --- | --- | --- |
@@ -84,6 +84,8 @@ The owner confirmed D01–D03 on 2026-09-19 and D04–D06 on 2026-09-20. They ar
 | D04 | Enter attendance later | Keep a discreet date option so a coach can enter paper attendance for an earlier day. | Stage 2 prototype and Stage 4 session flow. |
 | D05 | Credit units | `1.5` hours is approved for new practices and optional trainings; historical credit stays unchanged. | Stage 3 contract and Stages 4/6 credit/analytics. |
 | D06 | Sub-teams | Settings supports named sub-teams, roster entry offers membership selection, and coaches can sort/filter by team. Default grouping can be Kaizen. Examples: Kaizen Blue 7th Grade, Kaizen Gray 7th Grade, Kaizen Blue 6th Grade and Kaizen Gray 6th Grade. Examples are not mandatory seed data. | Stage 2 prototype, Stage 3 membership foundation, Stage 4 roster and Stage 6 reporting. |
+| D07 | Simultaneous memberships | Yes: players can belong to multiple teams at once. Maintain one player identity with multiple memberships, not duplicated player records. Each player/session still credits 1.5 hours and earns at most one optional-training ticket regardless of memberships. | Stage 2 revision, Stage 3 many-to-many foundation, Stages 4–6 filters, kiosk and reporting. |
+| D08 | Jersey number across teams | Each player uses one jersey number across all their teams. Store it on the player, not as a separate number per membership. Preserve `0` versus `00`. | Stage 2 revision, Stage 3 player contract and Stage 5 lookup. |
 
 Recommended PIN details for the prototype: four digits to avoid jersey-number collisions; changing the PIN replaces the default exit code rather than leaving `0000` as a bypass. Settings outside kiosk allow the signed-in coach to change/reset it. Persist the coach preference and make the active exit verifier available through interrupted connectivity. Length, recovery presentation and storage design remain implementation recommendations for review, not additional owner decisions.
 
@@ -104,9 +106,9 @@ These are proposals, not newly approved requirements. Include them in the Stage 
 | P09 | Keep an attendance correction workflow for the last finalized session; broader history editing is not required. Corrections update the same session and do not erase past draw results. An affected draw remains an auditable historical result. |
 | P10 | Archive remains a reporting/season organization action; it does not reset or revive raffle eligibility. Keep current-season analytics scope by default and retain archived access. |
 | P11 | No automatic weekly raffle reset, ticket expiration or round close after a draw. Start fresh is the explicit round boundary. |
-| P12 | Sub-teams organize one coach's program. Prototype one current sub-team per player pending the owner's membership answer; preserve stable player/sub-team IDs, snapshot membership for new history, and leave unavailable historical sub-team membership unknown. Keep one coach-wide raffle and one ticket per player/session regardless of group filtering. Filtering cards must not unmark hidden attendees or redefine who was expected at a session. Review the separate question of sessions targeting a sub-team before changing attendance-rate denominators. |
+| P12 | Sub-teams organize one coach's program. Use approved multiple memberships with stable player/sub-team IDs, snapshot membership sets for new history, and leave unavailable historical membership unknown. Keep one coach-wide raffle and one ticket per player/session regardless of group filtering. Filtering cards must not unmark hidden attendees or redefine who was expected at a session. Proposed per-team reports may overlap for multi-team players; clearly label that team totals are not additive, and deduplicate whole-program totals. Review session targeting before changing attendance-rate denominators. |
 
-Open membership question submitted 2026-09-20: can one player belong to multiple sub-teams simultaneously? This does not block a fixture prototype; do not finalize schema cardinality until answered. Sub-team-specific raffles and new attendance-denominator policies are not approved by the request to sort by team.
+Membership cardinality is resolved by D07 and jersey placement by D08. Sub-team-specific raffles and new attendance-denominator policies are not approved by the request to sort by team.
 
 Stage 1 completion does not mean these recommendations were approved. Stages 3–6 must resolve any disputed recommendation affecting stored data before committing to that behavior.
 
@@ -125,7 +127,7 @@ Stage 1 completion does not mean these recommendations were approved. Stages 3�
 ### Roster
 
 - Structured first name, jersey number, optional distinguishing label and team membership; preserve guest status.
-- Settings offers **Sub-teams** with **Add sub-team** and editable names. With none configured, players use the default Kaizen grouping and roster entry needs no extra decision. When sub-teams exist, show a team selector while adding/editing a player.
+- Settings offers **Sub-teams** with **Add sub-team** and editable names. With none configured, players use the default Kaizen grouping and roster entry needs no extra decision. When sub-teams exist, show a multi-select or checkboxes while adding/editing a player; changing one membership must not remove the others.
 - Show a small team label on cards and **All teams** / team filters plus sorting/grouping by team on coach roster and Progress. Recommended attendance filtering is presentation-only: retain selected players hidden by the filter and display the overall present count. Kiosk number matches include team labels and remain unambiguous across teams.
 - Display `Alex · #12`; if another Alex wears 12, ask the coach to distinguish the cards, e.g. `Alex M. · #12` and `Alex R. · #12`. Editing an existing card may be needed too.
 - A shared initial is not sufficient if cards are still identical; accept a short unique label. Do not demand full legal names.
@@ -134,6 +136,7 @@ Stage 1 completion does not mean these recommendations were approved. Stages 3�
 - Number/label edits preserve player ID. Incomplete legacy cards remain selectable by coach with **Add number** guidance. Do not make up shared sentinel numbers.
 - Retire confirmation explicitly says historical attendance and tickets are retained under P07.
 - Moving a player between sub-teams retains their player ID, attendance, hours and tickets. Recommended sub-team retirement removes it from future choices without erasing historical membership; do not delete its players.
+- Show each person once in All teams and kiosk results, even when several memberships match. Show membership labels on their card. Checking in from any team view changes the same player/session attendance; it never creates a second credit or ticket.
 
 ### Coach attendance
 
@@ -197,7 +200,7 @@ Logical entities, not final SQL. Stage 3 chooses additive columns/tables after i
 | Entity | Core fields and invariants |
 | --- | --- |
 | Player | Existing roster UUID when resolvable; coach ID; first name; number string; distinguishing label; guest flag; active/retired; retained legacy name/display snapshot. Never key history by number/name. |
-| Sub-team / membership | Stable coach-owned sub-team ID, display name, active/retired status, player-to-sub-team membership. Default current grouping Kaizen when none configured; preserve existing program names/settings. Cardinality awaits the membership answer. Never use a mutable team name in a player identity key. |
+| Sub-team / membership | Stable coach-owned sub-team ID, display name, active/retired status; many-to-many player/sub-team membership with unique owner/player/team combination. Default current grouping Kaizen when none configured; preserve existing program names/settings. Session membership snapshots support sets of teams. The jersey number belongs to the player (D08). Never use a mutable team name in a player identity key. |
 | Session | Stable existing event ID when migrated; coach; type; local calendar date; raw legacy date; credit hours; active/completed state; revision; creation/finalization audit timestamps; immutable original raffle-round assignment. |
 | Attendance | Coach/session/player composite ownership; unique session/player record; present state and revision; source operation IDs; display snapshot for historical readability. |
 | Reporting membership | Session roster/guest/sub-team snapshots for new sessions so later changes do not rewrite historical attribution. Legacy membership marked unknown where unavailable. Session target/expected roster is separate from a UI team filter; confirm any sub-team-specific denominator policy before implementation. |
@@ -239,7 +242,7 @@ No stored player-total counter is authoritative over the underlying attendance. 
 - Preserve existing practice-based attendance percentages/streaks; optional-training absence does not lower them. Do not invent historical roster membership for newly ID-based denominators.
 - Preserve existing guest exclusion from regular-roster percentages; guest attendance and credit remain available where currently shown.
 - Player renames/numbers affect display, not totals or winner matching. Report missing historical membership as a limitation instead of silently recalculating unsupported denominators.
-- Proposed team reporting offers clearly labeled **Current roster** comparisons and **Team at session** historical attribution. Do not move old credit between historical groups when a player transfers. Legacy records with unknown membership remain in overall totals and an explicit unknown group. Whole-program totals count each player/session once even if multiple simultaneous memberships are later approved.
+- Proposed team reporting offers clearly labeled **Current roster** comparisons and **Team at session** historical attribution. In historical mode, filter qualifying attendance by recorded membership sets, not current memberships; calculate the displayed hours from that selected attendance. Do not move old credit between historical groups when a player transfers. Legacy records with unknown membership remain in overall totals and an explicit unknown group. Whole-program totals count each player/session once even when the player has multiple memberships.
 - Raffle visibility, keep, reset and draw leave analytics unchanged. Reporting filters/season archive may change the selected scope, but records remain accessible and lifetime reconciliation counts each session once.
 - CSV/PDF and admin session counts use the same canonical IDs and data adapters as the app; no double-counting live/archive copies.
 
@@ -320,18 +323,19 @@ Each criterion must be demonstrated in Stage 7 against the approved decision log
 | A23 | Start defaults to today; a discreet date action permits an earlier date without time/duration controls. Selecting a date preserves attendance across refresh/sync and still credits 1.5 hours; an existing session's date correction does not move its raffle round. | 2–4, 6 |
 | A24 | No custom sub-teams gives a simple default Kaizen group; Settings can add named sub-teams and roster entry offers selection. Team sort/filter handles shared names/numbers, preserves hidden attendance selections and overall totals, and transfers preserve player identity/history. | 2–6 |
 | A25 | Historical team attribution does not change on transfer; unknown legacy membership is explicit. Group filters cannot duplicate player/session credit or raffle tickets or grant access to another coach's data. | 3, 6, 7 |
+| A26 | One player belongs to two teams; either team filter finds the same player, All teams/kiosk show them once, and one training yields 1.5 credited hours and one ticket. Removing one membership preserves the other and historical membership sets. Jersey lookup follows the recorded per-team-number decision. | 2–7 |
 
 ## 10. Build sequence and handoff boundaries
 
 | Stage | Deliverable | Model / effort recommendation | Dependency / exit |
 | --- | --- | --- | --- |
 | 1 | This specification and progress handoff | Astra / High | Complete documentation; approved choices and recommendations distinguished. |
-| 2 | Fixture-driven isolated prototype | Claude Sonnet / Medium | Demonstrate approved D01–D06; review date/sub-team flows, PIN details and P01–P12. No schema work. |
+| 2 | Fixture-driven isolated prototype and audit revision | Claude Sonnet / High for the revision | Demonstrate approved D01–D08 and address the audit; review date/sub-team flows, PIN details and P01–P12. No schema work. |
 | 3 | Identity, sub-team membership, attendance, round foundations and migration rehearsal | Claude Opus 5 / High | Resolve data-affecting decisions; stable IDs and reconciliation tests pass locally. |
 | 4 | Coach session/roster workflow | Sol / High | Stage 3 API/data contract; reliable save/resume and new duration default. |
 | 5 | Kiosk workflow | Claude Sonnet / High | Stage 4 attendance semantics and approved number/exit policy. |
 | 6 | Raffle activation, rounds and analytics integration | Claude Opus 5 / High | Stage 3 round model and Stage 4 finalization; independent reset. |
-| 7 | Independent review and full acceptance rehearsal | Astra / Extra high | A01–A25 checked; existing test failures separated from regressions. |
+| 7 | Independent review and full acceptance rehearsal | Astra / Extra high | A01–A26 checked; existing test failures separated from regressions. |
 | 8 | Authorized production release and verification | Sol / High | Reviewed exact commit, migration rehearsal and recovery point. |
 
 Execute sequentially, carrying code and these documents forward. These are model recommendations from the prior build plan, not permission to start tasks or delegate work automatically.
