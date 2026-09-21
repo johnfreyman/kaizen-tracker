@@ -593,3 +593,10 @@ In an isolated, non-production database only:
 5. If no isolated environment is available, report that gap rather than substituting production.
 
 Stage 4 implements the real coach/offline flow against this contract; Stage 5 kiosk; Stage 6 restores/adapts the full analytics inventory and exports; Stage 7 verifies A01–A33, including the offline/reconnection scenarios. STOP after Stage 3 for review — do not implement Stage 4 behavior early.
+
+
+## Background-task check and fresh recheck — 2026-09-21
+
+A leftover background browser-walkthrough process (id `bz5ndyv1b`) from earlier in this branch's work was checked. It held only a stale crash — a pre-fix scratch script hitting an ambiguous "Roster" button selector, the exact issue already documented as found-and-fixed under the original Stage 2 revision above — not a pass/fail result for current code. It was already stopped; no walkthrough is owed from it.
+
+A fresh, independent re-run on the current head (`aa0eac8`, unchanged by this check) reproduced exactly the state already on record: `npx tsc --noEmit` 0 errors; `npx vitest run` 55 of 56 passing (the same 2 pre-existing, unrelated failures — `LaunchPage.test.tsx`'s dated preset assertion and `stats.test.ts`'s missing `VITE_SUPABASE_URL`); `npx vite build` (to a scratch directory, so the repository's own tracked `dist/` was left untouched) byte-identical to every hash recorded on this branch. No source changes were needed or made.
