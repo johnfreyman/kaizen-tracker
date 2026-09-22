@@ -21,18 +21,30 @@ export default function AttendanceScreen({ go }: { go: (s: ScreenId) => void }) 
   const session = state.activeSession;
 
   const [teamFilter, setTeamFilter] = useState<string>("all");
+  const [showOtherPlayers, setShowOtherPlayers] = useState(false);
   const [sort, setSort] = useState<SortMode>("team");
   const [showDate, setShowDate] = useState(false);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
 
   const active = useMemo(() => state.players.filter((p) => !p.retired), [state.players]);
   const colliding = useMemo(() => collidingPlayerIds(state.players), [state.players]);
+  const expectedIds = useMemo(
+    () => new Set(session?.type === "practice" ? session.expected?.playerIds : undefined),
+    [session?.type, session?.expected?.playerIds],
+  );
+  const hasExpectedRoster = session?.type === "practice" && !!session.expected;
+  const otherPlayerCount = hasExpectedRoster
+    ? active.filter((p) => !expectedIds.has(p.id)).length
+    : 0;
 
   const visible = useMemo(() => {
+    const inScope = hasExpectedRoster
+      ? active.filter((p) => showOtherPlayers !== expectedIds.has(p.id))
+      : active;
     const list =
       teamFilter === "all"
-        ? active
-        : active.filter((p) =>
+        ? inScope
+        : inScope.filter((p) =>
             teamFilter === "none" ? p.subTeamIds.length === 0 : p.subTeamIds.includes(teamFilter),
           );
     const copy = [...list];
@@ -49,7 +61,7 @@ export default function AttendanceScreen({ go }: { go: (s: ScreenId) => void }) 
       return a.firstName.localeCompare(b.firstName);
     });
     return copy;
-  }, [active, teamFilter, sort, state]);
+  }, [active, expectedIds, hasExpectedRoster, showOtherPlayers, teamFilter, sort, state]);
 
   if (!session) {
     return (
@@ -183,6 +195,27 @@ export default function AttendanceScreen({ go }: { go: (s: ScreenId) => void }) 
         )}
       </Panel>
 
+      {hasExpectedRoster && (
+        <Panel>
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterChip active={!showOtherPlayers} onClick={() => { setShowOtherPlayers(false); setTeamFilter("all"); }}>
+              Expected players · {expectedIds.size}
+            </FilterChip>
+            {otherPlayerCount > 0 && (
+              <FilterChip active={showOtherPlayers} onClick={() => { setShowOtherPlayers(true); setTeamFilter("all"); }}>
+                Other players · {otherPlayerCount}
+              </FilterChip>
+            )}
+          </div>
+          {showOtherPlayers && (
+            <p className="mt-2 text-sm mc-text-secondary">
+              You can mark an unexpected player present here. This does not change who was expected
+              for the practice or count them as absent if they do not attend.
+            </p>
+          )}
+        </Panel>
+      )}
+
       {/* ── Team filter and sort ───────────────────────────────── */}
       {hasSubTeams && (
         <Panel>
@@ -191,7 +224,7 @@ export default function AttendanceScreen({ go }: { go: (s: ScreenId) => void }) 
               Team
             </span>
             <FilterChip active={teamFilter === "all"} onClick={() => setTeamFilter("all")}>
-              All teams
+              {hasExpectedRoster ? (showOtherPlayers ? "All other players" : "All expected") : "All teams"}
             </FilterChip>
             {state.subTeams
               .filter((t) => t.active)
