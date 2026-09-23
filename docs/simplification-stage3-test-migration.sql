@@ -546,3 +546,443 @@ JOIN public.tracker_attendance a
 WHERE s.kind='Optional Training' AND s.state='completed' AND a.present;
 REVOKE ALL ON public.tracker_ticket_entitlements FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.tracker_ticket_entitlements TO authenticated;
+
+-- ===========================================================================
+-- Continuation (2026-09-23): coach-owned roster/sub-team writes and an
+-- auditable completed-session correction. Still isolated-rehearsal SQL only.
+-- Deliberately absent, because the owner has not decided them: player
+-- retirement/removal, sub-team retirement, PIN storage/recovery, the round
+-- for a newly entered backdated training, correcting a saved expected list,
+-- and re-dating a completed session. Nothing here deletes history.
+-- ===========================================================================
+
+-- Revisions let a stale offline roster draft be rejected instead of winning.
+ALTER TABLE public.tracker_players
+  ADD COLUMN IF NOT EXISTS revision bigint NOT NULL DEFAULT 0 CHECK (revision >= 0);
+ALTER TABLE public.tracker_sub_teams
+  ADD COLUMN IF NOT EXISTS revision bigint NOT NULL DEFAULT 0 CHECK (revision >= 0);
+
+ALTER TABLE public.tracker_operations DROP CONSTRAINT IF EXISTS tracker_operations_kind_check;
+ALTER TABLE public.tracker_operations ADD CONSTRAINT tracker_operations_kind_check
+  CHECK (kind IN ('start_v1', 'set_present_v1', 'finish_v1', 'start_fresh_v1',
+                  'create_team_v1', 'rename_team_v1',
+                  'create_player_v1', 'update_player_v1', 'correct_v1'));
+
+-- One audit row per applied correction: who/what/before/after, never deleted.
+CREATE TABLE IF NOT EXISTS public.tracker_session_corrections (
+  coach_id uuid NOT NULL,
+  session_id uuid NOT NULL,
+  operation_id uuid NOT NULL,
+  from_revision bigint NOT NULL CHECK (from_revision >= 0),
+  to_revision bigint NOT NULL,
+  changes jsonb NOT NULL CHECK (jsonb_typeof(changes) = 'array'),
+  reason text CHECK (reason IS NULL OR length(reason) <= 500),
+  corrected_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (coach_id, session_id, to_revision),
+  UNIQUE (coach_id, operation_id),
+  CHECK (to_revision = from_revision + 1),
+  FOREIGN KEY (coach_id, session_id)
+    REFERENCES public.tracker_sessions (coach_id, id),
+  FOREIGN KEY (coach_id, operation_id)
+    REFERENCES public.tracker_operations (coach_id, operation_id)
+);
+ALTER TABLE public.tracker_session_corrections ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.tracker_session_corrections FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.tracker_session_corrections TO authenticated;
+DROP POLICY IF EXISTS tracker_owner_select ON public.tracker_session_corrections;
+CREATE POLICY tracker_owner_select ON public.tracker_session_corrections
+  FOR SELECT TO authenticated USING (coach_id = (select auth.uid()));
+
+-- Defense in depth beneath the operations: even privileged SQL cannot change
+-- a session's credit, kind or expected scope, nor reopen or re-date a
+-- completed one. (The round is already protected above.)
+CREATE OR REPLACE FUNCTION tracker_private.protect_session_history_v1()
+RETURNS trigger LANGUAGE plpgsql SET search_path = '' AS $fn$
+BEGIN
+  IF NEW.credit_hours IS DISTINCT FROM OLD.credit_hours
+     OR NEW.kind IS DISTINCT FROM OLD.kind
+     OR NEW.all_kaizen IS DISTINCT FROM OLD.all_kaizen THEN
+    RAISE EXCEPTION 'session credit, kind and expected scope are immutable'
+      USING ERRCODE = '23514';
+  END IF;
+  IF OLD.state = 'completed' AND (
+       NEW.state IS DISTINCT FROM OLD.state
+       OR NEW.completed_at IS DISTINCT FROM OLD.completed_at
+       OR NEW.session_date IS DISTINCT FROM OLD.session_date) THEN
+    RAISE EXCEPTION 'a completed session cannot be reopened or re-dated'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END $fn$;
+DROP TRIGGER IF EXISTS tracker_session_history_immutable ON public.tracker_sessions;
+CREATE TRIGGER tracker_session_history_immutable
+  BEFORE UPDATE ON public.tracker_sessions
+  FOR EACH ROW EXECUTE FUNCTION tracker_private.protect_session_history_v1();
+
+-- Shared ledger claim for the new entry points, identical in shape to the
+-- one inside apply_operation_v1: a duplicate ID with the same request
+-- returns its stored result; the same ID with a different request fails.
+-- Returns NULL when the caller should apply the mutation.
+CREATE OR REPLACE FUNCTION tracker_private.claim_operation_v1(
+  p_owner uuid, p_operation_id uuid, p_device_id uuid, p_device_sequence bigint,
+  p_kind text, p_session_id uuid, p_base_revision bigint, p_payload jsonb
+) RETURNS jsonb LANGUAGE plpgsql SET search_path = '' AS $fn$
+DECLARE
+  v_request jsonb;
+  v_existing public.tracker_operations%ROWTYPE;
+BEGIN
+  IF p_owner IS NULL THEN
+    RAISE EXCEPTION 'authentication required' USING ERRCODE = '42501';
+  END IF;
+  IF p_operation_id IS NULL OR p_device_id IS NULL OR p_device_sequence IS NULL
+     OR p_device_sequence <= 0 OR p_base_revision IS NULL
+     OR p_base_revision < 0 OR p_payload IS NULL
+     OR jsonb_typeof(p_payload) <> 'object' THEN
+    RAISE EXCEPTION 'invalid operation envelope' USING ERRCODE = '22023';
+  END IF;
+  v_request := jsonb_build_object('device_id',p_device_id,
+    'device_sequence',p_device_sequence,'kind',p_kind,
+    'session_id',p_session_id,'base_revision',p_base_revision,
+    'payload',p_payload);
+  INSERT INTO public.tracker_operations
+    (coach_id, operation_id, device_id, device_sequence, session_id, kind,
+     base_revision, request)
+  VALUES (p_owner, p_operation_id, p_device_id, p_device_sequence,
+          p_session_id, p_kind, p_base_revision, v_request)
+  ON CONFLICT (coach_id, operation_id) DO NOTHING;
+  SELECT * INTO v_existing FROM public.tracker_operations
+   WHERE coach_id = p_owner AND operation_id = p_operation_id FOR UPDATE;
+  IF v_existing.request IS DISTINCT FROM v_request THEN
+    RAISE EXCEPTION 'operation id reused with different request'
+      USING ERRCODE = '23505';
+  END IF;
+  RETURN v_existing.result;
+END $fn$;
+
+-- Roster and sub-team writes. Each payload is the full desired state, so a
+-- Stage 4 "Save" is one operation. Identity is the client-generated UUID;
+-- name, number, label and team never key history. Session snapshot tables
+-- are never touched here, so edits cannot rewrite recorded history.
+CREATE OR REPLACE FUNCTION tracker_private.apply_roster_operation_v1(
+  p_operation_id uuid, p_device_id uuid, p_device_sequence bigint,
+  p_kind text, p_base_revision bigint, p_payload jsonb
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
+DECLARE
+  v_owner uuid;
+  v_result jsonb;
+  v_id uuid;
+  v_name text;
+  v_first text;
+  v_number text;
+  v_label text;
+  v_guest boolean;
+  v_team_ids uuid[];
+  v_player public.tracker_players%ROWTYPE;
+  v_team public.tracker_sub_teams%ROWTYPE;
+BEGIN
+  v_owner := auth.uid();
+  IF v_owner IS NULL THEN
+    RAISE EXCEPTION 'authentication required' USING ERRCODE = '42501';
+  END IF;
+  IF p_kind IS NULL OR p_kind NOT IN
+     ('create_team_v1', 'rename_team_v1', 'create_player_v1', 'update_player_v1') THEN
+    RAISE EXCEPTION 'unsupported roster operation' USING ERRCODE = '22023';
+  END IF;
+  v_result := tracker_private.claim_operation_v1(v_owner, p_operation_id,
+    p_device_id, p_device_sequence, p_kind, NULL, p_base_revision, p_payload);
+  IF v_result IS NOT NULL THEN RETURN v_result; END IF;
+
+  IF p_kind IN ('create_team_v1', 'rename_team_v1') THEN
+    v_id := (p_payload->>'team_id')::uuid;
+    v_name := btrim(coalesce(p_payload->>'name', ''));
+    IF v_id IS NULL OR length(v_name) NOT BETWEEN 1 AND 100 THEN
+      RAISE EXCEPTION 'invalid team payload' USING ERRCODE = '22023';
+    END IF;
+    IF EXISTS (SELECT 1 FROM public.tracker_sub_teams
+               WHERE coach_id = v_owner AND id <> v_id AND retired_at IS NULL
+                 AND lower(btrim(name)) = lower(v_name)) THEN
+      RAISE EXCEPTION 'an active sub-team already uses this name'
+        USING ERRCODE = '23505';
+    END IF;
+    IF p_kind = 'create_team_v1' THEN
+      IF p_base_revision <> 0 THEN
+        RAISE EXCEPTION 'create requires base revision 0' USING ERRCODE = '22023';
+      END IF;
+      IF EXISTS (SELECT 1 FROM public.tracker_sub_teams WHERE id = v_id) THEN
+        RAISE EXCEPTION 'sub-team id already exists' USING ERRCODE = '23505';
+      END IF;
+      INSERT INTO public.tracker_sub_teams (id, coach_id, name)
+      VALUES (v_id, v_owner, v_name);
+      v_result := jsonb_build_object('team_id', v_id, 'name', v_name, 'revision', 0);
+    ELSE
+      SELECT * INTO v_team FROM public.tracker_sub_teams
+       WHERE coach_id = v_owner AND id = v_id FOR UPDATE;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'sub-team not found' USING ERRCODE = '42501';
+      END IF;
+      IF v_team.revision <> p_base_revision THEN
+        RAISE EXCEPTION 'stale sub-team revision' USING ERRCODE = '40001';
+      END IF;
+      UPDATE public.tracker_sub_teams SET name = v_name, revision = revision + 1
+       WHERE coach_id = v_owner AND id = v_id;
+      v_result := jsonb_build_object('team_id', v_id, 'name', v_name,
+        'revision', v_team.revision + 1);
+    END IF;
+
+  ELSE
+    v_id := (p_payload->>'player_id')::uuid;
+    v_first := btrim(coalesce(p_payload->>'first_name', ''));
+    -- D02: trim surrounding space only; '0' and '00' stay distinct text.
+    v_number := nullif(btrim(coalesce(p_payload->>'jersey_number', '')), '');
+    v_label := btrim(coalesce(p_payload->>'short_label', ''));
+    IF v_id IS NULL OR length(v_first) NOT BETWEEN 1 AND 80
+       OR NOT (p_payload ? 'jersey_number')
+       OR (v_number IS NOT NULL AND v_number !~ '^[0-9]{1,3}$')
+       OR length(v_label) > 24
+       OR jsonb_typeof(p_payload->'is_guest') IS DISTINCT FROM 'boolean'
+       OR jsonb_typeof(p_payload->'team_ids') IS DISTINCT FROM 'array' THEN
+      RAISE EXCEPTION 'invalid player payload' USING ERRCODE = '22023';
+    END IF;
+    v_guest := (p_payload->>'is_guest')::boolean;
+    SELECT coalesce(array_agg(DISTINCT x::uuid ORDER BY x::uuid), ARRAY[]::uuid[])
+      INTO v_team_ids
+      FROM jsonb_array_elements_text(p_payload->'team_ids') AS x;
+    IF EXISTS (SELECT 1 FROM unnest(v_team_ids) AS t(id)
+               WHERE NOT EXISTS (SELECT 1 FROM public.tracker_sub_teams s
+                                 WHERE s.coach_id = v_owner AND s.id = t.id)) THEN
+      RAISE EXCEPTION 'foreign or unknown sub-team' USING ERRCODE = '42501';
+    END IF;
+    -- A retired sub-team cannot gain members; an existing membership may stay.
+    IF EXISTS (SELECT 1 FROM unnest(v_team_ids) AS t(id)
+               JOIN public.tracker_sub_teams s ON s.coach_id = v_owner AND s.id = t.id
+               WHERE s.retired_at IS NOT NULL
+                 AND NOT EXISTS (SELECT 1 FROM public.tracker_memberships m
+                                 WHERE m.coach_id = v_owner AND m.player_id = v_id
+                                   AND m.team_id = t.id)) THEN
+      RAISE EXCEPTION 'cannot add a member to a retired sub-team'
+        USING ERRCODE = '22023';
+    END IF;
+    -- R03: identical active cards are rejected; a short label resolves it.
+    IF EXISTS (SELECT 1 FROM public.tracker_players p
+               WHERE p.coach_id = v_owner AND p.id <> v_id AND p.retired_at IS NULL
+                 AND lower(btrim(p.first_name)) = lower(v_first)
+                 AND coalesce(p.jersey_number, '') = coalesce(v_number, '')
+                 AND lower(btrim(p.short_label)) = lower(v_label)) THEN
+      RAISE EXCEPTION 'card collision: add or change a short label'
+        USING ERRCODE = '23505';
+    END IF;
+
+    IF p_kind = 'create_player_v1' THEN
+      IF p_base_revision <> 0 THEN
+        RAISE EXCEPTION 'create requires base revision 0' USING ERRCODE = '22023';
+      END IF;
+      IF EXISTS (SELECT 1 FROM public.tracker_players WHERE id = v_id) THEN
+        RAISE EXCEPTION 'player id already exists' USING ERRCODE = '23505';
+      END IF;
+      INSERT INTO public.tracker_players
+        (id, coach_id, first_name, jersey_number, short_label, is_guest)
+      VALUES (v_id, v_owner, v_first, v_number, v_label, v_guest);
+      INSERT INTO public.tracker_memberships (coach_id, player_id, team_id)
+      SELECT v_owner, v_id, t.id FROM unnest(v_team_ids) AS t(id);
+      v_result := jsonb_build_object('player_id', v_id, 'revision', 0,
+        'jersey_number', v_number, 'team_ids', to_jsonb(v_team_ids));
+    ELSE
+      SELECT * INTO v_player FROM public.tracker_players
+       WHERE coach_id = v_owner AND id = v_id FOR UPDATE;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'player not found' USING ERRCODE = '42501';
+      END IF;
+      IF v_player.retired_at IS NOT NULL THEN
+        RAISE EXCEPTION 'retired player: edit path awaits the retirement policy'
+          USING ERRCODE = '22023';
+      END IF;
+      IF v_player.revision <> p_base_revision THEN
+        RAISE EXCEPTION 'stale player revision' USING ERRCODE = '40001';
+      END IF;
+      UPDATE public.tracker_players
+         SET first_name = v_first, jersey_number = v_number,
+             short_label = v_label, is_guest = v_guest, revision = revision + 1
+       WHERE coach_id = v_owner AND id = v_id;
+      -- Current memberships only. Session membership/expected snapshots are
+      -- separate tables and stay exactly as recorded.
+      DELETE FROM public.tracker_memberships
+       WHERE coach_id = v_owner AND player_id = v_id
+         AND NOT (team_id = ANY (v_team_ids));
+      INSERT INTO public.tracker_memberships (coach_id, player_id, team_id)
+      SELECT v_owner, v_id, t.id FROM unnest(v_team_ids) AS t(id)
+      ON CONFLICT DO NOTHING;
+      v_result := jsonb_build_object('player_id', v_id,
+        'revision', v_player.revision + 1,
+        'jersey_number', v_number, 'team_ids', to_jsonb(v_team_ids));
+    END IF;
+  END IF;
+
+  UPDATE public.tracker_operations SET result = v_result
+   WHERE coach_id = v_owner AND operation_id = p_operation_id;
+  RETURN v_result;
+END $fn$;
+
+-- Completed-session correction (P09 shape; which sessions the UI offers is a
+-- Stage 4/6 presentation choice). Same session ID, new revision, audit row.
+-- Never changes round, credit, kind, date, expected teams or expected players.
+-- Present/absent is set per player; credit and tickets stay derived.
+CREATE OR REPLACE FUNCTION tracker_private.correct_session_v1(
+  p_operation_id uuid, p_device_id uuid, p_device_sequence bigint,
+  p_session_id uuid, p_base_revision bigint, p_payload jsonb
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
+DECLARE
+  v_owner uuid;
+  v_result jsonb;
+  v_session public.tracker_sessions%ROWTYPE;
+  v_change jsonb;
+  v_snapshot jsonb;
+  v_player uuid;
+  v_present boolean;
+  v_before boolean;
+  v_added boolean;
+  v_new_revision bigint;
+  v_changes jsonb := '[]'::jsonb;
+BEGIN
+  v_owner := auth.uid();
+  IF v_owner IS NULL THEN
+    RAISE EXCEPTION 'authentication required' USING ERRCODE = '42501';
+  END IF;
+  v_result := tracker_private.claim_operation_v1(v_owner, p_operation_id,
+    p_device_id, p_device_sequence, 'correct_v1', p_session_id,
+    p_base_revision, p_payload);
+  IF v_result IS NOT NULL THEN RETURN v_result; END IF;
+
+  IF p_session_id IS NULL
+     OR jsonb_typeof(p_payload->'changes') IS DISTINCT FROM 'array'
+     OR jsonb_array_length(p_payload->'changes') = 0
+     OR coalesce(jsonb_typeof(p_payload->'reason'), 'null') NOT IN ('string', 'null')
+     OR length(p_payload->>'reason') > 500 THEN
+    RAISE EXCEPTION 'invalid correction payload' USING ERRCODE = '22023';
+  END IF;
+  IF (SELECT count(*) <> count(DISTINCT x->>'player_id')
+        FROM jsonb_array_elements(p_payload->'changes') AS x) THEN
+    RAISE EXCEPTION 'a correction lists each player once' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT * INTO v_session FROM public.tracker_sessions
+   WHERE coach_id = v_owner AND id = p_session_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'session not found' USING ERRCODE = '42501';
+  END IF;
+  IF v_session.state <> 'completed' THEN
+    RAISE EXCEPTION 'only a completed session can be corrected'
+      USING ERRCODE = '55000';
+  END IF;
+  IF v_session.revision <> p_base_revision THEN
+    RAISE EXCEPTION 'stale session revision' USING ERRCODE = '40001';
+  END IF;
+  v_new_revision := v_session.revision + 1;
+
+  FOR v_change IN SELECT x FROM jsonb_array_elements(p_payload->'changes') AS x LOOP
+    IF jsonb_typeof(v_change->'present') IS DISTINCT FROM 'boolean' THEN
+      RAISE EXCEPTION 'invalid correction entry' USING ERRCODE = '22023';
+    END IF;
+    v_player := (v_change->>'player_id')::uuid;
+    v_present := (v_change->>'present')::boolean;
+    v_added := false;
+    SELECT a.present INTO v_before FROM public.tracker_attendance a
+     WHERE a.coach_id = v_owner AND a.session_id = p_session_id
+       AND a.player_id = v_player;
+    IF NOT EXISTS (SELECT 1 FROM public.tracker_session_roster
+                   WHERE coach_id = v_owner AND session_id = p_session_id
+                     AND player_id = v_player) THEN
+      -- Same rule as an unexpected check-in: owned player, owned teams,
+      -- snapshotted now; never added to the saved expected set.
+      v_snapshot := v_change->'snapshot';
+      IF jsonb_typeof(v_snapshot) IS DISTINCT FROM 'object'
+         OR jsonb_typeof(v_snapshot->'team_ids') IS DISTINCT FROM 'array'
+         OR NOT EXISTS (SELECT 1 FROM public.tracker_players
+                        WHERE coach_id = v_owner AND id = v_player) THEN
+        RAISE EXCEPTION 'unexpected player needs owned snapshot'
+          USING ERRCODE = '42501';
+      END IF;
+      IF EXISTS (
+        SELECT 1 FROM jsonb_array_elements_text(v_snapshot->'team_ids') AS x
+        WHERE NOT EXISTS (SELECT 1 FROM public.tracker_sub_teams t
+                          WHERE t.coach_id = v_owner AND t.id = x::uuid)
+      ) THEN
+        RAISE EXCEPTION 'foreign snapshot team' USING ERRCODE = '42501';
+      END IF;
+      INSERT INTO public.tracker_session_roster
+        (coach_id, session_id, player_id, first_name, jersey_number, short_label, is_guest)
+      SELECT v_owner, p_session_id, v_player,
+        coalesce(nullif(v_snapshot->>'first_name', ''), p.first_name),
+        coalesce(v_snapshot->>'jersey_number', p.jersey_number),
+        coalesce(v_snapshot->>'short_label', p.short_label),
+        coalesce((v_snapshot->>'is_guest')::boolean, p.is_guest)
+      FROM public.tracker_players p WHERE p.coach_id = v_owner AND p.id = v_player;
+      INSERT INTO public.tracker_session_memberships
+        (coach_id, session_id, player_id, team_id)
+      SELECT v_owner, p_session_id, v_player, x::uuid
+      FROM jsonb_array_elements_text(v_snapshot->'team_ids') AS x;
+      v_added := true;
+    END IF;
+    INSERT INTO public.tracker_attendance
+      (coach_id, session_id, player_id, present, revision, source_operation_id)
+    VALUES (v_owner, p_session_id, v_player, v_present, v_new_revision, p_operation_id)
+    ON CONFLICT (coach_id, session_id, player_id) DO UPDATE
+      SET present = EXCLUDED.present, revision = EXCLUDED.revision,
+          source_operation_id = EXCLUDED.source_operation_id;
+    v_changes := v_changes || jsonb_build_array(jsonb_build_object(
+      'player_id', v_player, 'before', to_jsonb(v_before), 'after', v_present,
+      'snapshot_added', v_added));
+  END LOOP;
+
+  UPDATE public.tracker_sessions SET revision = v_new_revision
+   WHERE coach_id = v_owner AND id = p_session_id;
+  INSERT INTO public.tracker_session_corrections
+    (coach_id, session_id, operation_id, from_revision, to_revision, changes, reason)
+  VALUES (v_owner, p_session_id, p_operation_id, v_session.revision,
+          v_new_revision, v_changes, p_payload->>'reason');
+  v_result := jsonb_build_object('session_id', p_session_id, 'state', 'completed',
+    'revision', v_new_revision, 'round_id', v_session.round_id,
+    'credit_hours', v_session.credit_hours, 'changes', v_changes);
+
+  UPDATE public.tracker_operations SET result = v_result
+   WHERE coach_id = v_owner AND operation_id = p_operation_id;
+  RETURN v_result;
+END $fn$;
+
+CREATE OR REPLACE FUNCTION public.tracker_apply_roster_operation_v1(
+  p_operation_id uuid, p_device_id uuid, p_device_sequence bigint,
+  p_kind text, p_base_revision bigint, p_payload jsonb
+) RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path = '' AS $fn$
+  SELECT tracker_private.apply_roster_operation_v1(
+    p_operation_id, p_device_id, p_device_sequence, p_kind,
+    p_base_revision, p_payload)
+$fn$;
+
+CREATE OR REPLACE FUNCTION public.tracker_correct_session_v1(
+  p_operation_id uuid, p_device_id uuid, p_device_sequence bigint,
+  p_session_id uuid, p_base_revision bigint, p_payload jsonb
+) RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path = '' AS $fn$
+  SELECT tracker_private.correct_session_v1(
+    p_operation_id, p_device_id, p_device_sequence, p_session_id,
+    p_base_revision, p_payload)
+$fn$;
+
+REVOKE ALL ON FUNCTION tracker_private.protect_session_history_v1()
+  FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION tracker_private.claim_operation_v1(uuid,uuid,uuid,bigint,text,uuid,bigint,jsonb)
+  FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION tracker_private.apply_roster_operation_v1(uuid,uuid,bigint,text,bigint,jsonb)
+  FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION tracker_private.correct_session_v1(uuid,uuid,bigint,uuid,bigint,jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION tracker_private.apply_roster_operation_v1(uuid,uuid,bigint,text,bigint,jsonb)
+  TO authenticated;
+GRANT EXECUTE ON FUNCTION tracker_private.correct_session_v1(uuid,uuid,bigint,uuid,bigint,jsonb)
+  TO authenticated;
+REVOKE ALL ON FUNCTION public.tracker_apply_roster_operation_v1(uuid,uuid,bigint,text,bigint,jsonb)
+  FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.tracker_correct_session_v1(uuid,uuid,bigint,uuid,bigint,jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.tracker_apply_roster_operation_v1(uuid,uuid,bigint,text,bigint,jsonb)
+  TO authenticated;
+GRANT EXECUTE ON FUNCTION public.tracker_correct_session_v1(uuid,uuid,bigint,uuid,bigint,jsonb)
+  TO authenticated;

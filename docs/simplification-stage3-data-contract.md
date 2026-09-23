@@ -1,6 +1,6 @@
 # Stage 3 data contract — isolated rehearsal draft
 
-Status: **applied and partially rehearsed in a separate test project; not release-ready** (2026-09-22). The exact test SQL is [simplification-stage3-test-migration.sql](simplification-stage3-test-migration.sql), with results in [simplification-stage3-rehearsal.md](simplification-stage3-rehearsal.md). This is not a production migration or authorization to use the live Supabase project. The approved requirements are in [simplification-spec.md](simplification-spec.md); unresolved policy choices are called out below.
+Status: **applied and partially rehearsed in a separate test project; not release-ready** (2026-09-22; roster/sub-team writes and completed-session corrections added and rehearsed 2026-09-23). The exact test SQL is [simplification-stage3-test-migration.sql](simplification-stage3-test-migration.sql), with results in [simplification-stage3-rehearsal.md](simplification-stage3-rehearsal.md) and the repeatable role suite in [simplification-stage3-role-tests.sql](simplification-stage3-role-tests.sql). This is not a production migration or authorization to use the live Supabase project. The approved requirements are in [simplification-spec.md](simplification-spec.md); unresolved policy choices are called out below.
 
 ## Evidence and boundary
 
@@ -44,6 +44,28 @@ Every request includes an immutable `operation_id`, `device_id`, monotonic devic
 | `start_fresh_v1` | Require online verified owner, no known unsynced local work, no server-active session, and expected current round/revision. Atomically close that round and open exactly one next generation. Return new round ID/revision. Idempotent retry cannot open a second round. Server cannot detect a disconnected device's unseen outbox; a later old-round start must retain its cached old binding and surface reconciliation. |
 
 `raffle_enabled` is independent of rounds. New coach settings default on; an explicitly saved legacy false remains false. Enabling from false offers Keep or Start fresh; Cancel changes nothing. Do not tie round generation to archive/restore. D03 applies only to an eventual initial conversion of sample legacy events: current unarchived training records may enter the initial current pool; archived history belongs to an older round. D11 means no real-history name matching or destructive cleanup is needed.
+
+### Roster, sub-team and correction operations (rehearsed 2026-09-23)
+
+These use the same envelope (`operation_id`, `device_id`, `device_sequence`, `base_revision`, JSON `payload`) and the same `tracker_operations` ledger as the session operations, so replay and changed-payload behavior are identical across all entry points. Each is an authenticated-only invoker wrapper over a private definer function with an empty search path.
+
+| Entry point / kind | Payload (full desired state) | Rules |
+| --- | --- | --- |
+| `tracker_apply_roster_operation_v1` · `create_team_v1` / `rename_team_v1` | `team_id`, `name` | Base revision 0 for create; current team revision for rename. Active names unique per coach, ignoring case and surrounding space. |
+| `tracker_apply_roster_operation_v1` · `create_player_v1` / `update_player_v1` | `player_id`, `first_name`, `jersey_number` (required key; `null` = setup needed), `short_label`, `is_guest`, `team_ids` | One player-wide number (D08); only surrounding space trimmed, so `0` ≠ `00` (D02); identical active card rejected until a short label distinguishes it (R03); every team must be the caller's; a retired team cannot gain members; update needs the current player revision and replaces current memberships only. Session snapshots never change. Editing a retired player is refused pending the retirement policy. |
+| `tracker_correct_session_v1` (`correct_v1`) | `changes: [{player_id, present, snapshot?}]`, optional `reason` (≤ 500) | Completed session only; base revision must match; one entry per player; a player new to that session needs an owned snapshot and is never added to the expected set. Updates the same attendance rows, raises the revision once and writes one `tracker_session_corrections` audit row (before/after, reason, from/to revision). Round, credit, kind, date, expected teams and players never change, enforced also by a trigger that even the table owner cannot bypass. Which sessions the UI offers for correction (P09 recommends the last one) is a Stage 4/6 choice. |
+
+Rejections are Postgres errors with stable SQLSTATEs. Stage 4 should read the `code` field that PostgREST returns in the error body, not rely on the HTTP status alone:
+
+| SQLSTATE | Meaning | Client response |
+| --- | --- | --- |
+| `23505` "operation id reused with different request" | Same ID, different intent | Client bug or corrupted outbox: keep the local intent and surface it for review; never resend with a new ID automatically. |
+| `23505` card collision / name in use / id exists | Validation | Show the coach; a label or a different name resolves it. |
+| `40001` | Stale revision, completed session, or stale round | Conflict: refetch and show for review; never overwrite. |
+| `55000` | Correction attempted on an active session | Use `set_present_v1` instead. |
+| `42501` | Not the caller's, not found, or not permitted | Ownership/auth problem: do not retry blindly. |
+| `22023` | Malformed payload | Client bug. |
+| `23514` | Protected history (credit, round, completed state) | Only reachable from privileged SQL; never from a client operation. |
 
 ## Prepared iPad and outbox contract (D09)
 

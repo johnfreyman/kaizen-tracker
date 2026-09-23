@@ -1,13 +1,13 @@
 # Kaizen Tracker simplification progress
 
-Updated: 2026-09-22.
+Updated: 2026-09-23.
 
 Specification: [simplification-spec.md](simplification-spec.md).
 Baseline application commit: `40d9b0c2f57692cdc8439d453816418be3db5a39`.
 
 ## Scope and current status
 
-**Current continuation:** Stage 2's expected-team prototype and coach-list correction are complete. Stage 3 has an isolated database rehearsal and remains incomplete; see the latest handoff at the bottom of this document and [the rehearsal record](simplification-stage3-rehearsal.md). D10–D12 supersede older targeting/legacy-reconstruction guidance below. Existing R01/R02 fixes remain complete per Claude’s confirmation at `79f4021`.
+**Current continuation:** Stage 2's expected-team prototype and coach-list correction are complete. Stage 3 has an isolated database rehearsal, now including roster/sub-team writes and completed-session corrections (2026-09-23), and remains **incomplete**: the deployed-like schema, open policies and release migration are still outstanding. See the latest handoff at the bottom of this document and [the rehearsal record](simplification-stage3-rehearsal.md). D10–D12 supersede older targeting/legacy-reconstruction guidance below. Existing R01/R02 fixes remain complete per Claude’s confirmation at `79f4021`.
 
 
 Stage 1 documentation is complete. The initial Stage 2 prototype was implemented, independently audited, and revised to address the audit: multiple simultaneous sub-team memberships (U01) and audit findings F01–F05 are implemented and verified. A same-day independent review of that revision found two further gaps, R01 and R02, which are also now addressed. See [the audit](simplification-stage2-audit.md) for the original findings and all revision statuses. D01–D12 are confirmed, including offline gym use, expected-team selection and full analytics preservation; the remaining recommendations (P01–P12 and the open decisions below) are still not blanket-approved by this work. Stage 3 is partially rehearsed in a separate test project; no production migration or offline app exists.
@@ -20,7 +20,7 @@ Published Stage 2 review: [PR #2](https://github.com/johnfreyman/kaizen-tracker/
 | --- | --- | --- |
 | 1. Product specification and migration plan | Complete | Source audit, approved requirements/decisions, recommendations, flows, data invariants, acceptance matrix and recovery plan documented. |
 | 2. Screen flows and prototype | Revision + follow-up complete | Multiple memberships (U01), audit F01–F05, and follow-up review findings R01–R02 implemented, with committed tests and browser walkthroughs. Product recommendations (P01–P12) and the open decisions below remain for Stage 3 review. |
-| 3. Data foundation | Isolated rehearsal passed in part; incomplete | Review the [Stage 3 contract](simplification-stage3-data-contract.md) and [rehearsal](simplification-stage3-rehearsal.md), complete the missing write/correction contracts, resolve remaining policies and reconcile an authorized deployed-like schema before release. |
+| 3. Data foundation | Isolated rehearsal passed; incomplete | Session, roster/sub-team and correction contracts rehearsed twice in the test project (90/90 role checks). Remaining: resolve the open policies, reconcile an authorized deployed-like schema and legacy grants, and turn the candidate SQL into a reviewed release migration. See the [Stage 3 contract](simplification-stage3-data-contract.md) and [rehearsal](simplification-stage3-rehearsal.md). |
 | 4. Coach attendance | Not started | Reliable session/attendance operations and simplified cards. |
 | 5. Kiosk | Not started | Number matching, correction, exit and recovery. |
 | 6. Raffle and analytics | Not started | Independent rounds and preservation of effort totals. |
@@ -646,3 +646,59 @@ A further invented practice selected Blue 6th (Alex expected) while Kayla attend
 Local checks: `npx tsc --noEmit` passed; `npx vitest run supabase/functions/admin-coach-actions/index.test.ts` passed 8/8. No application code changed. The release migration has **not** been created because the Supabase CLI is unavailable and the deployed-like schema has not been reconciled. The earlier draft contract is now annotated with test evidence and remaining limitations. Unanswered policy choices remain custom PIN replacement/recovery, backdated training round assignment and player retirement; expectation correction and unexpected-attendance streak treatment remain later reporting choices.
 
 **Exact next-stage handoff:** reconcile an authorized deployed-like schema, the sole-admin account and inherited legacy grants; settle data-affecting policy choices; review/convert the tested SQL into an additive repository migration and rerun the actual-role fixture suite in isolation. Finish Stage 3 by adding the missing roster/team write and completed-session correction contracts and testing the remaining expected-attendance and conflict cases. Then Stage 4 implements the coach UI and owner-scoped durable iPad outbox with real refresh, offline, auth-expiry and reconnect tests. Do not deploy or alter Kaizen production during Stages 1–7.
+
+
+## Stage 3 continuation — roster/sub-team writes and completed-session corrections (2026-09-23)
+
+Continued on `claude/dazzling-sagan-hxrwfp` after fast-forwarding to the owner's publication `240f1b8` (clean worktree; no repository `CLAUDE.md`/`AGENTS.md`). The first attempt found the three Stage 3 drafts absent from every branch and stopped without recreating them; the owner then pushed them. Isolated test project only: **Kaizen Tracker Stage 3 Test** (`viouquduxutuslafiooy`), identity confirmed before any SQL. The live project `pwgqwcvultxihntvaewo` was never queried or changed. Migration 008 was not retried or worked around; 010 stays out. No accounts or data were deleted or reset, no super-admin fixture was added, and `admin-coach-actions` and `002_super_admin.sql` are unchanged. No application code, deployment, merge or production migration.
+
+### Exact changes
+
+- [simplification-stage3-test-migration.sql](simplification-stage3-test-migration.sql): appended roster/sub-team write operations (`create_team_v1`, `rename_team_v1`, `create_player_v1`, `update_player_v1` via `tracker_apply_roster_operation_v1`) and a versioned, audited completed-session correction (`correct_v1` via `tracker_correct_session_v1`, new `tracker_session_corrections` table). Also added player/sub-team revisions, a shared ledger-claim helper, a widened ledger kind check, and a trigger that stops even the table owner from changing credit, kind or expected scope, or reopening or re-dating a completed session. The previously rehearsed 548 lines are byte-identical.
+- New [simplification-stage3-role-tests.sql](simplification-stage3-role-tests.sql): 90 checks as authenticated coach A, authenticated coach B and `anon`, in one transaction that rolls back, so it is repeatable and leaves the test project unchanged.
+- [simplification-stage3-rehearsal.md](simplification-stage3-rehearsal.md) and [simplification-stage3-data-contract.md](simplification-stage3-data-contract.md): continuation record, operation payloads, and an SQLSTATE-to-client-response table.
+
+### Checks run and results
+
+- `apply_migration` of the whole candidate file twice (`stage3_test_roster_correction_v1`, then `_repeat` over existing synthetic data): both succeeded. The stored SQL MD5 `b5e2fcaa23ca3062d5b5507c27d52b41` matches the repository file. Existing rows were unchanged (4/4/9/7/25), with no duplicate triggers, constraints or policies, so the new SQL is repeat-safe in isolation.
+- Role suite run after each application: **90/90 passed both times**. Nothing persisted; counts, accounts and schemas were verified unchanged afterward. Covered:
+  - ownership and direct-table denial for every tracker table, the ledger and the private helper;
+  - same-ID replay for start, mark, finish, roster and correction operations, and changed-payload rejection;
+  - roster edits after a saved session (number, label, memberships and team rename leave saved roster, membership, expected and selected-team snapshots intact);
+  - the expected-player union with the shared player once, and unexpected attendees credited but never added to the expected set;
+  - training tickets while the raffle is off;
+  - start fresh deleting no attendance;
+  - correction of an older-round training changing only that round's pool while keeping the round, 1.5 credit and date;
+  - a legacy 2.00-hour session keeping 2.00 hours after correction;
+  - a delayed finish unable to close or change a newer active session.
+- Advisors: no security or performance finding names a tracker object. The inherited legacy security warnings remain as recorded on 2026-09-22 (6 mutable `search_path`, 13 legacy definer functions each executable by `anon` and by `authenticated`, leaked-password protection off). There are no unindexed foreign keys.
+- Local: `npx tsc --noEmit` 0 errors; `npx vitest run supabase/functions/admin-coach-actions/index.test.ts` 8/8.
+
+### Limitations
+
+- The test project is source-derived, not a deployed-like clone: 008/010 are omitted, and live grants and the sole-super-admin account are unverified. The SQL stays a **candidate** under `docs/`; no release migration exists and the Supabase CLI is unavailable here. **Stage 3 is not complete.**
+- Database behavior only. No browser, IndexedDB outbox, offline, auth-expiry or reconnect result is claimed.
+- A coach can learn that a foreign UUID exists via an "id already exists" rejection; nothing about its owner or contents leaks. Low risk with random v4 IDs; noted for release review.
+- Legacy `save_session`, `archive_events`, `restore_archive` and the purge functions remain browser-executable definer functions in the source-derived baseline. They were deliberately left unchanged here and need a reviewed hardening decision before release.
+
+### Open policies, still undecided and not encoded
+
+- **Custom PIN replacement/recovery:** no PIN storage was added.
+- **Round for a newly entered backdated training:** `start_v1` binds whatever round the client sends, normally the current one, regardless of `session_date`. That follows P08's recommendation but is not an owner decision; a historical-date rule would change `start_v1`.
+- **Player retirement behavior:** no retire/remove operation exists, and editing an already-retired player is refused pending the policy. Sub-team retirement (spec §4 recommendation) is likewise not added.
+- Also left as recommendations: correcting a saved expected list, re-dating a completed session, excused absence and unexpected-attendee streak effects (Stage 6), which sessions the UI offers for correction (P09), and draw records (Stage 6).
+
+### Exact next-stage handoff
+
+**Before Stage 3 can be marked complete (owner/release gate):** decide the three open policies above; obtain an authorized deployed-like schema (or read-only catalog export) and run [simplification-stage3-inspect.sql](simplification-stage3-inspect.sql) against it; reconcile live grants, `admin_coach_summary_view` access and the sole super-admin `johnfreyman70@gmail.com`; decide the legacy definer-function hardening; then convert the candidate SQL into a reviewed additive migration and rerun it twice plus [the role suite](simplification-stage3-role-tests.sql) in isolation.
+
+**Stage 4 (coach UI + prepared-iPad outbox), buildable against the rehearsed contract in the test project only:**
+
+1. Call only the versioned entry points: `tracker_initialize_owner_v1`, `tracker_apply_operation_v1` (start/mark/finish/start fresh), `tracker_apply_roster_operation_v1` (team and player create/edit), and `tracker_correct_session_v1`. Never write tracker tables directly (denied) and never call legacy `save_session`/`remove_player`.
+2. Generate player, team, session, operation and device UUIDs on the device before local persistence. Each Save is one operation carrying the full desired state and the current `revision`. Persist the operation in an owner-namespaced IndexedDB outbox before showing success (D09).
+3. Send the outbox in global per-device order. Retry a lost response with the **same** operation ID, device sequence and payload. Remove only the acknowledged entry. Map rejections by SQLSTATE `code` (contract table): `40001` means conflict, so refetch and show for review; `23505` is either validation (collision) or a corrupted intent (ID reuse); `42501`/`22023` must not be retried blindly.
+4. Practice start sends the prepared roster snapshot, selected team IDs and resolved expected union. Unexpected attendees and corrections send an owned `snapshot` for a player not yet in that session. Training sends no expected set.
+5. Keep open-policy surfaces out of the UI or clearly disabled: player/sub-team retirement, PIN recovery, backdated-round choice, expected-list correction.
+6. Test at phone and tablet sizes with real refresh, airplane mode, auth expiry and reconnect, including A/B finished and C active, and a delayed finish (A27–A30).
+
+Do not deploy, merge, or apply anything to the live project; Stage 8 remains a separate authorization.
