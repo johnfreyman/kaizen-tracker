@@ -8,12 +8,16 @@ import { dropNextAcknowledgment, expireNextAuthCheck, setSimulatedOffline, shell
 import './coach.css';
 
 type Page = 'home' | 'attendance' | 'roster' | 'history' | 'settings';
+const TEST_COACH_EMAIL = {
+  a: 'kaizen.stage4.test.a.20260924@gmail.com',
+  b: 'kaizen.stage4.test.b.20260924@gmail.com',
+} as const;
 function message(error: unknown): string { return error instanceof Error ? error.message : String((error as {message?: string})?.message ?? error); }
 function deliveryText(state: ReturnType<typeof sessionDelivery>) { return ({ waiting: 'Saved on this device · waiting to sync', synced: 'Synced', conflict: 'Conflict · review needed', failed: 'Upload failed · review needed' })[state]; }
 
 export default function CoachApp() {
   const [ownerId, setOwnerId] = useState<string | null>(null);
-  const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
+  const [testCoach, setTestCoach] = useState<keyof typeof TEST_COACH_EMAIL>('a'); const [password, setPassword] = useState('');
   const [data, setData] = useState<OwnerData | null>(null);
   const [page, setPage] = useState<Page>('home'); const [view, setView] = useState<'expected' | 'other'>('expected');
   const [expectedOpen, setExpectedOpen] = useState(false); const [teamIds, setTeamIds] = useState<string[]>([]); const [allKaizen, setAllKaizen] = useState(false);
@@ -72,9 +76,11 @@ export default function CoachApp() {
 
   async function signIn(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setStatus('Signing in…');
-    const result = await client.auth.signInWithPassword({ email, password });
-    if (result.error) setStatus(result.error.message); else { setOwnerId(result.data.user.id); setAuthPaused(false); setStatus('Signed in. Prepare this iPad while online, or resume saved work.'); }
-    setBusy(false);
+    try {
+      const result = await client.auth.signInWithPassword({ email: TEST_COACH_EMAIL[testCoach], password });
+      if (result.error) setStatus(result.error.message); else { setOwnerId(result.data.user.id); setAuthPaused(false); setStatus('Signed in. Prepare this iPad while online, or resume saved work.'); }
+    } catch (error) { setStatus(`Sign-in failed: ${message(error)}`); }
+    finally { setBusy(false); }
   }
   async function logout() {
     if (data?.queue.length && !logoutWarning) { setLogoutWarning(true); return; }
@@ -90,7 +96,7 @@ export default function CoachApp() {
   function clearPlayerForm() { setEditingPlayer(null); setFirstName(''); setNumber(''); setLabel(''); setGuest(false); setPlayerTeams([]); }
   function editPlayer(player: Player) { setEditingPlayer(player.id); setFirstName(player.first_name); setNumber(player.jersey_number ?? ''); setLabel(player.short_label); setGuest(player.is_guest); setPlayerTeams(player.team_ids); }
 
-  if (!ownerId) return <main className="coach-app auth"><div className="coach-panel"><h1>Kaizen Tracker</h1><p>Coach attendance · isolated test environment</p><form onSubmit={signIn}><label>Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></label><label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} required /></label><button disabled={busy}>Sign in</button></form><button className="quiet" onClick={async () => { try { await setSimulatedOffline(false); setStatus('Test network restored for sign-in.'); } catch (error) { setStatus(message(error)); } }}>Restore test network</button><p role="status">{status}</p></div></main>;
+  if (!ownerId) return <main className="coach-app auth"><div className="coach-panel"><h1>Kaizen Tracker</h1><p>Coach attendance · isolated test environment</p><form onSubmit={signIn}><label>Test coach<select value={testCoach} onChange={e => { setTestCoach(e.target.value as keyof typeof TEST_COACH_EMAIL); setPassword(''); setStatus(''); }}><option value="a">Coach A</option><option value="b">Coach B</option></select></label><label>Password<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required /></label><button disabled={busy}>Sign in</button></form><button className="quiet" onClick={async () => { try { await setSimulatedOffline(false); setStatus('Test network restored for sign-in.'); } catch (error) { setStatus(message(error)); } }}>Restore test network</button><p role="status">{status}</p></div></main>;
   if (!data) return <main className="coach-app"><p role="status">{status || 'Opening saved device data…'}</p><button onClick={() => void logout()}>Sign out</button></main>;
 
   const session = activeSession(data); const prepared = data.prepared; const pending = data.queue.length;
