@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "stage4:dev": "vite --mode stage4-test",
+    "stage4:build": "vite build --mode stage4-test",
     "test": "vitest"
   },
   "dependencies": {
@@ -69,6 +71,7 @@
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "4.7.0",
+    "fake-indexeddb": "6.2.4",
     "jsdom": "^29.1.1",
     "tailwindcss": "4.1.12",
     "typescript": "^6.0.3",
