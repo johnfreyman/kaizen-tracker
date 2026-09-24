@@ -766,3 +766,5 @@ Sub-team retirement, deleting players, correcting a saved expected list, re-dati
 3. Show retired players outside the attendance list with **Restore**. On a restore collision, ask for a distinguishing label.
 4. Show the stale-round review list (`needs_round_review`). Block Start fresh while unsent work exists. Enter paper trainings after a sync.
 5. Map `55000` and `22P02` as in the contract table.
+
+**Session tooling (owner choice, 2026-09-24):** `.claude/settings.json` now runs [`.claude/hooks/supabase-test-project-guard.mjs`](../.claude/hooks/supabase-test-project-guard.mjs) before every Supabase tool call. It approves calls to the test project `viouquduxutuslafiooy` without a prompt and blocks calls to the live project `pwgqwcvultxihntvaewo`. Every other call gets the normal permission prompt. A pipe test of 11 payloads and one real read-only test-project call confirmed that it works. A release session that is authorized to change production must update this hook first.
