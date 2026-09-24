@@ -109,3 +109,62 @@ The role suite is one transaction that ends in `ROLLBACK`. It creates two invent
 - The rehearsal record's earlier remark that the connector masked rejections as `INVALID_ARGUMENT` did not recur: rejected calls inside the suite reported their real SQLSTATE and message. The suite still checks absence of rows as well.
 - This is still a **source-derived test project, not a deployed-like clone**. The live schema, live grants and the sole-super-admin account were not inspected. The SQL remains an isolated-rehearsal candidate under `docs/`, not a release migration. The Supabase CLI is unavailable here.
 - This proves database behavior only. No browser, IndexedDB outbox, offline, auth-expiry or reconnect behavior was exercised. That is Stage 4.
+
+## Continuation — D13–D15 contracts and a tightened B05 (2026-09-23/24 UTC)
+
+Same boundary as above: every call went to **Kaizen Tracker Stage 3 Test** (`viouquduxutuslafiooy`). `get_project` confirmed the name and `ACTIVE_HEALTHY` state before any SQL. The live project `pwgqwcvultxihntvaewo` was not named in any call. Migration 008 was not retried or worked around, and 010 stays out. No super-admin fixture was added. `admin-coach-actions`, `002_super_admin.sql` and the app code were not changed. All test fixtures were invented and existed only inside a rolled-back transaction.
+
+### What was added to the test SQL
+
+- **D15 retire and restore** in `tracker_apply_roster_operation_v1`: `retire_player_v1` with exactly `{player_id}` and `restore_player_v1` with exactly `{player_id, short_label}`. Both need the current player revision and keep the same UUID. Neither touches memberships, session snapshots, attendance, credit or tickets. A restore onto an identical active card is refused until a distinguishing label is given. Editing a retired player now returns `55000`.
+- **Check order** in every roster path: the payload shape first, then identity and state, then the new values. A create now reports "id already exists" before a name collision; this is the cause B05 was meant to prove.
+- **D13 exit PIN**: a new `tracker_exit_codes` table (owner SELECT only) and `tracker_apply_settings_operation_v1` with `set_exit_pin_v1` and `reset_exit_pin_v1`. Only a salted PBKDF2-SHA256 verifier is stored. The payload keys are exact, so a request that also carries a plaintext PIN is refused and its ledger row rolls back.
+- **D14** needed no SQL: `start_v1` already binds the round the device sends and flags a stale round.
+- The ledger kind check now lists 13 kinds. The first 548 lines, rehearsed on 2026-09-22, are byte-identical (MD5 `0bf2e408f7aa519197fedb222cb2afe0`).
+
+### Commands run and results
+
+| Step | Tool / command | Result |
+| --- | --- | --- |
+| Identity | `get_project viouquduxutuslafiooy` | "Kaizen Tracker Stage 3 Test", `ACTIVE_HEALTHY`, `us-west-1`. |
+| Pre-state | read-only query | 13 migration records; 4 players / 4 teams / 9 sessions / 7 attendance / 25 operations / 0 corrections; 0 retired; 1 session flagged for round review; 0 active; 2 auth users; no `tracker_exit_codes`; no `tracker_test`. MD5 fingerprints of 8 tracker tables recorded. |
+| Apply attempt | `apply_migration stage3_test_d13_d15_v1` | **Failed**: `42601 syntax error at end of input`. PL/pgSQL ends an `IF` condition at the first bare `THEN`, and the retire/restore key check had an unparenthesized `CASE … THEN`. The transaction rolled back: still 13 records, no new table or function, the old kind check. Fix: put the `CASE` in parentheses. |
+| Local syntax check | `pglast` 8.4 (libpg_query, PostgreSQL 18 parser) over both SQL files | Reproduces the same error on a copy without the fix. 0 errors on the fixed file (8 PL/pgSQL functions) and on the suite. |
+| Apply 1 | `apply_migration stage3_test_d13_d15_v1` (version `20260923223045`) | Success. Stored MD5 `fcaaa78b92894418fc88978f68c6635d` (58,905 bytes) equals the file at that time. The 8 fingerprints were unchanged. |
+| Suite run 1 | 144 checks | **142/144.** BK1 failed: it read `tracker_exit_codes` in the same statement that called the PIN operation, so it saw a snapshot from before the write (a test defect). I08 failed: the table owner could set `custom` mode with no verifier, because a CHECK passes when its result is NULL (a real schema defect). |
+| Fixes | SQL and suite | The mode/verifier check is now `coalesce(…, false)`, dropped and added again on every run so a re-run replaces an old definition. Q02, K03, K11, D03 and BK1 save the operation result first and read tables in a later statement. New I08b: removing one part of a verifier is refused. 145 checks. |
+| Apply 2 | `stage3_test_d13_d15_v2` (`20260923225516`) | Success. Stored MD5 `b3370714fe70553cd79b20978e36db3c` (59,221 bytes) equals the committed file. The catalog shows the `COALESCE` check. Fingerprints unchanged. |
+| Suite run 2 | 145 checks | **145/145.** `suite_md5` `12cbeb25637fe22342da21a532bfd55f` equals the committed suite file. |
+| Apply 3 (repeat) | `stage3_test_d13_d15_v2_repeat` (`20260924013145`), same text over existing data | Success, same MD5. 16 migration records; exactly 2 session triggers, 1 ledger kind check, 5 exit-code constraints, 13 owner policies on 13 tracker tables, and no tracker table without RLS. Fingerprints unchanged. |
+| Suite run 3 | same file | **145/145**, same `suite_md5`. |
+| Residue | read-only query | 4/4/9/7/25/0; 0 exit-code rows; 0 retired; 1 flagged session; 2 auth users; 0 role-test users; no `tracker_test` schema. |
+| Advisors | `get_advisors security`, `get_advisors performance` | No tracker function, table or policy flagged; details below. |
+| Local | `npx tsc --noEmit`; `npx vitest run supabase/functions/admin-coach-actions/index.test.ts`; `npx vitest run` | 0 errors; 8/8; 57 of 58, with the two recorded baseline failures (LaunchPage `9:00 AM` and `stats.test.ts` without `VITE_SUPABASE_URL`). No app code changed. |
+
+`suite_md5` is new in the suite's final report. It is the MD5 of the text that ran, cut before the trailer that the SQL tool appends (`\n\n-- source: …`). Compare it with `head -c -1 docs/simplification-stage3-role-tests.sql | md5sum`. Every expected rejection must now match both its SQLSTATE and its message, so a check cannot pass for another cause.
+
+### What the new and tightened checks cover
+
+| Area | Checks | Observed |
+| --- | --- | --- |
+| D14: newly entered backdated training | G01–G01b | A training dated 2026-08-15 and entered after round 2 opened was bound to current round 2 with no review flag. Its 2 tickets count in round 2 and none in round 1. |
+| D14: session recorded offline, delivered after a reset | G02–G02c, G04, C09e, G03 | Delivered with cached round 1 after Start fresh: it kept round 1, with `needs_round_review` true in the row and the result. A retry returned the stored result. Elena's ticket stayed in round 1 and round 2 stayed at 2 tickets. The review list held only that session. Owner SQL could not move it (`23514`). Start fresh was refused while a session was active (`40001 active session blocks raffle reset`). |
+| D15: retire | Q01–Q08 | Retiring Sam #00 raised his revision from 0 to 1, and a replay changed nothing more. Retiring again → `55000`; a stale revision → `40001`. His attendance (3), present marks (3), snapshots (5), tickets (3) and membership (1) did not change. His current-round ticket stayed eligible. He was left out of the next prepared roster and expected set. Editing him → `55000 … restore the player before editing`. An extra payload key → `22023`. A second Start fresh kept his ticket in round 2 and opened an empty round 3. |
+| D15: restore | Q09–Q13 | With a new active "Sam #00" present, a restore with label `""` → `23505 … restore with a distinguishing short label`; both players stayed unchanged and there were still 2 rows. A restore with `B.` → revision 2, same UUID and membership, the old snapshot label unchanged, and back on the next roster. Replay → the stored result. Restoring an active player → `55000`; a stale revision → `40001`. |
+| D13: exit PIN | K01–K11 | No row at first (default `0000`). Set → `custom`, revision 1, with the exact salt and hash stored. Replay → the stored result; the same ID with another verifier → `23505`; stale → `40001`. A request with a plaintext `pin` key → `22023` and no ledger row. 1,000 iterations, a 5-byte hash and `SHA-1` → `22023`. Replace without the old PIN → revision 2. Reset payload `{"pin":"0000"}` → `22023`. Reset → `default`, revision 3, verifier cleared. Reset replay → the stored result. |
+| B05, tightened | B05pre–B05d | Coach B had no teams or players. Replaying coach A's create-team ID and payload failed with exactly `sub-team id already exists`. A valid card on A's player UUID failed with exactly `player id already exists`. Coach B got no row and no ledger entry. After B made a same-named team, the same replay still failed on the ID first. |
+| D13/D15 across coaches | B02, B03b–B03c, BK1 | B could not retire or restore A's player (`42501 player not found`). B saw no A exit-code row. B's own PIN was independent: revision 1, one visible row. |
+| Direct and anonymous access | X08–X09, N09–N10 | Direct INSERT and UPDATE of exit codes were denied. Anonymous callers could not call the PIN operation or read verifiers (`42501`). |
+| Integrity | I03, I06–I09 | Player-hours 20.50 across six completed sessions, with the legacy 2.00 hours kept. No ledger request carries a `pin` key. A was reset to default at revision 3 and B stayed custom at revision 1. Even the table owner cannot set `custom` without a verifier (I08) or remove one part of a verifier (I08b); both fail with `23514 … tracker_exit_codes_verifier_matches_mode`. One row per player, and nobody is left retired. |
+
+### Advisors after the repeat application
+
+- **Security:** no tracker finding. The inherited legacy warnings are unchanged: 6 functions with a mutable `search_path`, 13 legacy `SECURITY DEFINER` functions each executable by `anon` and by `authenticated`, and leaked-password protection disabled.
+- **Performance:** no unindexed foreign key; the new `tracker_exit_codes` foreign key is its primary key. The 15 `auth_rls_initplan` and 6 multiple-permissive-policy warnings are on legacy tables only. There are 9 unused-index notices: 8 legacy and `tracker_expected_teams_by_team`, which no query has used yet in this small dataset.
+
+### Findings and limits
+
+- Both failures of suite run 1 were useful. The BK1 test defect hid no fault: in runs 2 and 3 the PIN operation returned revision 1 and one visible row. The NULL-passing CHECK was a real defense-in-depth defect. Both are fixed and covered.
+- The first apply failed before it changed anything. The local `pglast` check now finds this class of PL/pgSQL syntax error before an apply.
+- This is still a **source-derived test project, not a deployed-like clone**. The SQL stays a candidate under `docs/`, not a release migration. Production was not queried.
+- This proves database behavior only. No browser, IndexedDB outbox, offline, auth-expiry, reconnect or kiosk-exit behavior was exercised.

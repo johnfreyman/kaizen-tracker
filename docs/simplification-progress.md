@@ -1,13 +1,13 @@
 # Kaizen Tracker simplification progress
 
-Updated: 2026-09-23.
+Updated: 2026-09-24.
 
 Specification: [simplification-spec.md](simplification-spec.md).
 Baseline application commit: `40d9b0c2f57692cdc8439d453816418be3db5a39`.
 
 ## Scope and current status
 
-**Current continuation:** Stage 2's expected-team prototype and coach-list correction are complete. Stage 3 has an isolated database rehearsal, now including roster/sub-team writes and completed-session corrections (2026-09-23), and remains **incomplete**: implementation of approved D13–D15, the deployed-like schema and release migration are still outstanding. See the latest handoff at the bottom of this document and [the rehearsal record](simplification-stage3-rehearsal.md). D10–D12 supersede older targeting/legacy-reconstruction guidance below. Existing R01/R02 fixes remain complete per Claude’s confirmation at `79f4021`.
+**Current continuation:** Stage 2's expected-team prototype and coach-list correction are complete. Stage 3 has an isolated database rehearsal. It covers roster/sub-team writes and completed-session corrections (2026-09-23), and now also approved D13–D15: exit-PIN set/reset, raffle rounds for backdated and offline-recorded training, and player retire/restore, with a tightened B05 (145/145 role checks after each of the last two applications, 2026-09-24). Stage 3 remains **incomplete**: the deployed-like schema, legacy grants, the sole-admin check and the release migration are still outstanding. See the latest handoff at the bottom of this document and [the rehearsal record](simplification-stage3-rehearsal.md). D10–D12 supersede older targeting/legacy-reconstruction guidance below. Existing R01/R02 fixes remain complete per Claude’s confirmation at `79f4021`.
 
 
 Stage 1 documentation is complete. The initial Stage 2 prototype was implemented, independently audited, and revised to address the audit: multiple simultaneous sub-team memberships (U01) and audit findings F01–F05 are implemented and verified. A same-day independent review of that revision found two further gaps, R01 and R02, which are also now addressed. See [the audit](simplification-stage2-audit.md) for the original findings and all revision statuses. D01–D15 are confirmed, including offline gym use, expected-team selection and full analytics preservation; the remaining recommendations (P01–P12 and the open decisions below) are still not blanket-approved by this work. Stage 3 is partially rehearsed in a separate test project; no production migration or offline app exists.
@@ -20,7 +20,7 @@ Published Stage 2 review: [PR #2](https://github.com/johnfreyman/kaizen-tracker/
 | --- | --- | --- |
 | 1. Product specification and migration plan | Complete | Source audit, approved requirements/decisions, recommendations, flows, data invariants, acceptance matrix and recovery plan documented. |
 | 2. Screen flows and prototype | Revision + follow-up complete | Multiple memberships (U01), audit F01–F05, and follow-up review findings R01–R02 implemented, with committed tests and browser walkthroughs. Product recommendations (P01–P12) and the open decisions below remain for Stage 3 review. |
-| 3. Data foundation | Isolated rehearsal passed; incomplete | Session, roster/sub-team and correction contracts rehearsed twice in the test project (90/90 role checks). Remaining: implement and test approved D13–D15, reconcile an authorized deployed-like schema and legacy grants, and turn the candidate SQL into a reviewed release migration. See the [Stage 3 contract](simplification-stage3-data-contract.md) and [rehearsal](simplification-stage3-rehearsal.md). |
+| 3. Data foundation | Isolated rehearsal passed; incomplete | Session, roster/sub-team, correction, retire/restore and exit-PIN contracts rehearsed in the test project (145/145 role checks after each of the last two applications, 2026-09-24). Remaining: reconcile an authorized deployed-like schema, legacy grants and the sole-admin account, then turn the candidate SQL into a reviewed release migration. See the [Stage 3 contract](simplification-stage3-data-contract.md) and [rehearsal](simplification-stage3-rehearsal.md). |
 | 4. Coach attendance | Not started | Reliable session/attendance operations and simplified cards. |
 | 5. Kiosk | Not started | Number matching, correction, exit and recovery. |
 | 6. Raffle and analytics | Not started | Independent rounds and preservation of effort totals. |
@@ -717,3 +717,52 @@ These decisions supersede the corresponding open-policy statements in earlier da
 **Exact next handoff for Claude (Opus 5, High effort):** pull this branch and read D13–D15 in the specification and the updated contract. Continue Stage 3 only in test project `viouquduxutuslafiooy`. Implement versioned owner-scoped PIN setting/reset and player retire/restore contracts, including retry and stale-revision handling; preserve the same player UUID, historical snapshots, credits and tickets. For restore collisions, require a distinguishing label instead of overwriting another player or inventing a second identity. Define the prepared-device PIN update contract for Stage 4/5 without implementing the offline UI. Validate D14 with distinct tests for a newly backdated training and a previously recorded offline session delivered after a round reset; preserve immutable round binding and surface stale-round review. Tighten role test B05: its earlier rejection used a duplicate team name rather than the intended existing-ID check, so isolate that condition and assert the intended cause. Run the role suite and repeat-safe setup in isolation, update exact test evidence and the remaining handoff, commit and push to this branch, and STOP before Stage 4.
 
 No live-project query/export, migration, merge or deployment is authorized by these decisions. Do not retry or work around migration 008; 010 remains excluded. The actual production schema/grant and sole-admin checks remain separately authorized release work; document compatibility gaps without treating them as permission to query production. This policy publication changes documentation only; no new database or application test result is claimed. Markdown links and whitespace are checked before publication.
+
+
+## Stage 3 continuation — D13–D15 contracts and tightened B05 (2026-09-24)
+
+Pulled `claude/dazzling-sagan-hxrwfp` at `fb52a49` (local and remote heads equal) and followed the exact continuation above. Test project only: **Kaizen Tracker Stage 3 Test** (`viouquduxutuslafiooy`), identity confirmed before any SQL. The live project `pwgqwcvultxihntvaewo` was not queried or changed. Migration 008 was not retried or worked around; 010 stays out. No account or data was deleted or reset, no super-admin fixture was added, and `admin-coach-actions` and `002_super_admin.sql` are unchanged. No application code, deployment, merge or production migration. **Stage 4 was not started.**
+
+### Exact changes
+
+- [simplification-stage3-test-migration.sql](simplification-stage3-test-migration.sql):
+  - D15: `retire_player_v1` and `restore_player_v1` in the roster entry point. The player keeps the same UUID; memberships, session snapshots, attendance, credit and tickets are not touched. A restore onto an identical active card needs a distinguishing label; it never edits the other player or makes a second identity.
+  - D13: a new `tracker_exit_codes` table and `tracker_apply_settings_operation_v1` with `set_exit_pin_v1` and `reset_exit_pin_v1`. The server keeps only a salted PBKDF2-SHA256 verifier and a revision. `0000` is the default until a custom PIN replaces it, and a signed-in coach can replace or reset it without the old PIN. A NULL-safe check stops even the table owner from setting `custom` mode without a complete verifier.
+  - D14: no new SQL. A comment records that `start_v1` already binds the round the device sends and flags a stale round for review.
+  - Check order in every roster path: payload shape, then identity and state, then new values. This is the fix for the wrong B05 cause. Editing a retired player now returns `55000`.
+  - The first 548 lines are byte-identical to the 2026-09-22 rehearsal.
+- [simplification-stage3-role-tests.sql](simplification-stage3-role-tests.sql): from 90 to 145 checks. Every expected rejection now asserts both SQLSTATE and message. New checks: D13 K01–K11; D14 G01–G04 and C09e; D15 Q01–Q13; cross-coach B03b, B03c and BK1; X08–X09; N09–N10; I06–I09 with I08b. B05 is now B05pre–B05d, run while coach B has no team or player, with exact messages. Checks read an operation's effect in a later statement. The final report adds `suite_md5`.
+- [simplification-stage3-data-contract.md](simplification-stage3-data-contract.md): retire/restore and PIN operation rows, the check order, the SQLSTATE table (`55000` states, `22P02`), the PIN verifier format and test vectors, the prepared-device PIN contract for Stages 4–5, D14 behavior, and compatibility gaps for release.
+- [simplification-stage3-rehearsal.md](simplification-stage3-rehearsal.md): a dated section with every command and result.
+
+### Checks run and results
+
+- The first `apply_migration` failed with a PL/pgSQL syntax error and rolled back; nothing was applied. It was fixed, and a local `pglast` syntax check was added.
+- `stage3_test_d13_d15_v1` applied (stored MD5 `fcaaa78b92894418fc88978f68c6635d`). Suite run 1 gave 142/144. It found a test snapshot defect (BK1) and a real schema defect: a CHECK that passed on NULL, so `custom` mode without a verifier was possible (I08). Both are fixed and covered.
+- `stage3_test_d13_d15_v2` and `stage3_test_d13_d15_v2_repeat` applied. The stored MD5 `b3370714fe70553cd79b20978e36db3c` equals the committed SQL. There are no duplicate triggers, constraints or policies, and every application left the 8 tracker-table fingerprints unchanged, so the SQL is repeat-safe in isolation.
+- Role suite: **145/145** after each of the two final applications. `suite_md5` `12cbeb25637fe22342da21a532bfd55f` equals the committed suite. Nothing persisted (4/4/9/7/25/0, no test schema or accounts).
+- Advisors: no tracker finding; the legacy warnings are unchanged.
+- Local: `npx tsc --noEmit` 0 errors; admin backend 8/8; full `npx vitest run` 57 of 58, with the two recorded baseline failures (LaunchPage `9:00 AM`, `stats.test.ts` without `VITE_SUPABASE_URL`).
+
+### Limitations
+
+- **Stage 3 is not complete.** The test project is source-derived, not a deployed-like clone. The SQL stays a candidate under `docs/`; no release migration exists, and the Supabase CLI is unavailable here.
+- Database behavior only. No browser, IndexedDB outbox, offline, auth-expiry, reconnect or kiosk-exit result is claimed.
+- Compatibility gaps from source only (production not queried): legacy data has no PIN to migrate; legacy `remove_player` must be disabled or guarded; the legacy purge conflicts with history preservation because tracker foreign keys to `auth.users` have no `ON DELETE`; the ledger keeps old PIN verifiers (never a plaintext PIN); the server accepts a retired player in a stale offline start or mark. Details are in the contract.
+- A four-digit PIN is a supervised-kiosk convenience, not a security boundary. If a coach forgets a custom PIN while the kiosk is offline, the kiosk stays bound until it can sync after a reset. Stage 5 must present that recovery path.
+
+### Still outside the approval
+
+Sub-team retirement, deleting players, correcting a saved expected list, re-dating a completed session, excused absence, unexpected-attendee streak treatment, which sessions the UI offers for correction (P09), and draw records (Stage 6).
+
+### Remaining handoff
+
+**Release gate before Stage 3 can be marked complete** (separate authorization; no production access was used here): obtain an authorized deployed-like schema or read-only catalog export and run [simplification-stage3-inspect.sql](simplification-stage3-inspect.sql) against it. Reconcile live grants, `admin_coach_summary_view` access and the sole super-admin `johnfreyman70@gmail.com`. Decide the legacy definer-function hardening, the `remove_player` guard, purge versus history preservation, and whether the ledger keeps old verifiers. Then convert the candidate SQL into a reviewed additive migration and rerun it twice, with [the role suite](simplification-stage3-role-tests.sql), in isolation.
+
+**Stage 4 — not started; begin only on the owner's instruction.** Use the 2026-09-23 Stage 4 list above, with these additions. They replace its item 5 for player retirement, PIN reset and backdated rounds; sub-team retirement and expected-list correction stay out of the UI.
+
+1. Also call `tracker_apply_roster_operation_v1` for `retire_player_v1`/`restore_player_v1` and `tracker_apply_settings_operation_v1` for `set_exit_pin_v1`/`reset_exit_pin_v1`.
+2. Build the prepared-device PIN contract in the data contract: cache `{mode, revision, verifier}`; check the exit code offline with WebCrypto; set or reset only online from Settings; refetch on `40001`; clear on logout.
+3. Show retired players outside the attendance list with **Restore**. On a restore collision, ask for a distinguishing label.
+4. Show the stale-round review list (`needs_round_review`). Block Start fresh while unsent work exists. Enter paper trainings after a sync.
+5. Map `55000` and `22P02` as in the contract table.

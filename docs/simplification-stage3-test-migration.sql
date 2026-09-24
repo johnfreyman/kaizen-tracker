@@ -550,10 +550,11 @@ GRANT SELECT ON public.tracker_ticket_entitlements TO authenticated;
 -- ===========================================================================
 -- Continuation (2026-09-23): coach-owned roster/sub-team writes and an
 -- auditable completed-session correction. Still isolated-rehearsal SQL only.
--- Deliberately absent, because the owner has not decided them: player
--- retirement/removal, sub-team retirement, PIN storage/recovery, the round
--- for a newly entered backdated training, correcting a saved expected list,
--- and re-dating a completed session. Nothing here deletes history.
+-- Owner decisions D13-D15 (PIN, backdated round, player retirement) are
+-- implemented in this block and the one after it. Still deliberately absent,
+-- because they are not approved: sub-team retirement, deleting players,
+-- correcting a saved expected list and re-dating a completed session.
+-- Nothing here deletes history.
 -- ===========================================================================
 
 -- Revisions let a stale offline roster draft be rejected instead of winning.
@@ -566,7 +567,9 @@ ALTER TABLE public.tracker_operations DROP CONSTRAINT IF EXISTS tracker_operatio
 ALTER TABLE public.tracker_operations ADD CONSTRAINT tracker_operations_kind_check
   CHECK (kind IN ('start_v1', 'set_present_v1', 'finish_v1', 'start_fresh_v1',
                   'create_team_v1', 'rename_team_v1',
-                  'create_player_v1', 'update_player_v1', 'correct_v1'));
+                  'create_player_v1', 'update_player_v1', 'correct_v1',
+                  'retire_player_v1', 'restore_player_v1',
+                  'set_exit_pin_v1', 'reset_exit_pin_v1'));
 
 -- One audit row per applied correction: who/what/before/after, never deleted.
 CREATE TABLE IF NOT EXISTS public.tracker_session_corrections (
@@ -685,24 +688,22 @@ BEGIN
     RAISE EXCEPTION 'authentication required' USING ERRCODE = '42501';
   END IF;
   IF p_kind IS NULL OR p_kind NOT IN
-     ('create_team_v1', 'rename_team_v1', 'create_player_v1', 'update_player_v1') THEN
+     ('create_team_v1', 'rename_team_v1', 'create_player_v1', 'update_player_v1',
+      'retire_player_v1', 'restore_player_v1') THEN
     RAISE EXCEPTION 'unsupported roster operation' USING ERRCODE = '22023';
   END IF;
   v_result := tracker_private.claim_operation_v1(v_owner, p_operation_id,
     p_device_id, p_device_sequence, p_kind, NULL, p_base_revision, p_payload);
   IF v_result IS NOT NULL THEN RETURN v_result; END IF;
 
+  -- Check order everywhere below: payload shape, then identity and state
+  -- (exists, owned, retired, revision), then the desired new values (name,
+  -- teams, card collision). A rejection therefore names its most basic cause.
   IF p_kind IN ('create_team_v1', 'rename_team_v1') THEN
     v_id := (p_payload->>'team_id')::uuid;
     v_name := btrim(coalesce(p_payload->>'name', ''));
     IF v_id IS NULL OR length(v_name) NOT BETWEEN 1 AND 100 THEN
       RAISE EXCEPTION 'invalid team payload' USING ERRCODE = '22023';
-    END IF;
-    IF EXISTS (SELECT 1 FROM public.tracker_sub_teams
-               WHERE coach_id = v_owner AND id <> v_id AND retired_at IS NULL
-                 AND lower(btrim(name)) = lower(v_name)) THEN
-      RAISE EXCEPTION 'an active sub-team already uses this name'
-        USING ERRCODE = '23505';
     END IF;
     IF p_kind = 'create_team_v1' THEN
       IF p_base_revision <> 0 THEN
@@ -711,9 +712,6 @@ BEGIN
       IF EXISTS (SELECT 1 FROM public.tracker_sub_teams WHERE id = v_id) THEN
         RAISE EXCEPTION 'sub-team id already exists' USING ERRCODE = '23505';
       END IF;
-      INSERT INTO public.tracker_sub_teams (id, coach_id, name)
-      VALUES (v_id, v_owner, v_name);
-      v_result := jsonb_build_object('team_id', v_id, 'name', v_name, 'revision', 0);
     ELSE
       SELECT * INTO v_team FROM public.tracker_sub_teams
        WHERE coach_id = v_owner AND id = v_id FOR UPDATE;
@@ -723,10 +721,79 @@ BEGIN
       IF v_team.revision <> p_base_revision THEN
         RAISE EXCEPTION 'stale sub-team revision' USING ERRCODE = '40001';
       END IF;
+    END IF;
+    IF EXISTS (SELECT 1 FROM public.tracker_sub_teams
+               WHERE coach_id = v_owner AND id <> v_id AND retired_at IS NULL
+                 AND lower(btrim(name)) = lower(v_name)) THEN
+      RAISE EXCEPTION 'an active sub-team already uses this name'
+        USING ERRCODE = '23505';
+    END IF;
+    IF p_kind = 'create_team_v1' THEN
+      INSERT INTO public.tracker_sub_teams (id, coach_id, name)
+      VALUES (v_id, v_owner, v_name);
+      v_result := jsonb_build_object('team_id', v_id, 'name', v_name, 'revision', 0);
+    ELSE
       UPDATE public.tracker_sub_teams SET name = v_name, revision = revision + 1
        WHERE coach_id = v_owner AND id = v_id;
       v_result := jsonb_build_object('team_id', v_id, 'name', v_name,
         'revision', v_team.revision + 1);
+    END IF;
+
+  -- D15: retirement hides a player from future attendance lists; restoring
+  -- brings the same identity back. Neither touches memberships, session
+  -- snapshots, attendance, credit or tickets. A restore whose card would
+  -- duplicate an active player's card needs a distinguishing short label; it
+  -- never edits the other player and never creates a second identity.
+  ELSIF p_kind IN ('retire_player_v1', 'restore_player_v1') THEN
+    -- PL/pgSQL ends an IF condition at the first bare THEN, so the CASE
+    -- expression must stay inside parentheses.
+    IF (SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(p_payload) AS k)
+       IS DISTINCT FROM (CASE p_kind WHEN 'retire_player_v1' THEN ARRAY['player_id']
+                                    ELSE ARRAY['player_id', 'short_label'] END)
+       OR (p_kind = 'restore_player_v1'
+           AND jsonb_typeof(p_payload->'short_label') IS DISTINCT FROM 'string') THEN
+      RAISE EXCEPTION 'invalid retire/restore payload' USING ERRCODE = '22023';
+    END IF;
+    v_id := (p_payload->>'player_id')::uuid;
+    v_label := btrim(coalesce(p_payload->>'short_label', ''));
+    IF v_id IS NULL OR length(v_label) > 24 THEN
+      RAISE EXCEPTION 'invalid retire/restore payload' USING ERRCODE = '22023';
+    END IF;
+    SELECT * INTO v_player FROM public.tracker_players
+     WHERE coach_id = v_owner AND id = v_id FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'player not found' USING ERRCODE = '42501';
+    END IF;
+    IF v_player.revision <> p_base_revision THEN
+      RAISE EXCEPTION 'stale player revision' USING ERRCODE = '40001';
+    END IF;
+    IF p_kind = 'retire_player_v1' THEN
+      IF v_player.retired_at IS NOT NULL THEN
+        RAISE EXCEPTION 'player is already retired' USING ERRCODE = '55000';
+      END IF;
+      UPDATE public.tracker_players SET retired_at = now(), revision = revision + 1
+       WHERE coach_id = v_owner AND id = v_id
+       RETURNING * INTO v_player;
+      v_result := jsonb_build_object('player_id', v_id, 'revision', v_player.revision,
+        'retired', true, 'retired_at', v_player.retired_at);
+    ELSE
+      IF v_player.retired_at IS NULL THEN
+        RAISE EXCEPTION 'player is not retired' USING ERRCODE = '55000';
+      END IF;
+      IF EXISTS (SELECT 1 FROM public.tracker_players p
+                 WHERE p.coach_id = v_owner AND p.id <> v_id AND p.retired_at IS NULL
+                   AND lower(btrim(p.first_name)) = lower(btrim(v_player.first_name))
+                   AND coalesce(p.jersey_number, '') = coalesce(v_player.jersey_number, '')
+                   AND lower(btrim(p.short_label)) = lower(v_label)) THEN
+        RAISE EXCEPTION 'card collision: restore with a distinguishing short label'
+          USING ERRCODE = '23505';
+      END IF;
+      UPDATE public.tracker_players
+         SET retired_at = NULL, short_label = v_label, revision = revision + 1
+       WHERE coach_id = v_owner AND id = v_id
+       RETURNING * INTO v_player;
+      v_result := jsonb_build_object('player_id', v_id, 'revision', v_player.revision,
+        'retired', false, 'short_label', v_player.short_label);
     END IF;
 
   ELSE
@@ -744,6 +811,27 @@ BEGIN
       RAISE EXCEPTION 'invalid player payload' USING ERRCODE = '22023';
     END IF;
     v_guest := (p_payload->>'is_guest')::boolean;
+    IF p_kind = 'create_player_v1' THEN
+      IF p_base_revision <> 0 THEN
+        RAISE EXCEPTION 'create requires base revision 0' USING ERRCODE = '22023';
+      END IF;
+      IF EXISTS (SELECT 1 FROM public.tracker_players WHERE id = v_id) THEN
+        RAISE EXCEPTION 'player id already exists' USING ERRCODE = '23505';
+      END IF;
+    ELSE
+      SELECT * INTO v_player FROM public.tracker_players
+       WHERE coach_id = v_owner AND id = v_id FOR UPDATE;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'player not found' USING ERRCODE = '42501';
+      END IF;
+      IF v_player.retired_at IS NOT NULL THEN
+        RAISE EXCEPTION 'player is retired; restore the player before editing'
+          USING ERRCODE = '55000';
+      END IF;
+      IF v_player.revision <> p_base_revision THEN
+        RAISE EXCEPTION 'stale player revision' USING ERRCODE = '40001';
+      END IF;
+    END IF;
     SELECT coalesce(array_agg(DISTINCT x::uuid ORDER BY x::uuid), ARRAY[]::uuid[])
       INTO v_team_ids
       FROM jsonb_array_elements_text(p_payload->'team_ids') AS x;
@@ -773,12 +861,6 @@ BEGIN
     END IF;
 
     IF p_kind = 'create_player_v1' THEN
-      IF p_base_revision <> 0 THEN
-        RAISE EXCEPTION 'create requires base revision 0' USING ERRCODE = '22023';
-      END IF;
-      IF EXISTS (SELECT 1 FROM public.tracker_players WHERE id = v_id) THEN
-        RAISE EXCEPTION 'player id already exists' USING ERRCODE = '23505';
-      END IF;
       INSERT INTO public.tracker_players
         (id, coach_id, first_name, jersey_number, short_label, is_guest)
       VALUES (v_id, v_owner, v_first, v_number, v_label, v_guest);
@@ -787,18 +869,6 @@ BEGIN
       v_result := jsonb_build_object('player_id', v_id, 'revision', 0,
         'jersey_number', v_number, 'team_ids', to_jsonb(v_team_ids));
     ELSE
-      SELECT * INTO v_player FROM public.tracker_players
-       WHERE coach_id = v_owner AND id = v_id FOR UPDATE;
-      IF NOT FOUND THEN
-        RAISE EXCEPTION 'player not found' USING ERRCODE = '42501';
-      END IF;
-      IF v_player.retired_at IS NOT NULL THEN
-        RAISE EXCEPTION 'retired player: edit path awaits the retirement policy'
-          USING ERRCODE = '22023';
-      END IF;
-      IF v_player.revision <> p_base_revision THEN
-        RAISE EXCEPTION 'stale player revision' USING ERRCODE = '40001';
-      END IF;
       UPDATE public.tracker_players
          SET first_name = v_first, jersey_number = v_number,
              short_label = v_label, is_guest = v_guest, revision = revision + 1
@@ -985,4 +1055,161 @@ REVOKE ALL ON FUNCTION public.tracker_correct_session_v1(uuid,uuid,bigint,uuid,b
 GRANT EXECUTE ON FUNCTION public.tracker_apply_roster_operation_v1(uuid,uuid,bigint,text,bigint,jsonb)
   TO authenticated;
 GRANT EXECUTE ON FUNCTION public.tracker_correct_session_v1(uuid,uuid,bigint,uuid,bigint,jsonb)
+  TO authenticated;
+
+-- ===========================================================================
+-- D14 (owner-approved 2026-09-23) needs no new SQL: start_v1 above already
+-- binds the round the device sends and never rebinds it. A training newly
+-- entered from paper carries the current round at record creation, whatever
+-- its session_date. A session recorded offline before a Start fresh keeps
+-- its cached old round when it syncs, with needs_round_review = true in the
+-- stored row and the start result; its tickets stay in that old round.
+-- tracker_session_round_immutable blocks any later change of round.
+-- ===========================================================================
+
+-- ===========================================================================
+-- D13 (owner-approved 2026-09-23): kiosk exit PIN. 0000 works until the
+-- coach sets a custom PIN, which replaces it (0000 is then no bypass). A
+-- signed-in coach can replace or reset the PIN without knowing the old one.
+-- The server never receives or keeps the PIN itself: the device sends a
+-- salted PBKDF2-SHA256 verifier, and a prepared iPad caches the same
+-- verifier to check the PIN offline with WebCrypto. A 4-digit PIN remains a
+-- supervised-kiosk convenience, not a security boundary: anyone holding a
+-- verifier can try all 10,000 PINs. No row means the default (0000).
+-- ===========================================================================
+CREATE TABLE IF NOT EXISTS public.tracker_exit_codes (
+  coach_id uuid PRIMARY KEY REFERENCES auth.users(id),
+  mode text NOT NULL DEFAULT 'default' CHECK (mode IN ('default', 'custom')),
+  revision bigint NOT NULL DEFAULT 0 CHECK (revision >= 0),
+  verifier_alg text,
+  verifier_iterations integer,
+  verifier_salt bytea,
+  verifier_hash bytea,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+-- A custom mode without a complete verifier could be read as "no PIN set",
+-- which would make 0000 a bypass again. The table cannot hold that state.
+-- A CHECK passes when its result is NULL, so coalesce(..., false) turns a
+-- missing verifier part into a violation. Drop and add keeps a re-run exact.
+ALTER TABLE public.tracker_exit_codes
+  DROP CONSTRAINT IF EXISTS tracker_exit_codes_verifier_matches_mode;
+ALTER TABLE public.tracker_exit_codes
+  ADD CONSTRAINT tracker_exit_codes_verifier_matches_mode CHECK (coalesce(
+    (mode = 'default' AND verifier_alg IS NULL AND verifier_iterations IS NULL
+       AND verifier_salt IS NULL AND verifier_hash IS NULL)
+    OR (mode = 'custom' AND verifier_alg = 'PBKDF2-SHA256'
+       AND verifier_iterations BETWEEN 100000 AND 2000000
+       AND octet_length(verifier_salt) BETWEEN 16 AND 64
+       AND octet_length(verifier_hash) = 32), false));
+ALTER TABLE public.tracker_exit_codes ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.tracker_exit_codes FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.tracker_exit_codes TO authenticated;
+DROP POLICY IF EXISTS tracker_owner_select ON public.tracker_exit_codes;
+CREATE POLICY tracker_owner_select ON public.tracker_exit_codes
+  FOR SELECT TO authenticated USING (coach_id = (select auth.uid()));
+
+CREATE OR REPLACE FUNCTION tracker_private.apply_settings_operation_v1(
+  p_operation_id uuid, p_device_id uuid, p_device_sequence bigint,
+  p_kind text, p_base_revision bigint, p_payload jsonb
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
+DECLARE
+  v_owner uuid;
+  v_result jsonb;
+  v_current public.tracker_exit_codes%ROWTYPE;
+  v_verifier jsonb;
+  v_iterations integer;
+  v_salt bytea;
+  v_hash bytea;
+BEGIN
+  v_owner := auth.uid();
+  IF v_owner IS NULL THEN
+    RAISE EXCEPTION 'authentication required' USING ERRCODE = '42501';
+  END IF;
+  IF p_kind IS NULL OR p_kind NOT IN ('set_exit_pin_v1', 'reset_exit_pin_v1') THEN
+    RAISE EXCEPTION 'unsupported settings operation' USING ERRCODE = '22023';
+  END IF;
+  v_result := tracker_private.claim_operation_v1(v_owner, p_operation_id,
+    p_device_id, p_device_sequence, p_kind, NULL, p_base_revision, p_payload);
+  IF v_result IS NOT NULL THEN RETURN v_result; END IF;
+
+  -- Only these exact keys are accepted. A rejected call rolls back its ledger
+  -- row, so a plaintext PIN sent by mistake is never stored anywhere.
+  IF p_kind = 'set_exit_pin_v1' THEN
+    v_verifier := p_payload->'verifier';
+    IF (SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(p_payload) AS k)
+         IS DISTINCT FROM ARRAY['verifier']
+       OR jsonb_typeof(v_verifier) IS DISTINCT FROM 'object' THEN
+      RAISE EXCEPTION 'invalid exit PIN verifier' USING ERRCODE = '22023';
+    END IF;
+    IF (SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(v_verifier) AS k)
+         IS DISTINCT FROM ARRAY['alg', 'hash', 'iterations', 'salt']
+       OR v_verifier->>'alg' IS DISTINCT FROM 'PBKDF2-SHA256'
+       OR jsonb_typeof(v_verifier->'iterations') IS DISTINCT FROM 'number'
+       OR (v_verifier->>'iterations') !~ '^[0-9]{6,7}$'
+       OR jsonb_typeof(v_verifier->'salt') IS DISTINCT FROM 'string'
+       OR (v_verifier->>'salt') !~ '^[A-Za-z0-9+/]+={0,2}$'
+       OR jsonb_typeof(v_verifier->'hash') IS DISTINCT FROM 'string'
+       OR (v_verifier->>'hash') !~ '^[A-Za-z0-9+/]+={0,2}$' THEN
+      RAISE EXCEPTION 'invalid exit PIN verifier' USING ERRCODE = '22023';
+    END IF;
+    v_iterations := (v_verifier->>'iterations')::integer;
+    v_salt := decode(v_verifier->>'salt', 'base64');
+    v_hash := decode(v_verifier->>'hash', 'base64');
+    IF v_iterations NOT BETWEEN 100000 AND 2000000
+       OR octet_length(v_salt) NOT BETWEEN 16 AND 64
+       OR octet_length(v_hash) <> 32 THEN
+      RAISE EXCEPTION 'invalid exit PIN verifier' USING ERRCODE = '22023';
+    END IF;
+  ELSIF p_payload <> '{}'::jsonb THEN
+    RAISE EXCEPTION 'reset takes an empty payload' USING ERRCODE = '22023';
+  END IF;
+
+  -- One row per coach; revision 0 means "never changed" (default 0000).
+  INSERT INTO public.tracker_exit_codes (coach_id) VALUES (v_owner)
+  ON CONFLICT (coach_id) DO NOTHING;
+  SELECT * INTO v_current FROM public.tracker_exit_codes
+   WHERE coach_id = v_owner FOR UPDATE;
+  IF v_current.revision <> p_base_revision THEN
+    RAISE EXCEPTION 'stale exit PIN revision' USING ERRCODE = '40001';
+  END IF;
+
+  IF p_kind = 'set_exit_pin_v1' THEN
+    UPDATE public.tracker_exit_codes
+       SET mode = 'custom', revision = revision + 1,
+           verifier_alg = 'PBKDF2-SHA256', verifier_iterations = v_iterations,
+           verifier_salt = v_salt, verifier_hash = v_hash, updated_at = now()
+     WHERE coach_id = v_owner
+     RETURNING * INTO v_current;
+  ELSE
+    UPDATE public.tracker_exit_codes
+       SET mode = 'default', revision = revision + 1,
+           verifier_alg = NULL, verifier_iterations = NULL,
+           verifier_salt = NULL, verifier_hash = NULL, updated_at = now()
+     WHERE coach_id = v_owner
+     RETURNING * INTO v_current;
+  END IF;
+  v_result := jsonb_build_object('mode', v_current.mode,
+    'revision', v_current.revision, 'updated_at', v_current.updated_at);
+
+  UPDATE public.tracker_operations SET result = v_result
+   WHERE coach_id = v_owner AND operation_id = p_operation_id;
+  RETURN v_result;
+END $fn$;
+
+CREATE OR REPLACE FUNCTION public.tracker_apply_settings_operation_v1(
+  p_operation_id uuid, p_device_id uuid, p_device_sequence bigint,
+  p_kind text, p_base_revision bigint, p_payload jsonb
+) RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path = '' AS $fn$
+  SELECT tracker_private.apply_settings_operation_v1(
+    p_operation_id, p_device_id, p_device_sequence, p_kind,
+    p_base_revision, p_payload)
+$fn$;
+
+REVOKE ALL ON FUNCTION tracker_private.apply_settings_operation_v1(uuid,uuid,bigint,text,bigint,jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION tracker_private.apply_settings_operation_v1(uuid,uuid,bigint,text,bigint,jsonb)
+  TO authenticated;
+REVOKE ALL ON FUNCTION public.tracker_apply_settings_operation_v1(uuid,uuid,bigint,text,bigint,jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.tracker_apply_settings_operation_v1(uuid,uuid,bigint,text,bigint,jsonb)
   TO authenticated;
