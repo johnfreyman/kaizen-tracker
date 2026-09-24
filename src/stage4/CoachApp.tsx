@@ -59,7 +59,7 @@ export default function CoachApp() {
       if (result.data !== current) setData(await readOwner(ownerId));
       setAuthPaused(result.state === 'auth');
       if (result.state === 'conflict' || result.state === 'failed' || result.state === 'auth') setStatus(result.error ?? result.state);
-      else if (result.state === 'synced') setStatus('All saved changes are synced.');
+      else if (result.state === 'synced') setStatus('');
     } catch (error) { setStatus(`Sync paused: ${message(error)}`); }
     finally { syncInFlight.current = false; }
   }, [ownerId]);
