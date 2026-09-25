@@ -6,14 +6,20 @@ import { SHELL_VERSION, STORAGE_VERSION, type Prepared } from './types';
 const api = vi.hoisted(() => ({
   getUser: vi.fn(),
   sendOperation: vi.fn(),
+  loadExitCode: vi.fn(),
+  loadServerSessions: vi.fn(),
+  prepareFromServer: vi.fn(),
 }));
 vi.mock('./api', () => ({
   client: { auth: { getUser: api.getUser } },
   sendOperation: api.sendOperation,
+  loadExitCode: api.loadExitCode,
+  loadServerSessions: api.loadServerSessions,
+  prepareFromServer: api.prepareFromServer,
 }));
 vi.mock('./shell', () => ({ prepareShell: vi.fn() }));
 
-import { finishSession, markPresent, startSession, sync } from './workflow';
+import { discardBlocked, finishSession, markPresent, refreshKeepingQueue, resendBlocked, saveTeam, startSession, sync } from './workflow';
 
 const player = { id: 'player-1', first_name: 'Kayla', jersey_number: '0', short_label: '', is_guest: false, retired_at: null, revision: 0, team_ids: ['blue'] };
 const prepared: Prepared = {
@@ -33,6 +39,9 @@ beforeEach(() => {
   vi.stubGlobal('navigator', { onLine: true });
   api.getUser.mockReset();
   api.sendOperation.mockReset();
+  api.loadExitCode.mockReset().mockResolvedValue({ mode: 'default', revision: 0, verifier: null });
+  api.loadServerSessions.mockReset().mockResolvedValue([]);
+  api.prepareFromServer.mockReset().mockResolvedValue(structuredClone(prepared));
 });
 
 describe('durable offline attendance', () => {
@@ -129,5 +138,78 @@ describe('durable offline attendance', () => {
     expect(result.state).toBe('auth');
     expect(api.sendOperation).not.toHaveBeenCalled();
     expect((await readOwner(id)).queue).toHaveLength(1);
+  });
+
+  it('shows server revision for a mark conflict, then resends explicitly and syncs later changes in order', async () => {
+    const { id, data } = await owner();
+    const started = await startSession(id, data, 'Practice', ['blue'], false, '2026-09-23');
+    const marked = await markPresent(id, started, player.id, true);
+    const finished = await finishSession(id, marked);
+    const serverSession = { ...finished.sessions[0], state: 'active', revision: 3, present: {} };
+    api.loadServerSessions.mockResolvedValue([serverSession]);
+    api.getUser.mockResolvedValue({ data: { user: { id } }, error: null });
+    api.sendOperation.mockResolvedValueOnce({ session_id: serverSession.id }).mockRejectedValueOnce({ code: '40001', message: 'stale' });
+    const blocked = await sync(id, finished);
+    expect(blocked.state).toBe('conflict');
+    expect(blocked.data.queue[0].serverReview).toMatchObject({ revision: 3 });
+    const oldId = blocked.data.queue[0].id;
+    const resolved = await resendBlocked(id, oldId);
+    expect(resolved.queue.map(op => op.baseRevision)).toEqual([3, 4]);
+    expect(resolved.queue[0].id).not.toBe(oldId);
+    api.sendOperation.mockResolvedValueOnce({ session_id: serverSession.id }).mockResolvedValueOnce({ session_id: serverSession.id });
+    expect((await sync(id, resolved)).state).toBe('synced');
+    expect((await readOwner(id)).queue).toHaveLength(0);
+    expect(api.sendOperation.mock.calls.slice(2).map(call => call[0].kind)).toEqual(['set_present_v1', 'finish_v1']);
+  });
+
+  it('waits on 503 and retries the same request; distinguishes auth and permission review', async () => {
+    const { id, data } = await owner();
+    const started = await startSession(id, data, 'Practice', ['blue'], false, '2026-09-23');
+    api.getUser.mockResolvedValue({ data: { user: { id } }, error: null });
+    api.sendOperation.mockRejectedValueOnce({ status: 503, code: 'PGRST002', message: 'unavailable' }).mockResolvedValueOnce({ session_id: started.sessions[0].id });
+    expect((await sync(id, started)).state).toBe('waiting');
+    expect((await readOwner(id)).queue[0].status).toBe('pending');
+    expect((await sync(id, await readOwner(id))).state).toBe('synced');
+    expect(api.sendOperation.mock.calls[0][0]).toEqual(api.sendOperation.mock.calls[1][0]);
+    const another = await markPresent(id, await readOwner(id), player.id, true);
+    api.sendOperation.mockRejectedValueOnce({ status: 401, message: 'jwt expired' });
+    expect((await sync(id, another)).state).toBe('auth');
+    api.sendOperation.mockRejectedValueOnce({ code: '42501', message: 'not allowed' });
+    expect((await sync(id, another)).state).toBe('conflict');
+  });
+
+  it('rejects create and rename team collisions after trimming and case folding', async () => {
+    const { id, data } = await owner();
+    await expect(saveTeam(id, data, ' blue ')).rejects.toThrow('already has this name');
+    const created = await saveTeam(id, data, 'Red');
+    await expect(saveTeam(id, created, ' BLUE ', created.prepared!.teams.find(t => t.name === 'Red')!.id)).rejects.toThrow('already has this name');
+    expect((await readOwner(id)).queue).toHaveLength(1);
+  });
+
+  it('refreshes server data while preserving a blocked queue and its local intent', async () => {
+    const { id, data } = await owner();
+    const started = await startSession(id, data, 'Practice', ['blue'], false, '2026-09-23');
+    api.getUser.mockResolvedValue({ data: { user: { id } }, error: null });
+    api.sendOperation.mockRejectedValue({ code: '40001', message: 'stale' });
+    await sync(id, started);
+    const refreshed = await refreshKeepingQueue(id);
+    expect(refreshed.queue[0].status).toBe('conflict');
+    expect(refreshed.sessions[0].id).toBe(started.sessions[0].id);
+  });
+
+  it('keeps an operation-ID reuse intent until explicit discard, then allows independent later work', async () => {
+    const { id, data } = await owner();
+    const first = await saveTeam(id, data, 'Red');
+    const second = await saveTeam(id, first, 'Green');
+    api.getUser.mockResolvedValue({ data: { user: { id } }, error: null });
+    api.sendOperation.mockRejectedValueOnce({ code: '23505', message: 'operation id reused with different request' });
+    const blocked = await sync(id, second);
+    expect(blocked.data.queue).toHaveLength(2);
+    await expect(resendBlocked(id, blocked.data.queue[0].id)).rejects.toThrow('Refresh and review');
+    const discarded = await discardBlocked(id, blocked.data.queue[0].id);
+    expect(discarded.queue).toHaveLength(1);
+    expect(discarded.queue[0].payload.name).toBe('Green');
+    api.sendOperation.mockResolvedValueOnce({ team_id: discarded.queue[0].payload.team_id, revision: 0 });
+    expect((await sync(id, discarded)).state).toBe('synced');
   });
 });

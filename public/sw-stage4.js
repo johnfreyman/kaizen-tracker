@@ -1,4 +1,4 @@
-const CACHE = 'kaizen-stage4-shell-9';
+const CACHE = 'kaizen-stage4-shell-10';
 self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
 self.addEventListener('message', event => {
@@ -14,6 +14,14 @@ self.addEventListener('message', event => {
     event.waitUntil((async () => {
       const cache = await caches.open('kaizen-stage4-test-network');
       await cache.put('/__stage4_drop_ack__', new Response('once'));
+      event.ports[0].postMessage({ ok: true });
+    })());
+    return;
+  }
+  if (event.data?.type === 'FAIL_NEXT_RPC' && ['503', '40001'].includes(event.data.code)) {
+    event.waitUntil((async () => {
+      const cache = await caches.open('kaizen-stage4-test-network');
+      await cache.put('/__stage4_fail_rpc__', new Response(event.data.code));
       event.ports[0].postMessage({ ok: true });
     })());
     return;
@@ -48,6 +56,11 @@ self.addEventListener('fetch', event => {
       if (new URL(event.request.url).pathname === '/auth/v1/user' && await cache.match('/__stage4_expire_auth__')) {
         await cache.delete('/__stage4_expire_auth__');
         return new Response(JSON.stringify({ code: 'bad_jwt', message: 'Test sign-in expired' }), { status: 401, headers: { 'content-type': 'application/json' } });
+      }
+      if (new URL(event.request.url).pathname.startsWith('/rest/v1/rpc/') && await cache.match('/__stage4_fail_rpc__')) {
+        const code = await (await cache.match('/__stage4_fail_rpc__')).text();
+        await cache.delete('/__stage4_fail_rpc__');
+        return new Response(JSON.stringify({ code: code === '503' ? 'PGRST002' : '40001', message: code === '503' ? 'Test service unavailable' : 'Test stale revision', details: null, hint: null }), { status: code === '503' ? 503 : 409, headers: { 'content-type': 'application/json' } });
       }
       if (new URL(event.request.url).pathname.startsWith('/rest/v1/rpc/') && await cache.match('/__stage4_drop_ack__')) {
         await cache.delete('/__stage4_drop_ack__');

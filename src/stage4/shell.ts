@@ -66,6 +66,17 @@ export async function dropNextAcknowledgment(): Promise<void> {
   });
 }
 
+export async function failNextRpc(code: '503' | '40001'): Promise<void> {
+  const worker = navigator.serviceWorker.controller;
+  if (!worker) throw new Error('Reload once after preparation before testing server responses.');
+  await new Promise<void>((resolve, reject) => {
+    const channel = new MessageChannel();
+    const timeout = setTimeout(() => reject(new Error('Server response test timed out.')), 5000);
+    channel.port1.onmessage = event => { clearTimeout(timeout); event.data?.ok ? resolve() : reject(new Error('Server response test failed.')); };
+    worker.postMessage({ type: 'FAIL_NEXT_RPC', code }, [channel.port2]);
+  });
+}
+
 export async function expireNextAuthCheck(): Promise<void> {
   const worker = navigator.serviceWorker.controller;
   if (!worker) throw new Error('Reload once after preparation before testing sign-in expiry.');

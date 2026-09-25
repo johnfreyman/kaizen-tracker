@@ -1,6 +1,6 @@
-import { activeSession, expectedPlayers, type OwnerData, type Player, type Session, type Team } from './types';
+import { activeSession, expectedPlayers, type Operation, type OwnerData, type Player, type Session } from './types';
 import { changeOwner, enqueue } from './db';
-import { client, loadServerSessions, prepareFromServer, sendOperation } from './api';
+import { client, loadExitCode, loadServerSessions, prepareFromServer, sendOperation } from './api';
 import { prepareShell } from './shell';
 
 export function today(): string { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; }
@@ -17,6 +17,24 @@ export async function prepare(ownerId: string, current: OwnerData): Promise<Owne
     if (data.queue.length) throw new Error('Pending work appeared during preparation. Retry after sync.');
     data.prepared = prepared;
     data.sessions = serverSessions;
+    data.lastSyncAt = new Date().toISOString();
+    return data;
+  });
+}
+
+export async function refreshKeepingQueue(ownerId: string): Promise<OwnerData> {
+  const [serverPrepared, serverSessions] = await Promise.all([prepareFromServer(ownerId), loadServerSessions()]);
+  return changeOwner(ownerId, data => {
+    const pendingSessions = new Set(data.queue.map(op => op.sessionId).filter(Boolean));
+    const pendingPlayers = new Set(data.queue.map(op => op.payload.player_id).filter((id): id is string => typeof id === 'string'));
+    const pendingTeams = new Set(data.queue.map(op => op.payload.team_id).filter((id): id is string => typeof id === 'string'));
+    const local = data.prepared;
+    serverPrepared.shellAssets = local?.shellAssets ?? '';
+    serverPrepared.shellVersion = local?.shellVersion ?? serverPrepared.shellVersion;
+    serverPrepared.players = [...serverPrepared.players.filter(p => !pendingPlayers.has(p.id)), ...(local?.players.filter(p => pendingPlayers.has(p.id)) ?? [])];
+    serverPrepared.teams = [...serverPrepared.teams.filter(t => !pendingTeams.has(t.id)), ...(local?.teams.filter(t => pendingTeams.has(t.id)) ?? [])];
+    data.prepared = serverPrepared;
+    data.sessions = [...serverSessions.filter(s => !pendingSessions.has(s.id)), ...data.sessions.filter(s => pendingSessions.has(s.id))];
     data.lastSyncAt = new Date().toISOString();
     return data;
   });
@@ -72,6 +90,7 @@ export async function correctAttendance(ownerId: string, current: OwnerData, ses
 export async function saveTeam(ownerId: string, current: OwnerData, name: string, teamId?: string): Promise<OwnerData> {
   const prepared = requirePrepared(current); const existing = prepared.teams.find(t => t.id === teamId); const id = existing?.id ?? crypto.randomUUID();
   if (!name.trim()) throw new Error('Enter a team name.');
+  if (prepared.teams.some(t => t.id !== id && !t.retired_at && t.name.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase())) throw new Error('An active team already has this name.');
   const kind = existing ? 'rename_team_v1' : 'create_team_v1';
   return enqueue(ownerId, kind, null, existing?.revision ?? 0, { team_id: id, name: name.trim() }, data => {
     const teams = data.prepared!.teams;
@@ -107,10 +126,82 @@ export async function retireOrRestore(ownerId: string, current: OwnerData, playe
 }
 
 export type SyncResult = { data: OwnerData; state: 'synced' | 'waiting' | 'auth' | 'conflict' | 'failed'; error?: string };
+function classify(issue: { code?: string; status?: number }): 'auth' | 'waiting' | 'conflict' | 'failed' {
+  if (issue.status === 401 || issue.code === 'PGRST301' || issue.code === 'PGRST303') return 'auth';
+  if (['40001', '23505', '55000', '22023', '22P02', '42501'].includes(issue.code ?? '')) return 'conflict';
+  if (!issue.code || (issue.status ?? 0) >= 500 || /^PGRST00[0-3]$/.test(issue.code) || /^08/.test(issue.code) || ['40P01', '57014', '53300'].includes(issue.code) || /^57P0/.test(issue.code)) return 'waiting';
+  return 'failed';
+}
+
+export async function reviewBlocked(ownerId: string, opId: string): Promise<OwnerData> {
+  const current = await changeOwner(ownerId, data => data);
+  const op = current.queue.find(item => item.id === opId);
+  if (!op || op.status === 'pending') throw new Error('No blocked change to review.');
+  let revision: number | null = null, summary = 'The server has no matching record.';
+  if (op.sessionId) {
+    const session = (await loadServerSessions(op.sessionId))[0];
+    if (session) { revision = session.revision; summary = `${session.kind} ${session.date}: ${session.state}, revision ${revision}; ${Object.values(session.present).filter(Boolean).length} present.`; }
+  } else if (op.kind.includes('player') || op.kind.includes('team')) {
+    const roster = await prepareFromServer(ownerId);
+    const entity = op.kind.includes('player') ? roster.players.find(p => p.id === op.payload.player_id) : roster.teams.find(t => t.id === op.payload.team_id);
+    if (entity) { revision = entity.revision; summary = JSON.stringify(entity); }
+  }
+  return changeOwner(ownerId, data => {
+    const target = data.queue.find(item => item.id === opId);
+    if (!target || target.status === 'pending') throw new Error('Review state changed.');
+    target.serverReview = { revision, summary, loadedAt: new Date().toISOString() };
+    return data;
+  });
+}
+
+function sameRevisionTarget(a: Operation, b: Operation): boolean {
+  if (a.sessionId) return b.sessionId === a.sessionId;
+  const playerId = a.payload.player_id, teamId = a.payload.team_id;
+  return (typeof playerId === 'string' && b.payload.player_id === playerId) || (typeof teamId === 'string' && b.payload.team_id === teamId);
+}
+function dependsOn(a: Operation, b: Operation): boolean {
+  if (a.sessionId && b.sessionId === a.sessionId) return true;
+  const entityId = a.payload.player_id ?? a.payload.team_id;
+  return typeof entityId === 'string' && JSON.stringify(b.payload).includes(entityId);
+}
+export async function resendBlocked(ownerId: string, opId: string): Promise<OwnerData> {
+  return changeOwner(ownerId, data => {
+    const index = data.queue.findIndex(op => op.id === opId), head = data.queue[index];
+    if (index !== 0 || !head || !['40001', '55000'].includes(head.errorCode ?? '') || head.serverReview?.revision === null || head.serverReview?.revision === undefined) throw new Error('Refresh and review the blocked change first.');
+    const oldBase = head.baseRevision, nextBase = head.serverReview.revision;
+    head.id = crypto.randomUUID(); head.baseRevision = nextBase; head.status = 'pending'; delete head.error; delete head.errorCode; delete head.serverReview;
+    for (const later of data.queue.slice(1)) if (sameRevisionTarget(head, later)) later.baseRevision += nextBase - oldBase;
+    return data;
+  });
+}
+export async function discardBlocked(ownerId: string, opId: string): Promise<OwnerData> {
+  const current = await changeOwner(ownerId, data => data), head = current.queue[0];
+  if (!head || head.id !== opId || head.status === 'pending') throw new Error('The blocked change changed.');
+  const affected = new Set<string>([head.id]);
+  const selected: Operation[] = [head];
+  for (const op of current.queue.slice(1)) if (selected.some(earlier => dependsOn(earlier, op))) { selected.push(op); affected.add(op.id); }
+  const sessionIds = [...new Set(selected.map(op => op.sessionId).filter((id): id is string => !!id))];
+  const serverSessions = await Promise.all(sessionIds.map(async id => (await loadServerSessions(id))[0]));
+  const serverRoster = selected.some(op => op.payload.player_id || op.payload.team_id) ? await prepareFromServer(ownerId) : null;
+  return changeOwner(ownerId, data => {
+    if (data.queue[0]?.id !== opId) throw new Error('Queue changed during review.');
+    data.queue = data.queue.filter(op => !affected.has(op.id));
+    data.sessions = data.sessions.filter(s => !sessionIds.includes(s.id));
+    data.sessions.unshift(...serverSessions.filter((s): s is Session => !!s));
+    if (serverRoster && data.prepared) {
+      const playerIds = selected.map(op => op.payload.player_id).filter((id): id is string => typeof id === 'string');
+      const teamIds = selected.map(op => op.payload.team_id).filter((id): id is string => typeof id === 'string');
+      data.prepared.players = [...data.prepared.players.filter(p => !playerIds.includes(p.id)), ...serverRoster.players.filter(p => playerIds.includes(p.id))];
+      data.prepared.teams = [...data.prepared.teams.filter(t => !teamIds.includes(t.id)), ...serverRoster.teams.filter(t => teamIds.includes(t.id))];
+    }
+    return data;
+  });
+}
+
 export async function sync(ownerId: string, current: OwnerData): Promise<SyncResult> {
   if (!navigator.onLine || current.testOffline) return { data: current, state: 'waiting' };
   const identity = await client.auth.getUser();
-  if (identity.error?.status === 0) return { data: current, state: 'waiting', error: 'Waiting for connectivity.' };
+  if (identity.error && classify(identity.error) === 'waiting') return { data: current, state: 'waiting', error: 'Waiting for connectivity.' };
   if (identity.error || identity.data.user?.id !== ownerId) return { data: current, state: 'auth', error: 'Sign in again as the same coach to sync.' };
   let data = current;
   while (data.queue.length) {
@@ -128,14 +219,16 @@ export async function sync(ownerId: string, current: OwnerData): Promise<SyncRes
         return latest;
       });
     } catch (error) {
-      const issue = error as { code?: string; status?: number; message?: string };
-      if (issue.status === 401 || issue.status === 403 || issue.code === '42501') return { data, state: 'auth', error: 'Sign in again as the same coach to sync.' };
-      const conflict = ['40001', '23505', '55000', '22023', '22P02'].includes(issue.code ?? '');
-      if (!conflict && (!navigator.onLine || !issue.code)) return { data, state: 'waiting', error: 'Waiting to retry the same saved operation.' };
-      data = await changeOwner(ownerId, latest => { const head = latest.queue[0]; if (head?.id !== op.id) throw new Error('Queue changed during failure handling.'); head.status = conflict ? 'conflict' : 'failed'; head.error = `${issue.code ?? 'ERROR'}: ${issue.message ?? String(error)}`; return latest; });
-      return { data, state: conflict ? 'conflict' : 'failed', error: data.queue[0]?.error };
+      const issue = error as { code?: string; status?: number; message?: string }, state = classify(issue);
+      if (state === 'auth') return { data, state, error: 'Sign in again as the same coach to sync.' };
+      if (state === 'waiting') return { data, state, error: 'Waiting to retry the same saved operation.' };
+      data = await changeOwner(ownerId, latest => { const head = latest.queue[0]; if (head?.id !== op.id) throw new Error('Queue changed during failure handling.'); head.status = state; head.errorCode = issue.code; head.error = `${issue.code ?? issue.status ?? 'ERROR'}: ${issue.message ?? String(error)}`; return latest; });
+      if (issue.code === '40001' || issue.code === '55000') { try { data = await reviewBlocked(ownerId, op.id); } catch { /* keep local intent for review after connectivity returns */ } }
+      return { data, state, error: data.queue[0]?.error };
     }
   }
+  try { const exitCode = await loadExitCode(); data = await changeOwner(ownerId, latest => { if (latest.prepared) latest.prepared.exitCode = exitCode; return latest; }); }
+  catch { return { data, state: 'waiting', error: 'Attendance synced; PIN settings refresh is waiting.' }; }
   return { data, state: 'synced' };
 }
 
