@@ -1,4 +1,8 @@
 @import 'tailwindcss' source(none);
 @source '../**/*.{js,ts,jsx,tsx}';
+/* The Stage 2 prototype is a dev-only page (prototype.html). Excluding it here
+   keeps the production stylesheet byte-identical; the prototype pulls in its
+   own Tailwind build from src/prototype/prototype.css. */
+@source not '../prototype/**';
 
 @import 'tw-animate-css';
