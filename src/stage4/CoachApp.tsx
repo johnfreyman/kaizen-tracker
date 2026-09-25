@@ -18,14 +18,14 @@ function message(error: unknown): string { return error instanceof Error ? error
 function deliveryText(state: ReturnType<typeof sessionDelivery>) { return ({ waiting: 'Saved on this device · waiting to sync', synced: 'Synced', conflict: 'Conflict · review needed', failed: 'Upload failed · review needed' })[state]; }
 
 export default function CoachApp() {
-  const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [ownerId, setOwnerId] = useState<string | null>(() => lastOwner());
   const [testCoach, setTestCoach] = useState<keyof typeof TEST_COACH_EMAIL>('a'); const [password, setPassword] = useState('');
   const [data, setData] = useState<OwnerData | null>(null);
   const [page, setPage] = useState<Page>('home'); const [view, setView] = useState<'expected' | 'other'>('expected');
   const [expectedOpen, setExpectedOpen] = useState(false); const [teamIds, setTeamIds] = useState<string[]>([]); const [allKaizen, setAllKaizen] = useState(false);
   const [date, setDate] = useState(today()); const [dateOpen, setDateOpen] = useState(false);
   const dateInput = useRef<HTMLInputElement>(null);
-  const [status, setStatus] = useState(''); const [busy, setBusy] = useState(false); const [authPaused, setAuthPaused] = useState(false);
+  const [status, setStatus] = useState(''); const [busy, setBusy] = useState(false); const [authPaused, setAuthPaused] = useState(() => !!lastOwner());
   const [editingPlayer, setEditingPlayer] = useState<string | null>(null); const [firstName, setFirstName] = useState(''); const [number, setNumber] = useState(''); const [label, setLabel] = useState(''); const [guest, setGuest] = useState(false); const [playerTeams, setPlayerTeams] = useState<string[]>([]);
   const [teamName, setTeamName] = useState(''); const [pin, setPin] = useState('');
   const [restoreLabels, setRestoreLabels] = useState<Record<string, string>>({});

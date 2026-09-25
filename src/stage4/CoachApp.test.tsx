@@ -29,6 +29,16 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe('offline auth recovery', () => {
+  it('opens saved data even when the expired-session check has not returned', async () => {
+    await savedCoach();
+    auth.getSession.mockReturnValue(new Promise(() => {}));
+    auth.onAuthStateChange.mockImplementation(() => ({ data: { subscription: { unsubscribe() {} } } }));
+    render(<CoachApp />);
+    const start = await screen.findByRole('button', { name: 'Start Practice' });
+    await waitFor(() => expect(start.hasAttribute('disabled')).toBe(false));
+    expect(screen.getByText(/Sync paused/)).toBeTruthy();
+  });
+
   it('opens saved owner data after an expired token and allows attendance while upload is paused', async () => {
     await savedCoach();
     render(<CoachApp />);
