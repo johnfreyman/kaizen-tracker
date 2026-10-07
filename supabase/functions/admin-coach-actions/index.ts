@@ -1,12 +1,20 @@
 import { createClient } from "npm:@supabase/supabase-js@2.105.4";
 
+// Audit A9: browsers may call this only from the coach app (and local dev).
+// CORS is defense in depth; the JWT and super-admin checks below still decide.
+const allowedOrigins = new Set(["https://teamtracker.leftbraincreative.xyz", "http://localhost:5173", "http://localhost:4173"]);
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
+  "Vary": "Origin",
 };
+function withCors(req: Request, response: Response): Response {
+  const origin = req.headers.get("Origin");
+  if (origin && allowedOrigins.has(origin)) response.headers.set("Access-Control-Allow-Origin", origin);
+  return response;
+}
 
-type Action = "list-coaches" | "coach-data" | "resend-verification" | "force-logout" | "suspend-account" | "restore-account" | "view-as-coach" | "invite-coach";
+type Action = "list-coaches" | "coach-data" | "resend-verification" | "force-logout" | "suspend-account" | "restore-account" | "invite-coach";
 const coachAppUrl = 'https://teamtracker.leftbraincreative.xyz/';
 
 // Only canonical coach data belongs in details/exports. Never include PIN
@@ -32,7 +40,9 @@ interface RequestBody {
   email?: string;
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (req) => withCors(req, await handle(req)));
+
+async function handle(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -149,16 +159,6 @@ Deno.serve(async (req) => {
         if (error) throw error;
         break;
       }
-      case "view-as-coach": {
-        if (!targetEmail) return json({ error: "Coach has no email" }, 400);
-        // generateLink does NOT send any email — it returns the link for us to use directly
-        const { data: linkData, error } = await adminClient.auth.admin.generateLink({
-          type: "magiclink",
-          email: targetEmail,
-        });
-        if (error) throw error;
-        return json({ success: true, link: linkData.properties.action_link }, 200);
-      }
       case "invite-coach": {
         if (!email) return json({ error: "Missing email for invite-coach" }, 400);
         const { error } = await adminClient.auth.admin.inviteUserByEmail(email, { redirectTo: coachAppUrl });
@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
     const message = err instanceof Error ? err.message : "Internal error";
     return json({ error: message }, 500);
   }
-});
+}
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {

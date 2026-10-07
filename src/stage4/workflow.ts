@@ -1,4 +1,4 @@
-import { activeSession, expectedPlayers, type Operation, type OwnerData, type Player, type Session } from './types';
+import { activeSession, displayPlayer, expectedPlayers, type Operation, type OwnerData, type Player, type Session } from './types';
 import { changeOwner, enqueue } from './db';
 import { client, loadExitCode, loadServerSessions, prepareFromServer, sendOperation } from './api';
 import { prepareShell } from './shell';
@@ -144,11 +144,11 @@ export async function reviewBlocked(ownerId: string, opId: string): Promise<Owne
   let revision: number | null = null, summary = 'The server has no matching record.';
   if (op.sessionId) {
     const session = (await loadServerSessions(op.sessionId))[0];
-    if (session) { revision = session.revision; summary = `${session.kind} ${session.date}: ${session.state}, revision ${revision}; ${Object.values(session.present).filter(Boolean).length} present.`; }
+    if (session) { revision = session.revision; const marked = typeof op.payload.player_id === 'string' && op.payload.player_id in session.present ? ` This player is marked ${session.present[op.payload.player_id] ? 'present' : 'absent'}.` : ''; summary = `${session.kind} · ${session.date} · ${session.state === 'completed' ? 'finished' : 'in progress'} · ${Object.values(session.present).filter(Boolean).length} present.${marked}`; }
   } else if (op.kind.includes('player') || op.kind.includes('team')) {
     const roster = await prepareFromServer(ownerId);
     const entity = op.kind.includes('player') ? roster.players.find(p => p.id === op.payload.player_id) : roster.teams.find(t => t.id === op.payload.team_id);
-    if (entity) { revision = entity.revision; summary = JSON.stringify(entity); }
+    if (entity) { revision = entity.revision; summary = 'first_name' in entity ? `${displayPlayer(entity)}${entity.retired_at ? ' · retired' : ''}` : `Team “${entity.name}”${entity.retired_at ? ' · retired' : ''}`; }
   }
   return changeOwner(ownerId, data => {
     const target = data.queue.find(item => item.id === opId);
@@ -226,7 +226,7 @@ export async function sync(ownerId: string, current: OwnerData): Promise<SyncRes
       const issue = error as { code?: string; status?: number; message?: string }, state = classify(issue);
       if (state === 'auth') return { data, state, error: 'Sign in again as the same coach to sync.' };
       if (state === 'waiting') return { data, state, error: 'Waiting to retry the same saved operation.' };
-      data = await changeOwner(ownerId, latest => { const head = latest.queue[0]; if (head?.id !== op.id) throw new Error('Queue changed during failure handling.'); head.status = state; head.errorCode = issue.code; head.error = `${issue.code ?? issue.status ?? 'ERROR'}: ${issue.message ?? String(error)}`; return latest; });
+      data = await changeOwner(ownerId, latest => { const head = latest.queue[0]; if (head?.id !== op.id) throw new Error('Queue changed during failure handling.'); head.status = state; head.errorCode = issue.code; head.error = `${issue.code ?? issue.status ?? 'ERROR'}: ${issue.message ?? String(error)}`; /* technical detail; coaches see blockedReason() */ return latest; });
       if (issue.code === '40001' || issue.code === '55000') { try { data = await reviewBlocked(ownerId, op.id); } catch { /* keep local intent for review after connectivity returns */ } }
       return { data, state, error: data.queue[0]?.error };
     }

@@ -19,6 +19,7 @@ async function savedCoach() {
   return id;
 }
 beforeEach(() => {
+  history.replaceState(null, '', '/');
   const memory = new Map<string, string>();
   vi.stubGlobal('localStorage', { getItem: (key: string) => memory.get(key) ?? null, setItem: (key: string, value: string) => { memory.set(key, value); }, removeItem: (key: string) => { memory.delete(key); }, clear: () => memory.clear() });
   vi.stubGlobal('navigator', { ...window.navigator, onLine: false });
@@ -120,5 +121,29 @@ describe('automatic device setup (audit A4)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     expect(screen.getByText(/PIN setting not loaded yet/)).toBeTruthy();
     expect(screen.queryByText(/Default code 0000 active/)).toBeNull();
+  });
+});
+
+describe('history and navigation (audit A6, A8)', () => {
+  it('reaches every completed session, filters by type and date, and keeps the page in the URL', async () => {
+    const id = await savedCoach();
+    await changeOwner(id, data => {
+      const kayla = data.prepared!.players[0];
+      data.sessions = Array.from({ length: 25 }, (_, i) => ({ id: `s${i}`, kind: (i % 5 === 0 ? 'Optional Training' : 'Practice') as 'Practice' | 'Optional Training', date: `2026-08-${String(i + 1).padStart(2, '0')}`, creditHours: 1.5, roundId: 'round', expectedIds: [kayla.id], selectedTeamIds: [], allKaizen: true, roster: [kayla], present: { [kayla.id]: true }, state: 'completed' as const, revision: 2 }));
+      return data;
+    });
+    render(<CoachApp />);
+    await screen.findByRole('button', { name: 'Start Practice' });
+    fireEvent.click(screen.getByRole('button', { name: 'History' }));
+    expect(location.hash).toBe('#history');
+    expect(screen.getByRole('button', { name: 'History' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.getAllByRole('button', { name: 'Correct attendance' })).toHaveLength(20);
+    fireEvent.click(screen.getByRole('button', { name: 'Show 20 more' }));
+    expect(screen.getAllByRole('button', { name: 'Correct attendance' })).toHaveLength(25);
+    expect(screen.getByText('Practice · 2026-08-02')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'Optional Training' } });
+    expect(screen.getAllByRole('button', { name: 'Correct attendance' })).toHaveLength(5);
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-08-15' } });
+    expect(screen.getByText('2 sessions found')).toBeTruthy();
   });
 });
