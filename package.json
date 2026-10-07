@@ -8,6 +8,9 @@
     "build": "vite build",
     "stage4:dev": "vite --mode stage4-test",
     "stage4:build": "vite build --mode stage4-test",
+    "release:dev": "vite --mode stage4-release --open /release.html",
+    "release:build": "vite build --mode stage4-release",
+    "typecheck": "tsc --noEmit",
     "test": "vitest"
   },
   "dependencies": {

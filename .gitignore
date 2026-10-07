@@ -4,6 +4,17 @@ node_modules
 .env.*
 !.env.example
 !.env.stage4-test.example
+!.env.stage4-release.example
 kaizen-project-source.zip
 kaizen-tracker-package.zip
 kaizen-audit-bundle.zip
+
+# Local/generated artifacts; release builds are produced from source.
+.DS_Store
+dist/
+.vercel/
+supabase/.temp/
+scratch/
+tmp/
+output/
+Upgrade to Team Tracker - Two phases.zip

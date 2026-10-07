@@ -27,6 +27,7 @@ import { getPurgeState } from "./getPurgeState";
 import { PurgeBadge } from "./PurgeBadge";
 import { VerificationTimeline } from "./VerificationTimeline";
 import { TeamLogo } from "./TeamLogo";
+import { adminPlayerName, loadCoachData, type CoachData } from './coachData';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,6 +40,7 @@ interface RecentSession {
   duration: number;
   player_count: number;
   saved_at: string;
+  attendance: Array<{ playerId: string; label: string; present: boolean }>;
 }
 
 interface ActiveSessionData {
@@ -51,6 +53,7 @@ interface ActiveSessionData {
 interface CoachDetail {
   recentSessions: RecentSession[];
   activeSession: ActiveSessionData | null;
+  data: CoachData;
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +227,8 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
   const [detailError, setDetailError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<string | null>(null);
+  const attendanceRef = useRef<HTMLDivElement>(null);
+  const [detailRefresh, setDetailRefresh] = useState(0);
 
   // Track previous coach id for animation keying
   const prevCoachId = useRef<string | null>(null);
@@ -253,45 +258,22 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
 
     async function load() {
       try {
-        const [sessionsRes, activeRes] = await Promise.all([
-          supabase
-            .from("events")
-            .select("id, date, type, duration, players, saved_at")
-            .eq("coach_id", coach!.coach_id)
-            .order("saved_at", { ascending: false })
-            .limit(5),
-          supabase
-            .from("active_session")
-            .select("id, date, type, duration")
-            .eq("coach_id", coach!.coach_id)
-            .maybeSingle(),
-        ]);
-
+        const data = await loadCoachData(coach!.coach_id);
         if (cancelled) return;
-        if (sessionsRes.error) throw sessionsRes.error;
+        const active = data.sessions.find(session => session.state === 'active');
+        const sessions: RecentSession[] = data.sessions.filter(session => session.state === 'completed')
+          .sort((a, b) => (b.completed_at ?? b.created_at).localeCompare(a.completed_at ?? a.created_at))
+          .map(session => {
+            const attendance = data.sessionRoster.filter(player => player.session_id === session.id).map(player => ({
+              playerId: player.player_id,
+              label: adminPlayerName(player),
+              present: data.attendance.some(mark => mark.session_id === session.id && mark.player_id === player.player_id && mark.present),
+            }));
+            return { id: session.id, date: session.session_date, type: session.kind, duration: Number(session.credit_hours),
+              player_count: attendance.filter(mark => mark.present).length, saved_at: session.completed_at ?? session.created_at, attendance };
+          });
+        setDetail({ recentSessions: sessions, activeSession: active ? { id: active.id, date: active.session_date, type: active.kind, duration: Number(active.credit_hours) } : null, data });
 
-        const sessions: RecentSession[] = (sessionsRes.data ?? []).map(
-          (s: any) => ({
-            id: s.id,
-            date: s.date,
-            type: s.type,
-            duration: Number(s.duration),
-            player_count: Array.isArray(s.players) ? s.players.length : 0,
-            saved_at: s.saved_at,
-          })
-        );
-
-        setDetail({
-          recentSessions: sessions,
-          activeSession: activeRes.data
-            ? {
-                id: activeRes.data.id,
-                date: activeRes.data.date,
-                type: activeRes.data.type,
-                duration: Number(activeRes.data.duration),
-              }
-            : null,
-        });
       } catch (err: any) {
         if (!cancelled)
           setDetailError(err.message ?? "Failed to load coach details.");
@@ -304,7 +286,7 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
     return () => {
       cancelled = true;
     };
-  }, [coach?.coach_id]);
+  }, [coach?.coach_id, coach?.session_count, coach?.player_count, coach?.last_session_at, detailRefresh]);
 
   // ---------------------------------------------------------------------------
   // Admin actions
@@ -315,7 +297,7 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
     setActionLoading("reset-password");
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(coach.email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${window.location.origin}/`,
       });
       if (error) throw error;
       toast.success(`Password reset email sent to ${coach.email}`);
@@ -331,40 +313,12 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
     if (!coach) return;
     setActionLoading("export");
     try {
-      const [eventsRes, rosterRes, archivesRes] = await Promise.all([
-        supabase
-          .from("events")
-          .select("id, date, type, duration, saved_at")
-          .eq("coach_id", coach.coach_id)
-          .order("saved_at", { ascending: false }),
-        supabase
-          .from("roster")
-          .select("id, name, is_guest")
-          .eq("coach_id", coach.coach_id),
-        supabase
-          .from("archived_event_sets")
-          .select("id, archived_at")
-          .eq("coach_id", coach.coach_id)
-          .order("archived_at", { ascending: false }),
-      ]);
-
-      if (eventsRes.error) throw eventsRes.error;
-      if (rosterRes.error) throw rosterRes.error;
-      if (archivesRes.error) throw archivesRes.error;
-
+      const canonical = await loadCoachData(coach.coach_id);
       const exportData = {
         exported_at: new Date().toISOString(),
-        coach: {
-          id: coach.coach_id,
-          email: coach.email,
-          account_created_at: coach.account_created_at,
-          auth_provider: coach.auth_provider,
-          email_verified: coach.email_verified,
-        },
+        coach: { id: coach.coach_id, email: coach.email, account_created_at: coach.account_created_at, auth_provider: coach.auth_provider, email_verified: coach.email_verified },
         team: { name: coach.team_name, raffle_enabled: coach.raffle_enabled },
-        roster: rosterRes.data ?? [],
-        sessions: eventsRes.data ?? [],
-        archives: archivesRes.data ?? [],
+        ...canonical,
       };
 
       const blob = new Blob([JSON.stringify(exportData, null, 2)], {
@@ -401,23 +355,6 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
     []
   );
 
-  const handleViewAsCoach = useCallback(async () => {
-    if (!coach) return;
-    setActionLoading("view-as-coach");
-    try {
-      const data = await invokeAdminAction({
-        action: "view-as-coach", coachId: coach.coach_id, email: coach.email,
-      });
-      window.open(data.link as string, "_blank", "noopener,noreferrer");
-      toast.success("Coach session opened in new tab.");
-    } catch (err: any) {
-      toast.error(err.message ?? "Failed to generate coach link.");
-    } finally {
-      setActionLoading(null);
-      setPendingConfirm(null);
-    }
-  }, [coach, invokeAdminAction]);
-
   const handleResendVerification = useCallback(async () => {
     if (!coach) return;
     setActionLoading("resend-verification");
@@ -437,8 +374,8 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
     if (!coach) return;
     setActionLoading("force-logout");
     try {
-      await invokeAdminAction({ action: "force-logout", coachId: coach.coach_id });
-      toast.success(`${coach.email} has been signed out of all devices.`);
+      const result = await invokeAdminAction({ action: "force-logout", coachId: coach.coach_id });
+      toast.success(String(result.message ?? 'Saved sign-in sessions revoked.'));
     } catch (err: any) {
       toast.error(err.message ?? "Failed to force logout.");
     } finally {
@@ -453,13 +390,24 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
     try {
       await invokeAdminAction({ action: "suspend-account", coachId: coach.coach_id });
       toast.success(`${coach.email} has been suspended.`);
+      setDetailRefresh(value => value + 1); onCoachRefresh?.();
     } catch (err: any) {
       toast.error(err.message ?? "Failed to suspend account.");
     } finally {
       setActionLoading(null);
       setPendingConfirm(null);
     }
-  }, [coach, invokeAdminAction]);
+  }, [coach, invokeAdminAction, onCoachRefresh]);
+
+  const handleRestoreAccount = useCallback(async () => {
+    if (!coach) return;
+    setActionLoading('restore-account');
+    try {
+      await invokeAdminAction({ action: 'restore-account', coachId: coach.coach_id });
+      toast.success('Account access restored.'); setDetailRefresh(value => value + 1); onCoachRefresh?.();
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Could not restore account access.'); }
+    finally { setActionLoading(null); setPendingConfirm(null); }
+  }, [coach, invokeAdminAction, onCoachRefresh]);
 
   // ---------------------------------------------------------------------------
   // Derived values
@@ -468,6 +416,7 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
   const purge = coach ? getPurgeState(coach) : null;
   const status = coach ? getSemanticStatus(coach, !!detail?.activeSession) : "healthy";
   const cfg = SEMANTIC_CONFIG[status];
+  const suspended = !!detail?.data.account?.bannedUntil && new Date(detail.data.account.bannedUntil).getTime() > Date.now();
 
   // Open issue badges (no Purge — that's handled by PurgeBadge)
   const issueBadges: { label: string; bg: string; icon: React.ElementType }[] = [];
@@ -627,6 +576,7 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
             <div className="px-4 py-3 space-y-2.5">
               <SectionLabel>Account</SectionLabel>
               <div className="space-y-2 mt-1">
+                <AccountRow label="Sign-in access" value={detail ? suspended ? 'Suspended' : 'Active' : isLoadingDetail ? 'Loading…' : 'Unavailable'} />
                 <AccountRow label="Joined" value={shortDate(coach.account_created_at)} />
                 <AccountRow
                   label="Last sign-in"
@@ -656,9 +606,17 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
               </div>
             </div>
 
-            {/* ── Section 7: Recent sessions ── */}
-            <div className="px-4 py-3 space-y-2">
-              <SectionLabel>Recent Sessions</SectionLabel>
+            {detail && <div className="px-4 py-3 space-y-2">
+              <SectionLabel>Roster</SectionLabel>
+              {detail.data.players.length === 0 ? <p className="text-xs text-slate-500">No players added.</p> : detail.data.players.map(player => <div key={player.id} className="text-xs border-b border-slate-100 py-2">
+                <p className="font-medium text-slate-800">{adminPlayerName(player)}{player.is_guest ? ' · Guest' : ''}{player.retired_at ? ' · Retired' : ''}</p>
+                <p className="text-slate-500">{detail.data.memberships.filter(member => member.player_id === player.id).map(member => detail.data.teams.find(team => team.id === member.team_id)?.name).filter(Boolean).join(', ') || 'All Kaizen only'}</p>
+              </div>)}
+            </div>}
+
+            {/* ── Section 7: Saved sessions ── */}
+            <div ref={attendanceRef} className="px-4 py-3 space-y-2">
+              <SectionLabel>Attendance History</SectionLabel>
 
               {detail?.activeSession && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-800 font-medium">
@@ -669,7 +627,7 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
                   <span className="truncate">
                     Active:{" "}
                     <span className="font-bold">{detail.activeSession.type}</span> ·{" "}
-                    {detail.activeSession.duration} min
+                    {detail.activeSession.duration} hours each
                   </span>
                 </div>
               )}
@@ -704,13 +662,14 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
                       <div className="flex items-center justify-between">
                         <span className="text-[12px] font-medium text-slate-800">{s.date}</span>
                         <span className="text-[11px] text-slate-500">
-                          {s.type} · {s.duration} min
+                          {s.type} · {s.duration} hours each
                         </span>
                       </div>
                       {/* Line 2: player count */}
                       <p className="text-[11px] text-slate-400 mt-0.5">
                         {s.player_count} player{s.player_count !== 1 ? "s" : ""}
                       </p>
+                      <details className="mt-1 text-xs"><summary className="cursor-pointer text-indigo-700">View attendance</summary><ul className="mt-2 space-y-1">{s.attendance.map(mark => <li key={mark.playerId}>{mark.label} · {mark.present ? 'Present' : 'Absent'}</li>)}</ul></details>
                     </div>
                   ))}
                 </div>
@@ -732,28 +691,7 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
                 onClick={handleResendVerification}
               />
 
-              {/* View as coach */}
-              <div>
-                <TextAction
-                  label="View as coach"
-                  icon={ArrowUpRight}
-                  loading={actionLoading === "view-as-coach"}
-                  disabled={!!actionLoading}
-                  onClick={() =>
-                    setPendingConfirm(
-                      pendingConfirm === "view-as-coach" ? null : "view-as-coach"
-                    )
-                  }
-                />
-                {pendingConfirm === "view-as-coach" && (
-                  <ConfirmBanner
-                    message={`Open a one-time sign-in session for ${coach.email} in a new tab?`}
-                    loading={actionLoading === "view-as-coach"}
-                    onConfirm={handleViewAsCoach}
-                    onCancel={() => setPendingConfirm(null)}
-                  />
-                )}
-              </div>
+              <TextAction label="View attendance" icon={ArrowUpRight} disabled={isLoadingDetail || !!detailError} onClick={() => attendanceRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />
 
               {/* Export data */}
               <TextAction
@@ -802,13 +740,15 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
                 />
                 {pendingConfirm === "force-logout" && (
                   <ConfirmBanner
-                    message={`Sign ${coach.email} out of all devices?`}
+                    message={`Revoke ${coach.email}'s saved sign-ins? They must sign in again when their current access token expires. Saved attendance stays intact.`}
                     loading={actionLoading === "force-logout"}
                     onConfirm={handleForceLogout}
                     onCancel={() => setPendingConfirm(null)}
                   />
                 )}
               </div>
+
+              {suspended && <div><TextAction label="Restore account access" icon={RefreshCw} loading={actionLoading === 'restore-account'} disabled={!!actionLoading} onClick={() => setPendingConfirm('restore-account')} />{pendingConfirm === 'restore-account' && <ConfirmBanner message={`Restore sign-in access for ${coach.email}?`} loading={actionLoading === 'restore-account'} onConfirm={handleRestoreAccount} onCancel={() => setPendingConfirm(null)} />}</div>}
 
               {/* Suspend account — danger */}
               <div>
@@ -817,7 +757,7 @@ export default function CoachDetailPanel({ coach, onCoachRefresh, onCoachPurged 
                   icon={UserX}
                   danger
                   loading={actionLoading === "suspend-account"}
-                  disabled={!!actionLoading}
+                  disabled={!!actionLoading || suspended || !detail}
                   onClick={() =>
                     setPendingConfirm(
                       pendingConfirm === "suspend-account" ? null : "suspend-account"

@@ -26,6 +26,16 @@ beforeEach(() => {
 });
 
 describe('paged Stage 4 reads', () => {
+  it('loads history beyond the first 100 sessions for lifetime reports', async () => {
+    db.rows.set('tracker_sessions', Array.from({ length: 605 }, (_, index) => ({ id: `session-${String(index).padStart(3, '0')}`, kind: 'Practice', session_date: '2026-09-23', credit_hours: 1.5, round_id: 'round', all_kaizen: true, needs_round_review: false, state: 'completed', revision: 1, archived_at: index === 0 ? '2026-09-24T00:00:00Z' : null })));
+    const { loadServerSessions } = await import('./api');
+    const sessions = await loadServerSessions();
+    expect(sessions).toHaveLength(605);
+    expect(sessions[0].archivedAt).toBe('2026-09-24T00:00:00Z');
+    expect(sessions[604].id).toBe('session-604');
+    expect(db.filters.get('tracker_attendance')?.length).toBe(7);
+  });
+
   it('loads every child row for the selected sessions beyond the default 1000-row cap', async () => {
     const other = 'other-session';
     db.rows.set('tracker_sessions', [{ id: 'session-1', kind: 'Practice', session_date: '2026-09-23', credit_hours: 1.5, round_id: 'round', all_kaizen: true, needs_round_review: false, state: 'completed', revision: 1205 }]);

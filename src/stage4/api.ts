@@ -1,18 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Operation, Prepared, Player, Session, Team, PinVerifier } from './types';
+import type { Operation, Prepared, Player, RaffleSnapshot, Session, Team, PinVerifier } from './types';
 import { SHELL_VERSION, STORAGE_VERSION } from './types';
+import { AUTH_STORAGE_KEY } from './deviceAuth';
+import { IS_RELEASE } from './runtime';
 
-const url = import.meta.env.VITE_STAGE4_SUPABASE_URL;
-const key = import.meta.env.VITE_STAGE4_SUPABASE_KEY;
-if (import.meta.env.MODE !== 'stage4-test' || url !== 'https://viouquduxutuslafiooy.supabase.co' || !key?.startsWith('sb_publishable_')) {
-  throw new Error('Stage 4 may connect only to the isolated test project.');
+const url = IS_RELEASE ? import.meta.env.VITE_SUPABASE_URL : import.meta.env.VITE_STAGE4_SUPABASE_URL;
+const key = IS_RELEASE ? import.meta.env.VITE_SUPABASE_ANON_KEY : import.meta.env.VITE_STAGE4_SUPABASE_KEY;
+const expectedUrl = IS_RELEASE
+  ? 'https://pwgqwcvultxihntvaewo.supabase.co'
+  : 'https://viouquduxutuslafiooy.supabase.co';
+if ((import.meta.env.MODE !== 'stage4-test' && !IS_RELEASE) || url !== expectedUrl || !key?.startsWith('sb_publishable_')) {
+  throw new Error('Coach attendance build configuration does not match its designated Supabase project.');
 }
-export const client = createClient(url, key, { auth: { storageKey: 'kaizen-stage4-test-auth' } });
+export const client = createClient(url, key, { auth: { storageKey: AUTH_STORAGE_KEY } });
 
 export type ApiIssue = Error & { code?: string; status?: number };
 function must<T>(result: { data: T | null; error: { message: string; code?: string } | null; status?: number }): T {
   if (result.error) { const issue = new Error(result.error.message) as ApiIssue; issue.code = result.error.code; issue.status = result.status; throw issue; }
-  if (result.data === null) throw new Error('The test project returned no data.');
+  if (result.data === null) throw new Error('The server returned no data.');
   return result.data;
 }
 const byteaToBase64 = (value: string): string => {
@@ -61,24 +66,44 @@ export async function prepareFromServer(ownerId: string): Promise<Prepared> {
 export async function sendOperation(op: Operation): Promise<Record<string, unknown>> {
   const envelope = { p_operation_id: op.id, p_device_id: op.deviceId, p_device_sequence: op.sequence, p_base_revision: op.baseRevision, p_payload: op.payload };
   let result;
-  if (op.kind === 'correct_v1') result = await client.rpc('tracker_correct_session_v1', { ...envelope, p_session_id: op.sessionId });
+  if (['set_raffle_v1', 'draw_v1', 'void_draw_v1'].includes(op.kind)) result = await client.rpc('tracker_apply_raffle_operation_v1', { ...envelope, p_kind: op.kind });
+  else if (op.kind === 'correct_v1') result = await client.rpc('tracker_correct_session_v1', { ...envelope, p_session_id: op.sessionId });
   else if (op.kind === 'set_exit_pin_v1' || op.kind === 'reset_exit_pin_v1') result = await client.rpc('tracker_apply_settings_operation_v1', { ...envelope, p_kind: op.kind });
   else if (op.kind.includes('player') || op.kind.includes('team')) result = await client.rpc('tracker_apply_roster_operation_v1', { ...envelope, p_kind: op.kind });
   else result = await client.rpc('tracker_apply_operation_v1', { ...envelope, p_kind: op.kind, p_session_id: op.sessionId });
   return must(result) as Record<string, unknown>;
 }
 
+export async function loadRaffleSnapshot(excludeLastN: number): Promise<RaffleSnapshot> {
+  const snapshot = must(await client.rpc('tracker_raffle_snapshot_v1', { p_exclude_last_n: excludeLastN })) as RaffleSnapshot;
+  if (!snapshot || !Array.isArray(snapshot.tickets) || !Array.isArray(snapshot.draws) || typeof snapshot.round_id !== 'string' || typeof snapshot.pool_hash !== 'string') throw new Error('The raffle snapshot was incomplete.');
+  return snapshot;
+}
+
 export async function loadServerSessions(sessionId?: string): Promise<Session[]> {
-  const base = client.from('tracker_sessions').select('id,kind,session_date,credit_hours,round_id,all_kaizen,needs_round_review,state,revision');
-  const rows = must(await (sessionId ? base.eq('id', sessionId) : base.order('created_at', { ascending: false }).limit(100))) as Array<{ id: string; kind: Session['kind']; session_date: string; credit_hours: number; round_id: string; all_kaizen: boolean; needs_round_review: boolean; state: Session['state']; revision: number }>;
+  type SessionRow = { id: string; kind: Session['kind']; session_date: string; credit_hours: number; round_id: string; all_kaizen: boolean; needs_round_review: boolean; state: Session['state']; revision: number; archived_at: string | null };
+  const columns = 'id,kind,session_date,credit_hours,round_id,all_kaizen,needs_round_review,state,revision,archived_at';
+  const rows = sessionId ? must(await client.from('tracker_sessions').select(columns).eq('id', sessionId)) as SessionRow[] : await pages<SessionRow>((from, to) => client.from('tracker_sessions').select(columns).order('created_at', { ascending: false }).order('id').range(from, to));
   if (!rows.length) return [];
-  const ids = rows.map(row => row.id);
+  async function children<T>(table: string, selection: string, order: string[]): Promise<T[]> {
+    const result: T[] = [];
+    for (let index = 0; index < rows.length; index += 100) {
+      const ids = rows.slice(index, index + 100).map(row => row.id);
+      result.push(...await pages<T>(async (from, to) => {
+        let query = client.from(table).select(selection).in('session_id', ids);
+        for (const key of order) query = query.order(key);
+        const response = await query.range(from, to);
+        return { data: response.data as T[] | null, error: response.error, status: response.status };
+      }));
+    }
+    return result;
+  }
   const [marks, exp, teams, people, member] = await Promise.all([
-    pages<{session_id: string; player_id: string; present: boolean}>((from, to) => client.from('tracker_attendance').select('session_id,player_id,present').in('session_id', ids).order('session_id').order('player_id').range(from, to)),
-    pages<{session_id: string; player_id: string}>((from, to) => client.from('tracker_session_expected_players').select('session_id,player_id').in('session_id', ids).order('session_id').order('player_id').range(from, to)),
-    pages<{session_id: string; team_id: string}>((from, to) => client.from('tracker_session_expected_teams').select('session_id,team_id').in('session_id', ids).order('session_id').order('team_id').range(from, to)),
-    pages<{session_id: string; player_id: string; first_name: string; jersey_number: string | null; short_label: string; is_guest: boolean}>((from, to) => client.from('tracker_session_roster').select('session_id,player_id,first_name,jersey_number,short_label,is_guest').in('session_id', ids).order('session_id').order('player_id').range(from, to)),
-    pages<{session_id: string; player_id: string; team_id: string}>((from, to) => client.from('tracker_session_memberships').select('session_id,player_id,team_id').in('session_id', ids).order('session_id').order('player_id').order('team_id').range(from, to)),
+    children<{session_id: string; player_id: string; present: boolean}>('tracker_attendance', 'session_id,player_id,present', ['session_id', 'player_id']),
+    children<{session_id: string; player_id: string}>('tracker_session_expected_players', 'session_id,player_id', ['session_id', 'player_id']),
+    children<{session_id: string; team_id: string}>('tracker_session_expected_teams', 'session_id,team_id', ['session_id', 'team_id']),
+    children<{session_id: string; player_id: string; first_name: string; jersey_number: string | null; short_label: string; is_guest: boolean}>('tracker_session_roster', 'session_id,player_id,first_name,jersey_number,short_label,is_guest', ['session_id', 'player_id']),
+    children<{session_id: string; player_id: string; team_id: string}>('tracker_session_memberships', 'session_id,player_id,team_id', ['session_id', 'player_id', 'team_id']),
   ]);
-  return rows.map(s => ({ id: s.id, kind: s.kind, date: s.session_date, creditHours: Number(s.credit_hours), roundId: s.round_id, allKaizen: s.all_kaizen, needsRoundReview: s.needs_round_review, state: s.state, revision: s.revision, expectedIds: exp.filter(x => x.session_id === s.id).map(x => x.player_id), selectedTeamIds: teams.filter(x => x.session_id === s.id).map(x => x.team_id), present: Object.fromEntries(marks.filter(x => x.session_id === s.id).map(x => [x.player_id, x.present])), roster: people.filter(x => x.session_id === s.id).map(x => ({ id: x.player_id, first_name: x.first_name, jersey_number: x.jersey_number, short_label: x.short_label, is_guest: x.is_guest, retired_at: null, revision: 0, team_ids: member.filter(y => y.session_id === s.id && y.player_id === x.player_id).map(y => y.team_id) })) }));
+  return rows.map(s => ({ id: s.id, kind: s.kind, date: s.session_date, creditHours: Number(s.credit_hours), roundId: s.round_id, allKaizen: s.all_kaizen, needsRoundReview: s.needs_round_review, state: s.state, revision: s.revision, archivedAt: s.archived_at, expectedIds: exp.filter(x => x.session_id === s.id).map(x => x.player_id), selectedTeamIds: teams.filter(x => x.session_id === s.id).map(x => x.team_id), present: Object.fromEntries(marks.filter(x => x.session_id === s.id).map(x => [x.player_id, x.present])), roster: people.filter(x => x.session_id === s.id).map(x => ({ id: x.player_id, first_name: x.first_name, jersey_number: x.jersey_number, short_label: x.short_label, is_guest: x.is_guest, retired_at: null, revision: 0, team_ids: member.filter(y => y.session_id === s.id && y.player_id === x.player_id).map(y => y.team_id) })) }));
 }

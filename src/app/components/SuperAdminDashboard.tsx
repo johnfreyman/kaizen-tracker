@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import CoachDetailPanel from "./admin/CoachDetailPanel";
-import { CoachSummaryRow } from "./admin/CoachDetailDrawer";
+import type { CoachSummaryRow } from "./admin/CoachDetailDrawer";
 import { AdminActivityFeed } from "./admin/AdminActivityFeed";
 import AdminActionBar from "./admin/AdminActionBar";
 import {
@@ -26,7 +26,6 @@ import {
   Clock,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { useTeamStore } from "../hooks/useTeamStore";
 import { TeamLogo } from "./admin/TeamLogo";
 import { getPurgeState } from "./admin/getPurgeState";
 import { PurgeBadge } from "./admin/PurgeBadge";
@@ -255,8 +254,7 @@ function KpiTile({
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function SuperAdminDashboard() {
-  const { logout } = useTeamStore();
+export default function SuperAdminDashboard({ onLogout, onCoachAttendance }: { onLogout: () => void; onCoachAttendance?: () => void }) {
 
   const [rows, setRows] = useState<CoachSummaryRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -298,8 +296,9 @@ export default function SuperAdminDashboard() {
   // -------------------------------------------------------------------------
   // Data fetch — the backend verifies super-admin access before reading the view.
   // -------------------------------------------------------------------------
-  useEffect(() => {
-    async function fetchCoaches() {
+  const fetchCoaches = useCallback(async () => {
+      setIsLoading(true);
+      setError(null);
       try {
         const { data, error } = await supabase.functions.invoke("admin-coach-actions", {
           body: { action: "list-coaches" },
@@ -308,15 +307,16 @@ export default function SuperAdminDashboard() {
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
         if (!Array.isArray(data?.coaches)) throw new Error("Invalid coach data response.");
-        setRows(data.coaches as CoachSummaryRow[]);
+        const next = data.coaches as CoachSummaryRow[];
+        setRows(next);
+        setSelectedCoach(current => current ? next.find(row => row.coach_id === current.coach_id) ?? null : null);
       } catch (err: any) {
         setError(err.message ?? "Failed to load coach data.");
       } finally {
         setIsLoading(false);
       }
-    }
-    fetchCoaches();
   }, []);
+  useEffect(() => { void fetchCoaches(); }, [fetchCoaches]);
 
   // -------------------------------------------------------------------------
   // Sorting
@@ -476,18 +476,25 @@ export default function SuperAdminDashboard() {
           {isLoading ? "Loading…" : `${rows.length} coaches`}
         </p>
 
+        <div className="flex items-center gap-2">
+        {onCoachAttendance && <button onClick={onCoachAttendance} className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold">Coach attendance</button>}
+        <button onClick={() => void fetchCoaches()} disabled={isLoading} className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold">Refresh dashboard</button>
         <button
-          onClick={logout}
+          onClick={onLogout}
           title="Log out"
           className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white shadow border border-gray-200 text-gray-600 hover:text-red-600 hover:bg-red-50 hover:border-red-100 active:scale-95 transition-all font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-red-150"
         >
           <LogOut className="size-4" />
           <span className="hidden sm:inline">Log out</span>
         </button>
+        </div>
       </header>
 
       {/* ── Action Bar ──────────────────────────────────────────── */}
-      <AdminActionBar />
+      <AdminActionBar onRefresh={() => void fetchCoaches()} onAuditLogs={() => { setSelectedCoach(null); setIsPaneCollapsed(false); }} onExport={() => {
+        const blob = new Blob([JSON.stringify({ exported_at: new Date().toISOString(), coaches: rows }, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'kaizen-coach-overview.json'; link.click(); URL.revokeObjectURL(url);
+      }} />
 
       {/* ── KPI Tile strip ──────────────────────────────────────── */}
       <div className="shrink-0 border-b border-gray-100 bg-white/70 backdrop-blur-sm">
@@ -889,7 +896,7 @@ export default function SuperAdminDashboard() {
             {/* Content */}
             <div className="flex-1 min-h-0 overflow-hidden">
               {selectedCoach
-                ? <CoachDetailPanel coach={selectedCoach} />
+                ? <CoachDetailPanel coach={selectedCoach} onCoachRefresh={() => void fetchCoaches()} onCoachPurged={() => { setSelectedCoach(null); void fetchCoaches(); }} />
                 : <AdminActivityFeed />
               }
             </div>

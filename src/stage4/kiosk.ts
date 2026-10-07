@@ -11,9 +11,10 @@ export function kioskMatches(data: OwnerData, number: string): Player[] {
 export async function enterKiosk(ownerId: string, current: OwnerData): Promise<OwnerData> {
   const session = activeSession(current);
   if (!session || !current.prepared) throw new Error('Start attendance and prepare this iPad before entering kiosk.');
+  if (current.pendingRaffle) throw new Error('Confirm the saved raffle request in Settings before entering kiosk.');
   if (current.pendingPin) throw new Error('Confirm the pending PIN request before entering kiosk.');
   return changeOwner(ownerId, data => {
-    if (activeSession(data)?.id !== session.id || !data.prepared || data.pendingPin) throw new Error('The session or PIN setting changed. Review it before entering kiosk.');
+    if (activeSession(data)?.id !== session.id || !data.prepared || data.pendingPin || data.pendingRaffle) throw new Error('The session or PIN setting changed. Review it before entering kiosk.');
     data.kioskSessionId = session.id;
     delete data.kioskClosedSessionId;
     return data;

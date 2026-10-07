@@ -3,10 +3,12 @@ import { changeOwner } from './db';
 import type { Operation, OwnerData, PinVerifier } from './types';
 
 export async function changePin(ownerId: string, current: OwnerData, verifier?: PinVerifier): Promise<OwnerData> {
+  if (current.pendingRaffle) throw new Error('Confirm the saved raffle request before changing the PIN.');
   if (!navigator.onLine || current.testOffline) throw new Error('Connect to change the PIN.');
   if (!current.prepared) throw new Error('Prepare this iPad first.');
   let data = current;
   if (!data.pendingPin) data = await changeOwner(ownerId, latest => {
+    if (latest.pendingRaffle) throw new Error('Confirm the saved raffle request before changing the PIN.');
     if (!latest.prepared || latest.pendingPin) throw new Error('A PIN change is already waiting for its result.');
     const op: Operation = { id: crypto.randomUUID(), deviceId: latest.deviceId, sequence: latest.nextSequence++, kind: verifier ? 'set_exit_pin_v1' : 'reset_exit_pin_v1', sessionId: null, baseRevision: latest.prepared.exitCode.revision, payload: verifier ? { verifier } : {}, status: 'pending' };
     latest.pendingPin = op;

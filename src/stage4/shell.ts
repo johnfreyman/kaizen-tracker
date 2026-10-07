@@ -1,6 +1,7 @@
 import { SHELL_VERSION } from './types';
+import { APP_PAGE, ASSET_MANIFEST, SERVICE_WORKER, SHELL_CACHE_PREFIX } from './runtime';
 export function shellAssetUrls(): string[] {
-  const urls = new Set<string>(['/stage4.html']);
+  const urls = new Set<string>([APP_PAGE]);
   document.querySelectorAll<HTMLScriptElement | HTMLLinkElement>('script[src],link[rel="stylesheet"][href]').forEach(element => {
     const address = 'src' in element ? element.src : element.href;
     if (new URL(address).origin === location.origin) urls.add(address);
@@ -10,13 +11,13 @@ export function shellAssetUrls(): string[] {
 export function shellFingerprint(): string { return shellAssetUrls().join('|'); }
 export async function shellCacheReady(): Promise<boolean> {
   if (!('caches' in window)) return false;
-  const cache = await caches.open(`kaizen-${SHELL_VERSION}`);
+  const cache = await caches.open(`${SHELL_CACHE_PREFIX}${SHELL_VERSION}`);
   for (const url of shellAssetUrls()) if (!(await cache.match(url, { ignoreVary: true }))) return false;
   return true;
 }
 export async function prepareShell(): Promise<string> {
   if (!('serviceWorker' in navigator) || !('caches' in window)) throw new Error('This browser cannot cache the app shell.');
-  const registration = await navigator.serviceWorker.register(`/sw-stage4.js?v=${SHELL_VERSION}`);
+  const registration = await navigator.serviceWorker.register(`${SERVICE_WORKER}?v=${SHELL_VERSION}`);
   await navigator.serviceWorker.ready;
   const worker = await new Promise<ServiceWorker>((resolve, reject) => {
     const deadline = Date.now() + 15000;
@@ -28,18 +29,18 @@ export async function prepareShell(): Promise<string> {
     };
     check();
   });
-  const response = await fetch(`/stage4-assets.json?version=${SHELL_VERSION}`, { cache: 'no-store' });
+  const response = await fetch(`${ASSET_MANIFEST}?version=${SHELL_VERSION}`, { cache: 'no-store' });
   if (!response.ok) throw new Error('The complete app asset list is unavailable.');
   const urls = await response.json() as string[];
-  if (!Array.isArray(urls) || !urls.includes('/stage4.html') || !urls.some(url => url.endsWith('.js'))) throw new Error('The app asset list is incomplete.');
-  urls.push('/stage4-assets.json', '/sw-stage4.js');
+  if (!Array.isArray(urls) || !urls.includes(APP_PAGE) || !urls.some(url => url.endsWith('.js'))) throw new Error('The app asset list is incomplete.');
+  urls.push(ASSET_MANIFEST, SERVICE_WORKER);
   await new Promise<void>((resolve, reject) => {
     const channel = new MessageChannel();
     const timeout = setTimeout(() => reject(new Error('App shell caching timed out.')), 15000);
     channel.port1.onmessage = event => { clearTimeout(timeout); event.data?.ok ? resolve() : reject(new Error(event.data?.error ?? 'App shell caching failed.')); };
     worker.postMessage({ type: 'PREPARE_SHELL', urls }, [channel.port2]);
   });
-  const cache = await caches.open(`kaizen-${SHELL_VERSION}`);
+  const cache = await caches.open(`${SHELL_CACHE_PREFIX}${SHELL_VERSION}`);
   for (const url of urls) if (!(await cache.match(url))) throw new Error(`App asset ${url} was not saved locally.`);
   return shellFingerprint();
 }

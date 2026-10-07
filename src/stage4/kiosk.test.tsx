@@ -29,6 +29,7 @@ async function activeOwner() {
 
 beforeEach(() => {
   setTestWriteFailure(false);
+  Element.prototype.scrollIntoView = vi.fn();
   vi.stubGlobal('navigator', { ...window.navigator, onLine: true });
   api.getUser.mockReset(); api.loadExitCode.mockReset(); api.loadServerSessions.mockReset();
 });
@@ -116,6 +117,8 @@ describe('kiosk feedback', () => {
     fireEvent.change(screen.getByLabelText('Jersey number (1–3 digits) or coach exit PIN (4 digits)'), { target: { value: '0' } });
     fireEvent.click(screen.getByRole('button', { name: 'Find player' }));
     expect(screen.getByRole('heading', { name: 'Tap your card to check in' })).toBeTruthy();
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('Player lookup results');
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' });
     expect(onMark).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: /Kayla/ }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('not saved on this device'));

@@ -1,4 +1,4 @@
-const CACHE = 'kaizen-stage5-shell-11';
+const CACHE = 'kaizen-stage6-shell-18';
 self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
 self.addEventListener('message', event => {
@@ -49,7 +49,11 @@ self.addEventListener('message', event => {
   })());
 });
 self.addEventListener('fetch', event => {
-  if (new URL(event.request.url).hostname === 'viouquduxutuslafiooy.supabase.co') {
+  const requestUrl = new URL(event.request.url);
+  const isOperation = ['tracker_apply_operation_v1', 'tracker_apply_roster_operation_v1',
+    'tracker_apply_settings_operation_v1', 'tracker_apply_raffle_operation_v1',
+    'tracker_correct_session_v1'].some(name => requestUrl.pathname === `/rest/v1/rpc/${name}`);
+  if (requestUrl.hostname === 'viouquduxutuslafiooy.supabase.co') {
     event.respondWith((async () => {
       const cache = await caches.open('kaizen-stage4-test-network');
       if (await cache.match('/__stage4_offline_marker__')) return Response.error();
@@ -57,12 +61,12 @@ self.addEventListener('fetch', event => {
         await cache.delete('/__stage4_expire_auth__');
         return new Response(JSON.stringify({ code: 'bad_jwt', message: 'Test sign-in expired' }), { status: 401, headers: { 'content-type': 'application/json' } });
       }
-      if (new URL(event.request.url).pathname.startsWith('/rest/v1/rpc/') && await cache.match('/__stage4_fail_rpc__')) {
+      if (isOperation && await cache.match('/__stage4_fail_rpc__')) {
         const code = await (await cache.match('/__stage4_fail_rpc__')).text();
         await cache.delete('/__stage4_fail_rpc__');
         return new Response(JSON.stringify({ code: code === '503' ? 'PGRST002' : '40001', message: code === '503' ? 'Test service unavailable' : 'Test stale revision', details: null, hint: null }), { status: code === '503' ? 503 : 409, headers: { 'content-type': 'application/json' } });
       }
-      if (new URL(event.request.url).pathname.startsWith('/rest/v1/rpc/') && await cache.match('/__stage4_drop_ack__')) {
+      if (isOperation && await cache.match('/__stage4_drop_ack__')) {
         await cache.delete('/__stage4_drop_ack__');
         const response = await fetch(event.request);
         return response.ok ? Response.error() : response;

@@ -19,7 +19,8 @@ vi.mock('./api', () => ({
 }));
 vi.mock('./shell', () => ({ prepareShell: vi.fn() }));
 
-import { discardBlocked, finishSession, markPresent, refreshKeepingQueue, resendBlocked, saveTeam, startSession, sync } from './workflow';
+import { prepareShell } from './shell';
+import { discardBlocked, finishSession, markPresent, prepare, refreshKeepingQueue, resendBlocked, saveTeam, startSession, sync } from './workflow';
 
 const player = { id: 'player-1', first_name: 'Kayla', jersey_number: '0', short_label: '', is_guest: false, retired_at: null, revision: 0, team_ids: ['blue'] };
 const prepared: Prepared = {
@@ -116,6 +117,39 @@ describe('durable offline attendance', () => {
     expect(done.state).toBe('synced');
     expect(api.sendOperation.mock.calls[0][0]).toEqual(api.sendOperation.mock.calls[1][0]);
     expect((await readOwner(id)).queue).toHaveLength(0);
+  });
+
+  it('keeps pending attendance through a failed app update and prepares the new shell after replay', async () => {
+    const { id, data } = await owner();
+    const started = await startSession(id, data, 'Practice', ['blue'], false, '2026-09-23');
+    const marked = await markPresent(id, started, player.id, true);
+    const finished = await finishSession(id, marked);
+    await changeOwner(id, current => { current.prepared!.shellVersion = 'prior-shell'; return current; });
+    const originalQueue = structuredClone(finished.queue);
+    api.getUser.mockResolvedValue({ data: { user: { id } }, error: null });
+    api.sendOperation.mockRejectedValueOnce({ status: 503, message: 'Update interrupted' })
+      .mockImplementation(async operation => ({ session_id: operation.sessionId }));
+
+    expect((await sync(id, await readOwner(id))).state).toBe('waiting');
+    const refreshed = await refreshKeepingQueue(id);
+    expect(refreshed.queue).toEqual(originalQueue);
+    expect(refreshed.prepared!.shellVersion).toBe('prior-shell');
+    expect(refreshed.sessions[0]).toMatchObject({ id: finished.sessions[0].id, state: 'completed', present: { [player.id]: true } });
+
+    expect((await sync(id, await readOwner(id))).state).toBe('synced');
+    expect(api.sendOperation.mock.calls.map(call => call[0].id)).toEqual([originalQueue[0].id, ...originalQueue.map(op => op.id)]);
+    const delivered = await readOwner(id);
+    expect(delivered.queue).toHaveLength(0);
+    api.loadServerSessions.mockResolvedValue([delivered.sessions[0]]);
+    api.prepareFromServer.mockImplementation(async () => structuredClone(prepared));
+    const shell = vi.mocked(prepareShell);
+    shell.mockRejectedValueOnce(new Error('Updated shell unavailable')).mockResolvedValueOnce('updated-assets');
+    await expect(prepare(id, delivered)).rejects.toThrow('Updated shell unavailable');
+    expect(await readOwner(id)).toEqual(delivered);
+    const recovered = await prepare(id, await readOwner(id));
+    expect(recovered.prepared).toMatchObject({ shellVersion: SHELL_VERSION, shellAssets: 'updated-assets' });
+    expect(recovered.sessions[0]).toMatchObject({ id: finished.sessions[0].id, state: 'completed', present: { [player.id]: true } });
+    expect(recovered.queue).toHaveLength(0);
   });
 
   it('retains a conflict without discarding later queued changes', async () => {

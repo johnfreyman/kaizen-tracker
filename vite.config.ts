@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import path from 'path'
+import { copyFileSync, existsSync, unlinkSync } from 'node:fs'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
@@ -17,19 +18,35 @@ function figmaAssetResolver() {
 }
 
 export default defineConfig(({ mode }) => {
-  if (mode === 'stage4-test') {
+  const coachBuild = mode === 'stage4-test' || mode === 'stage4-release'
+  if (coachBuild) {
     const env = loadEnv(mode, process.cwd(), 'VITE_')
-    if (env.VITE_STAGE4_SUPABASE_URL !== 'https://viouquduxutuslafiooy.supabase.co' ||
-        !env.VITE_STAGE4_SUPABASE_KEY?.startsWith('sb_publishable_')) {
-      throw new Error('Stage 4 test mode requires the isolated test project URL and publishable key. No fallback is allowed.')
+    const url = mode === 'stage4-release' ? env.VITE_SUPABASE_URL : env.VITE_STAGE4_SUPABASE_URL
+    const key = mode === 'stage4-release' ? env.VITE_SUPABASE_ANON_KEY : env.VITE_STAGE4_SUPABASE_KEY
+    const expectedUrl = mode === 'stage4-release'
+      ? 'https://pwgqwcvultxihntvaewo.supabase.co'
+      : 'https://viouquduxutuslafiooy.supabase.co'
+    if (url !== expectedUrl || !key?.startsWith('sb_publishable_')) {
+      throw new Error(`${mode} requires its designated project URL and publishable key. No fallback is allowed.`)
     }
   }
   return {
     plugins: [
-      ...(mode === 'stage4-test' ? ([{
+      ...(coachBuild ? ([{
         name: 'stage4-offline-asset-list',
         generateBundle(_options, bundle) {
-          this.emitFile({ type: 'asset', fileName: 'stage4-assets.json', source: JSON.stringify(['/stage4.html', ...Object.keys(bundle).map(name => `/${name}`)]) })
+          const page = mode === 'stage4-release' ? 'release.html' : 'stage4.html'
+          const manifest = mode === 'stage4-release' ? 'release-assets.json' : 'stage4-assets.json'
+          this.emitFile({ type: 'asset', fileName: manifest, source: JSON.stringify([`/${page}`, ...Object.keys(bundle).map(name => `/${name}`)]) })
+        },
+      }] satisfies Plugin[]) : []),
+      ...(mode === 'stage4-release' ? ([{
+        name: 'release-root-entry',
+        writeBundle(options) {
+          const outDir = path.resolve(options.dir ?? 'dist')
+          copyFileSync(path.join(outDir, 'release.html'), path.join(outDir, 'index.html'))
+          const testWorker = path.join(outDir, 'sw-stage4.js')
+          if (existsSync(testWorker)) unlinkSync(testWorker)
         },
       }] satisfies Plugin[]) : []),
       figmaAssetResolver(),
@@ -40,6 +57,7 @@ export default defineConfig(({ mode }) => {
     ],
     resolve: {
       alias: {
+        ...(coachBuild ? { '@/lib/supabase': path.resolve(__dirname, 'src/stage4/adminClient.ts') } : {}),
         // Alias @ to the src directory
         '@': path.resolve(__dirname, './src'),
       },
@@ -47,6 +65,6 @@ export default defineConfig(({ mode }) => {
 
     // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
     assetsInclude: ['**/*.svg', '**/*.csv'],
-    build: mode === 'stage4-test' ? { rollupOptions: { input: path.resolve(__dirname, 'stage4.html') } } : undefined,
+    build: coachBuild ? { rollupOptions: { input: path.resolve(__dirname, mode === 'stage4-release' ? 'release.html' : 'stage4.html') } } : undefined,
   }
 })

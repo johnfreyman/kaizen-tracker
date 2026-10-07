@@ -1,6 +1,7 @@
 import { emptyOwner, STORAGE_VERSION, type OwnerData } from './types';
+import { DEVICE_STORAGE_PREFIX } from './runtime';
 
-const DB_NAME = 'kaizen-stage4-test';
+const DB_NAME = DEVICE_STORAGE_PREFIX;
 const DB_VERSION = 1;
 let dbPromise: Promise<IDBDatabase> | null = null;
 let testWriteFailure = false;
@@ -41,6 +42,7 @@ export async function changeOwner(ownerId: string, change: (current: OwnerData) 
 export async function enqueue(ownerId: string, kind: string, sessionId: string | null, baseRevision: number, payload: Record<string, unknown>, apply: (data: OwnerData) => void): Promise<OwnerData> {
   const opId = crypto.randomUUID();
   return changeOwner(ownerId, data => {
+    if (data.pendingRaffle) throw new Error('Confirm the saved raffle request in Settings before changing attendance or the roster.');
     apply(data);
     data.queue.push({ id: opId, deviceId: data.deviceId, sequence: data.nextSequence++, kind, sessionId, baseRevision, payload: structuredClone(payload), status: 'pending' });
     return data;

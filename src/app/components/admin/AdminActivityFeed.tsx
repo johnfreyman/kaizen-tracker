@@ -41,6 +41,7 @@ interface EventMeta {
 }
 
 const EVENT_META: Record<string, EventMeta> = {
+  admin_sessions_revoked: { Icon: RefreshCw, label: () => 'Coach sign-ins revoked', iconColor: 'text-amber-600', iconBg: 'bg-amber-50', severity: 'warning', category: 'system' },
   session_saved: {
     Icon: FileText,
     label: () => "Session saved",
@@ -133,6 +134,7 @@ const NEW_HIGHLIGHT_MS = 3000;
 export function AdminActivityFeed() {
   const [entries, setEntries] = useState<ActivityEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
@@ -158,11 +160,12 @@ export function AdminActivityFeed() {
       .order("occurred_at", { ascending: false })
       .limit(PAGE_SIZE)
       .then(({ data, error }) => {
-        if (cancelled || error || !data) return;
+        if (cancelled) return;
+        setIsLoading(false);
+        if (error || !data) { setLoadError(true); return; }
         setEntries(data as ActivityEntry[]);
         setHasMore(data.length === PAGE_SIZE);
         offsetRef.current = data.length;
-        setIsLoading(false);
       });
 
     return () => {
@@ -293,6 +296,8 @@ export function AdminActivityFeed() {
               </div>
             ))}
           </div>
+        ) : loadError ? (
+          <p role="alert" className="p-4 text-sm text-red-700">Activity could not be loaded. Refresh the dashboard to try again.</p>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-center gap-2">
             <Activity className="w-8 h-8 text-gray-200" />
