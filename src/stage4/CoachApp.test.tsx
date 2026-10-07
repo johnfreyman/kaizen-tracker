@@ -78,3 +78,47 @@ describe('offline auth recovery', () => {
     expect(lastOwner()).not.toBe('coach-b');
   });
 });
+
+describe('automatic device setup (audit A4)', () => {
+  async function signedInWithoutPreparation() {
+    const id = crypto.randomUUID();
+    await changeOwner(id, data => data);
+    rememberOwner(id);
+    vi.stubGlobal('navigator', { ...window.navigator, onLine: true });
+    auth.getSession.mockResolvedValue({ data: { session: { user: { id } } }, error: null });
+    auth.onAuthStateChange.mockImplementation(callback => { queueMicrotask(() => callback('INITIAL_SESSION', { user: { id } })); return { data: { subscription: { unsubscribe() {} } } }; });
+    return id;
+  }
+
+  it('prepares the device after sign-in without a button press', async () => {
+    const api = await import('./api');
+    const shell = await import('./shell');
+    vi.mocked(api.prepareFromServer).mockResolvedValue({ version: STORAGE_VERSION, shellVersion: SHELL_VERSION, shellAssets: '', savedAt: new Date().toISOString(), players: [{ id: 'player-1', first_name: 'Kayla', jersey_number: '0', short_label: '', is_guest: false, retired_at: null, revision: 0, team_ids: [] }], teams: [], roundId: 'round', roundRevision: 0, raffleEnabled: false, exitCode: { mode: 'default', revision: 0, verifier: null } });
+    vi.mocked(api.loadServerSessions).mockResolvedValue([]);
+    vi.mocked(shell.prepareShell).mockResolvedValue('test-shell');
+    await signedInWithoutPreparation();
+    render(<CoachApp />);
+    const start = await screen.findByRole('button', { name: 'Start Practice' });
+    await waitFor(() => expect(start.hasAttribute('disabled')).toBe(false));
+    expect(vi.mocked(api.prepareFromServer)).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Prepare while online' })).toBeNull();
+    expect(screen.getByText('Ready offline')).toBeTruthy();
+  });
+
+  it('shows loading and unknown states instead of an empty roster, zero report or a guessed PIN', async () => {
+    const api = await import('./api');
+    vi.mocked(api.prepareFromServer).mockReturnValue(new Promise(() => {}));
+    vi.mocked(api.loadServerSessions).mockReturnValue(new Promise(() => {}));
+    await signedInWithoutPreparation();
+    render(<CoachApp />);
+    await screen.findByText('Getting this device ready…');
+    fireEvent.click(screen.getByRole('button', { name: 'Roster' }));
+    expect(screen.getByText('Loading your roster…')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Add player' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Reports' }));
+    expect(screen.getByText('Loading your history…')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(screen.getByText(/PIN setting not loaded yet/)).toBeTruthy();
+    expect(screen.queryByText(/Default code 0000 active/)).toBeNull();
+  });
+});

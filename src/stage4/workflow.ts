@@ -5,7 +5,7 @@ import { prepareShell } from './shell';
 
 export function today(): string { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; }
 function snapshot(player: Player) { return { player_id: player.id, first_name: player.first_name, jersey_number: player.jersey_number, short_label: player.short_label, is_guest: player.is_guest, team_ids: player.team_ids }; }
-function requirePrepared(data: OwnerData) { if (!data.prepared) throw new Error('Prepare this iPad online first.'); return data.prepared; }
+function requirePrepared(data: OwnerData) { if (!data.prepared) throw new Error('Connect to the internet once so this device can load your roster.'); return data.prepared; }
 
 export async function prepare(ownerId: string, current: OwnerData): Promise<OwnerData> {
   if (current.queue.length) throw new Error('Sync or review pending work before refreshing the prepared roster.');
@@ -24,13 +24,17 @@ export async function prepare(ownerId: string, current: OwnerData): Promise<Owne
 
 export async function refreshKeepingQueue(ownerId: string): Promise<OwnerData> {
   const [serverPrepared, serverSessions] = await Promise.all([prepareFromServer(ownerId), loadServerSessions()]);
+  // Audit A5: caching the new app shell does not touch saved attendance, so do
+  // it even while changes wait to upload. If it fails, keep the old shell.
+  let shellAssets: string | null = null;
+  try { shellAssets = await prepareShell(); } catch { shellAssets = null; }
   return changeOwner(ownerId, data => {
     const pendingSessions = new Set(data.queue.map(op => op.sessionId).filter(Boolean));
     const pendingPlayers = new Set(data.queue.map(op => op.payload.player_id).filter((id): id is string => typeof id === 'string'));
     const pendingTeams = new Set(data.queue.map(op => op.payload.team_id).filter((id): id is string => typeof id === 'string'));
     const local = data.prepared;
-    serverPrepared.shellAssets = local?.shellAssets ?? '';
-    serverPrepared.shellVersion = local?.shellVersion ?? serverPrepared.shellVersion;
+    if (shellAssets !== null) serverPrepared.shellAssets = shellAssets;
+    else { serverPrepared.shellAssets = local?.shellAssets ?? ''; serverPrepared.shellVersion = local?.shellVersion ?? serverPrepared.shellVersion; }
     serverPrepared.players = [...serverPrepared.players.filter(p => !pendingPlayers.has(p.id)), ...(local?.players.filter(p => pendingPlayers.has(p.id)) ?? [])];
     serverPrepared.teams = [...serverPrepared.teams.filter(t => !pendingTeams.has(t.id)), ...(local?.teams.filter(t => pendingTeams.has(t.id)) ?? [])];
     data.prepared = serverPrepared;

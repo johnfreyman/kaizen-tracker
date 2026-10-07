@@ -119,6 +119,20 @@ describe('durable offline attendance', () => {
     expect((await readOwner(id)).queue).toHaveLength(0);
   });
 
+  it('saves the updated app shell during refresh while changes still wait to upload (audit A5)', async () => {
+    const { id, data } = await owner();
+    const started = await startSession(id, data, 'Practice', ['blue'], false, '2026-09-23');
+    const finished = await finishSession(id, await markPresent(id, started, player.id, true));
+    await changeOwner(id, current => { current.prepared!.shellVersion = 'prior-shell'; current.prepared!.shellAssets = 'prior-assets'; return current; });
+    api.prepareFromServer.mockImplementation(async () => structuredClone(prepared));
+    api.loadServerSessions.mockResolvedValue([]);
+    vi.mocked(prepareShell).mockResolvedValueOnce('updated-assets');
+    const refreshed = await refreshKeepingQueue(id);
+    expect(refreshed.queue).toEqual(finished.queue);
+    expect(refreshed.prepared).toMatchObject({ shellVersion: SHELL_VERSION, shellAssets: 'updated-assets' });
+    expect(refreshed.sessions[0]).toMatchObject({ id: finished.sessions[0].id, state: 'completed', present: { [player.id]: true } });
+  });
+
   it('keeps pending attendance through a failed app update and prepares the new shell after replay', async () => {
     const { id, data } = await owner();
     const started = await startSession(id, data, 'Practice', ['blue'], false, '2026-09-23');
@@ -131,6 +145,7 @@ describe('durable offline attendance', () => {
       .mockImplementation(async operation => ({ session_id: operation.sessionId }));
 
     expect((await sync(id, await readOwner(id))).state).toBe('waiting');
+    vi.mocked(prepareShell).mockRejectedValueOnce(new Error('Updated shell unavailable'));
     const refreshed = await refreshKeepingQueue(id);
     expect(refreshed.queue).toEqual(originalQueue);
     expect(refreshed.prepared!.shellVersion).toBe('prior-shell');

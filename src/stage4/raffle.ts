@@ -6,7 +6,7 @@ export type RaffleChoice = { kind: 'set_raffle_v1'; mode: 'off' | 'keep' | 'fres
 
 function requireOnline(data: OwnerData): void {
   if (!navigator.onLine || data.testOffline) throw new Error('Connect this device before changing the raffle.');
-  if (!data.prepared) throw new Error('Prepare this device online first.');
+  if (!data.prepared) throw new Error('Connect to the internet once so this device can load your team data.');
   if (data.queue.length || data.pendingPin) throw new Error('Synchronize and review saved work before changing the raffle.');
   if (data.kioskSessionId) throw new Error('Exit kiosk before changing the raffle.');
 }

@@ -1,5 +1,5 @@
 export const STORAGE_VERSION = 1;
-export const SHELL_VERSION = 'stage6-shell-18';
+export const SHELL_VERSION = 'stage6-shell-19';
 
 export type Player = { id: string; first_name: string; jersey_number: string | null; short_label: string; is_guest: boolean; retired_at: string | null; revision: number; team_ids: string[] };
 export type Team = { id: string; name: string; revision: number; retired_at: string | null };
