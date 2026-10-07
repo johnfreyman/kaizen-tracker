@@ -119,6 +119,31 @@ describe('durable offline attendance', () => {
     expect((await readOwner(id)).queue).toHaveLength(0);
   });
 
+  it('records upload and server download separately and pulls another device\'s sessions (audit A3)', async () => {
+    const { id, data } = await owner();
+    const before = await readOwner(id);
+    const started = await startSession(id, data, 'Practice', ['blue'], false, '2026-09-23');
+    api.getUser.mockResolvedValue({ data: { user: { id } }, error: null });
+    api.sendOperation.mockImplementation(async operation => ({ session_id: operation.sessionId }));
+    api.loadExitCode.mockResolvedValue(prepared.exitCode);
+    await sync(id, started);
+    const uploaded = await readOwner(id);
+    expect(uploaded.lastUploadAt).toBeTruthy();
+    expect(uploaded.lastServerRefreshAt ?? null).toBe(before.lastServerRefreshAt ?? null);
+
+    const otherDevice = { ...structuredClone(started.sessions[0]), id: crypto.randomUUID(), date: '2026-09-22', state: 'completed' as const, revision: 2 };
+    const pendingLocal = await markPresent(id, uploaded, player.id, true);
+    api.prepareFromServer.mockImplementation(async () => structuredClone(prepared));
+    api.loadServerSessions.mockResolvedValue([otherDevice]);
+    vi.mocked(prepareShell).mockClear();
+    const refreshed = await refreshKeepingQueue(id, { shell: false });
+    expect(vi.mocked(prepareShell)).not.toHaveBeenCalled();
+    expect(refreshed.lastServerRefreshAt).toBeTruthy();
+    expect(refreshed.sessions.map(s => s.id)).toEqual(expect.arrayContaining([otherDevice.id, started.sessions[0].id]));
+    expect(refreshed.queue).toEqual(pendingLocal.queue);
+    expect(refreshed.sessions.find(s => s.id === started.sessions[0].id)!.present[player.id]).toBe(true);
+  });
+
   it('saves the updated app shell during refresh while changes still wait to upload (audit A5)', async () => {
     const { id, data } = await owner();
     const started = await startSession(id, data, 'Practice', ['blue'], false, '2026-09-23');

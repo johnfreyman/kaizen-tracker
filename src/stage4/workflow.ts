@@ -17,17 +17,17 @@ export async function prepare(ownerId: string, current: OwnerData): Promise<Owne
     if (data.queue.length) throw new Error('Pending work appeared during preparation. Retry after sync.');
     data.prepared = prepared;
     data.sessions = serverSessions;
-    data.lastSyncAt = new Date().toISOString();
+    data.lastSyncAt = data.lastServerRefreshAt = new Date().toISOString();
     return data;
   });
 }
 
-export async function refreshKeepingQueue(ownerId: string): Promise<OwnerData> {
+export async function refreshKeepingQueue(ownerId: string, options: { shell?: boolean } = {}): Promise<OwnerData> {
   const [serverPrepared, serverSessions] = await Promise.all([prepareFromServer(ownerId), loadServerSessions()]);
   // Audit A5: caching the new app shell does not touch saved attendance, so do
   // it even while changes wait to upload. If it fails, keep the old shell.
   let shellAssets: string | null = null;
-  try { shellAssets = await prepareShell(); } catch { shellAssets = null; }
+  if (options.shell !== false) { try { shellAssets = await prepareShell(); } catch { shellAssets = null; } }
   return changeOwner(ownerId, data => {
     const pendingSessions = new Set(data.queue.map(op => op.sessionId).filter(Boolean));
     const pendingPlayers = new Set(data.queue.map(op => op.payload.player_id).filter((id): id is string => typeof id === 'string'));
@@ -39,7 +39,7 @@ export async function refreshKeepingQueue(ownerId: string): Promise<OwnerData> {
     serverPrepared.teams = [...serverPrepared.teams.filter(t => !pendingTeams.has(t.id)), ...(local?.teams.filter(t => pendingTeams.has(t.id)) ?? [])];
     data.prepared = serverPrepared;
     data.sessions = [...serverSessions.filter(s => !pendingSessions.has(s.id)), ...data.sessions.filter(s => pendingSessions.has(s.id))];
-    data.lastSyncAt = new Date().toISOString();
+    data.lastSyncAt = data.lastServerRefreshAt = new Date().toISOString();
     return data;
   });
 }
@@ -219,7 +219,7 @@ export async function sync(ownerId: string, current: OwnerData): Promise<SyncRes
         const session = latest.sessions.find(s => s.id === op.sessionId);
         if (session && result.needs_round_review === true) session.needsRoundReview = true;
         latest.queue.shift();
-        latest.lastSyncAt = new Date().toISOString();
+        latest.lastUploadAt = new Date().toISOString();
         return latest;
       });
     } catch (error) {
