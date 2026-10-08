@@ -1,6 +1,6 @@
 # Audit follow-up — October 7, 2026
 
-Work on the [October 7 audit](attendance-tracker-audit-2026-10-07.md), done by Claude after Astra's session ran out of usage. Each item is a stacked branch, so merge them in this order.
+Work on the [October 7 audit](attendance-tracker-audit-2026-10-07.md), done by Claude after Astra's session ran out of usage. The table records the original staged branches. The October 8 continuation combines their changes and the Roster panels from PR #4 in PR #3; see [the combined release record](combined-release-2026-10-08.md). PR #2 is already merged.
 
 | Order | Item | Branch | Production state |
 |---|---|---|---|

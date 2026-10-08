@@ -101,20 +101,42 @@ export default function CoachApp() {
     return () => { live = false; };
   }, [ownerId, data?.prepared?.shellVersion, data?.prepared?.shellAssets]);
 
+  // Audit A3: download other devices' sessions, not only upload our own.
+  // Take the shared guard before reading storage so refresh, upload and setup
+  // cannot start concurrently. Preserve queued edits during the download.
+  const refreshHistory = useCallback(async (force = false) => {
+    if (!ownerId || authPaused || syncInFlight.current || !navigator.onLine) return false;
+    if (!force && Date.now() - lastHistoryRefresh.current < 60_000) return false;
+    syncInFlight.current = true; setRefreshingHistory(true);
+    try {
+      const current = await readOwner(ownerId);
+      if (!current.prepared || current.testOffline || current.kioskSessionId || current.pendingRaffle || current.queue.some(op => op.status !== 'pending')) return false;
+      const next = await refreshKeepingQueue(ownerId, { shell: false });
+      setData(next); lastHistoryRefresh.current = Date.now();
+      return true;
+    } catch { return false; }
+    finally { syncInFlight.current = false; setRefreshingHistory(false); }
+  }, [ownerId, authPaused]);
+
   const runSync = useCallback(async () => {
     if (!ownerId || syncInFlight.current) return;
     syncInFlight.current = true;
+    let refreshAfterSync = false;
     try {
       const current = await readOwner(ownerId);
-      if (!current.queue.length) return;
-      const result = await sync(ownerId, current);
-      setData(await readOwner(ownerId));
-      setAuthPaused(result.state === 'auth');
-      if (result.state === 'conflict' || result.state === 'failed' || result.state === 'auth') setStatus(result.error ?? result.state);
-      else if (result.state === 'synced') { setStatus(''); lastHistoryRefresh.current = 0; void refreshHistory(); }
+      if (!current.queue.length) refreshAfterSync = true;
+      else {
+        const result = await sync(ownerId, current);
+        setData(await readOwner(ownerId));
+        setAuthPaused(result.state === 'auth');
+        if (result.state === 'conflict' || result.state === 'failed' || result.state === 'auth') setStatus(result.error ?? result.state);
+        else if (result.state === 'synced') { setStatus(''); lastHistoryRefresh.current = 0; refreshAfterSync = true; }
+      }
     } catch (error) { setStatus(`Sync paused: ${message(error)}`); }
     finally { syncInFlight.current = false; }
-  }, [ownerId]);
+    // The upload guard must be released before asking for the server snapshot.
+    if (refreshAfterSync) await refreshHistory();
+  }, [ownerId, refreshHistory]);
   const markInKiosk = useCallback(async (playerId: string, present: boolean) => {
     if (!ownerId) throw new Error('Sign in as the same coach.');
     const current = await readOwner(ownerId);
@@ -134,18 +156,6 @@ export default function CoachApp() {
   useEffect(() => { if (!data || !ownerId || !navigator.onLine || data.testOffline || authPaused || data.queue[0]?.status !== 'pending') return; const timer = setTimeout(() => void runSync(), 400); const retry = setInterval(() => void runSync(), 5000); return () => { clearTimeout(timer); clearInterval(retry); }; }, [data, ownerId, authPaused, runSync]);
   useEffect(() => { const online = () => void runSync(); window.addEventListener('online', online); return () => window.removeEventListener('online', online); }, [runSync]);
 
-  // Audit A3: download other devices' sessions, not only upload our own.
-  // Pending changes stay in place; refreshKeepingQueue keeps their sessions.
-  const refreshHistory = useCallback(async (force = false) => {
-    if (!ownerId || syncInFlight.current || !navigator.onLine) return false;
-    if (!force && Date.now() - lastHistoryRefresh.current < 60_000) return false;
-    const current = await readOwner(ownerId);
-    if (!current.prepared || current.testOffline || current.kioskSessionId || current.pendingRaffle || current.queue.some(op => op.status !== 'pending')) return false;
-    syncInFlight.current = true; setRefreshingHistory(true);
-    try { lastHistoryRefresh.current = Date.now(); setData(await refreshKeepingQueue(ownerId, { shell: false })); return true; }
-    catch { return false; }
-    finally { syncInFlight.current = false; setRefreshingHistory(false); }
-  }, [ownerId]);
   useEffect(() => {
     if (!ownerId || authPaused) return;
     const refresh = () => { if (document.visibilityState !== 'hidden') void refreshHistory(); };
@@ -160,7 +170,7 @@ export default function CoachApp() {
   const needsPrepare = !!data && shellChecked && !(data.prepared && data.prepared.version === 1 && data.prepared.shellVersion === SHELL_VERSION && data.prepared.shellAssets === shellFingerprint() && verifiedShell === data.prepared.shellAssets);
   const blockedQueue = !!data?.queue.some(op => op.status !== 'pending');
   useEffect(() => {
-    if (!ownerId || !data || !needsPrepare || authPaused || busy || preparing || blockedQueue || data.kioskSessionId || data.pendingRaffle || data.testOffline || !navigator.onLine) return;
+    if (!ownerId || !data || !needsPrepare || authPaused || busy || preparing || blockedQueue || syncInFlight.current || data.kioskSessionId || data.pendingRaffle || data.testOffline || !navigator.onLine) return;
     const key = `${ownerId}|${SHELL_VERSION}|${shellFingerprint()}|${data.prepared ? 'refresh' : 'first'}`;
     if (autoPrepareKey.current === key) return;
     autoPrepareKey.current = key;
@@ -285,10 +295,10 @@ export default function CoachApp() {
       <AttendancePlayers key={session.id} players={shown} currentPlayers={activePlayers} teams={prepared?.teams ?? []} present={session.present} busy={busy} onMark={(playerId, present) => void act(c => markPresent(ownerId, c, playerId, present))} />
       <button disabled={busy || !!data.pendingPin || !!data.pendingRaffle} onClick={() => void act(c => enterKiosk(ownerId, c), 'Shared-device check-in ready.')}>Enter Kiosk Mode</button> <button disabled={busy} onClick={async () => { if (await act(c => finishSession(ownerId, c))) { setDate(today()); setPage('home'); } }}>Finish session on this device</button></> : <section className="coach-panel"><h2>No active session</h2><button onClick={() => setPage('home')}>Start a session</button></section>}</>}
     {page === 'roster' && !prepared && <><h1>Roster and teams</h1><section className="coach-panel" role="status"><p>{preparing ? 'Loading your roster…' : 'Your roster is not on this device yet. Connect to the internet to load it.'}</p></section></>}
-    {page === 'roster' && prepared && <><h1>Roster and teams</h1><section className="coach-panel"><h2>Teams</h2>{prepared?.teams.filter(t => !t.retired_at).map(t => <div className="row" key={t.id}><span>{t.name}</span><button className="quiet" onClick={() => { const name = prompt('Team name', t.name); if (name) void act(c => saveTeam(ownerId, c, name, t.id)); }}>Rename</button></div>)}<form onSubmit={async e => { e.preventDefault(); if (await act(c => saveTeam(ownerId, c, teamName))) setTeamName(''); }}><label>New team name<input value={teamName} onChange={e => setTeamName(e.target.value)} /></label><button disabled={!teamName.trim()}>Add team</button></form></section>
+    {page === 'roster' && prepared && <><h1>Roster and teams</h1><details className="coach-panel collapsible-panel"><summary><h2>Teams</h2><small>{prepared?.teams.filter(t => !t.retired_at).length ?? 0}</small></summary>{prepared?.teams.filter(t => !t.retired_at).map(t => <div className="row" key={t.id}><span>{t.name}</span><button className="quiet" onClick={() => { const name = prompt('Team name', t.name); if (name) void act(c => saveTeam(ownerId, c, name, t.id)); }}>Rename</button></div>)}<form onSubmit={async e => { e.preventDefault(); if (await act(c => saveTeam(ownerId, c, teamName))) setTeamName(''); }}><label>New team name<input value={teamName} onChange={e => setTeamName(e.target.value)} /></label><button disabled={!teamName.trim()}>Add team</button></form></details>
       <section className="coach-panel"><h2>{editingPlayer ? 'Edit player' : 'Add player'}</h2><form onSubmit={async e => { e.preventDefault(); if (await act(c => savePlayer(ownerId, c, { first_name: firstName, jersey_number: number || null, short_label: label, is_guest: guest, team_ids: playerTeams }, editingPlayer ?? undefined))) clearPlayerForm(); }}><label>First name<input value={firstName} onChange={e => setFirstName(e.target.value)} required /></label><label>Jersey number<input inputMode="numeric" value={number} onChange={e => setNumber(e.target.value)} /></label><label>Distinguishing label<input value={label} onChange={e => setLabel(e.target.value)} /></label><label className="choice"><input type="checkbox" checked={guest} onChange={e => setGuest(e.target.checked)} /> Guest</label><div className="team-choices">{prepared?.teams.filter(t => !t.retired_at).map(team => <label className="choice" key={team.id}><input type="checkbox" checked={playerTeams.includes(team.id)} onChange={e => setPlayerTeams(e.target.checked ? [...playerTeams, team.id] : playerTeams.filter(id => id !== team.id))} />{team.name}</label>)}</div><button>{editingPlayer ? 'Save player' : 'Add player'}</button>{editingPlayer && <button type="button" className="quiet" onClick={clearPlayerForm}>Cancel</button>}</form></section>
       <section className="coach-panel"><h2>Active players</h2>{activePlayers.map(p => <div className="row" key={p.id}><span>{displayPlayer(p)} <small>{p.team_ids.map(id => prepared?.teams.find(t => t.id === id)?.name).filter(Boolean).join(' + ') || 'Kaizen'}</small></span><button className="quiet" onClick={() => editPlayer(p)}>Edit</button><button className="quiet" onClick={() => void act(c => retireOrRestore(ownerId, c, p.id, false))}>Retire</button></div>)}</section>
-      <section className="coach-panel"><h2>Retired players</h2>{prepared?.players.filter(p => p.retired_at).map(p => <div className="row" key={p.id}><span>{displayPlayer(p)}</span><label>Restored card label<input value={restoreLabels[p.id] ?? p.short_label} onChange={e => setRestoreLabels({ ...restoreLabels, [p.id]: e.target.value })} /></label><button className="quiet" onClick={() => void act(c => retireOrRestore(ownerId, c, p.id, true, restoreLabels[p.id] ?? p.short_label))}>Restore</button></div>)}</section></>}
+      <details className="coach-panel collapsible-panel"><summary><h2>Retired players</h2><small>{prepared?.players.filter(p => p.retired_at).length ?? 0}</small></summary>{prepared?.players.filter(p => p.retired_at).map(p => <div className="row" key={p.id}><span>{displayPlayer(p)}</span><label>Restored card label<input value={restoreLabels[p.id] ?? p.short_label} onChange={e => setRestoreLabels({ ...restoreLabels, [p.id]: e.target.value })} /></label><button className="quiet" onClick={() => void act(c => retireOrRestore(ownerId, c, p.id, true, restoreLabels[p.id] ?? p.short_label))}>Restore</button></div>)}</details></>}
     {page === 'history' && <><h1>Completed sessions</h1><section className="coach-panel history-filters" aria-label="Find sessions"><label>Type<select value={historyKind} onChange={e => { setHistoryKind(e.target.value as typeof historyKind); setHistoryShown(20); }}><option value="all">All sessions</option><option value="Practice">Practice</option><option value="Optional Training">Optional Training</option></select></label><label>From<input type="date" value={historyFrom} max={historyTo || today()} onChange={e => { setHistoryFrom(e.target.value); setHistoryShown(20); }} /></label><label>To<input type="date" value={historyTo} min={historyFrom || undefined} max={today()} onChange={e => { setHistoryTo(e.target.value); setHistoryShown(20); }} /></label><p role="status">{completedHistory.length} session{completedHistory.length === 1 ? '' : 's'} found{completedHistory.length > historyShown ? ` · showing ${historyShown}` : ''}</p></section>{completedHistory.slice(0, historyShown).map(s => <section className="coach-panel" key={s.id}><h2>{s.kind} · {s.date}</h2><p>{Object.values(s.present).filter(Boolean).length} present · {s.creditHours} hours each · {s.kind === 'Optional Training' ? `${s.roundId === prepared?.roundId ? 'Current' : 'Earlier'} raffle round` : 'No training tickets'} · {deliveryText(sessionDelivery(data, s.id))}</p>{s.needsRoundReview && <p className="warning">Round changed while this session was offline. Its original tickets stay in the original round.</p>}<button className="quiet" onClick={() => setCorrectionSession(s.id)}>Correct attendance</button></section>)}{completedHistory.length > historyShown && <button className="quiet" onClick={() => setHistoryShown(historyShown + 20)}>Show 20 more</button>}
       {corrected && <section className="coach-panel" ref={node => { if (node && correctionScrolled.current !== corrected.id) { correctionScrolled.current = corrected.id; node.scrollIntoView?.({ block: 'start' }); } }}><h2>Correct {corrected.kind} · {corrected.date}</h2><p>Only attendance can change. The date, expected list, hours and raffle round stay as recorded.</p><label>Reason<input value={reason} onChange={e => setReason(e.target.value)} maxLength={500} /></label><div className="player-grid">{corrected.roster.map(p => <button key={p.id} disabled={busy} className={`player-card ${corrected.present[p.id] ? 'present' : ''}`} onClick={() => void act(c => correctAttendance(ownerId, c, corrected.id, p.id, !corrected.present[p.id], reason))}>{displayPlayer(p)} · {corrected.present[p.id] ? 'Present' : 'Absent'}</button>)}</div>{prepared?.players.some(p => !corrected.roster.some(r => r.id === p.id)) && <details><summary>Other roster players</summary><div className="player-grid">{prepared.players.filter(p => !corrected.roster.some(r => r.id === p.id)).map(p => <button key={p.id} className="player-card" disabled={busy} onClick={() => void act(c => correctAttendance(ownerId, c, corrected.id, p.id, true, reason))}>{displayPlayer(p)} · Add as present</button>)}</div></details>}<button className="quiet" onClick={() => setCorrectionSession(null)}>Close</button></section>}</>}
     {page === 'reports' && (prepared ? <ReportsScreen data={data} onCorrect={id => { setCorrectionSession(id); setHistoryKind('all'); setHistoryFrom(''); setHistoryTo(''); setPage('history'); }} online={navigator.onLine && !data.testOffline && !authPaused} refreshing={refreshingHistory} onRefresh={async () => { if (!(await refreshHistory(true))) setStatus(data.queue.some(op => op.status !== 'pending') ? 'Resolve the review item first, then refresh history.' : 'History could not be refreshed now. Try again when online.'); }} /> : <><h1>Reports</h1><section className="coach-panel" role="status"><p>{preparing ? 'Loading your history…' : 'Your history is not on this device yet. Connect to the internet to load it.'}</p></section></>)}

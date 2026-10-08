@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { changeOwner } from './db';
+import { changeOwner, readOwner } from './db';
 import { AUTH_STORAGE_KEY, lastOwner, rememberOwner } from './deviceAuth';
 import { SHELL_VERSION, STORAGE_VERSION } from './types';
 
@@ -145,5 +145,56 @@ describe('history and navigation (audit A6, A8)', () => {
     expect(screen.getAllByRole('button', { name: 'Correct attendance' })).toHaveLength(5);
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-08-15' } });
     expect(screen.getByText('2 sessions found')).toBeTruthy();
+  });
+});
+
+describe('server history refresh after upload (audit A3)', () => {
+  it('downloads another device’s sessions after uploading local attendance', async () => {
+    const api = await import('./api');
+    const id = await savedCoach();
+    const saved = await readOwner(id);
+    vi.mocked(api.prepareFromServer).mockReset().mockImplementation(async () => structuredClone(saved.prepared!));
+    vi.mocked(api.loadServerSessions).mockReset().mockResolvedValue([]);
+    vi.mocked(api.loadExitCode).mockResolvedValue(saved.prepared!.exitCode);
+    vi.mocked(api.sendOperation).mockReset().mockResolvedValue({ session_id: 'local-session' });
+    auth.getUser.mockResolvedValue({ data: { user: { id } }, error: null });
+    auth.getSession.mockResolvedValue({ data: { session: { user: { id } } }, error: null });
+    auth.onAuthStateChange.mockImplementation(callback => { queueMicrotask(() => callback('INITIAL_SESSION', { user: { id } })); return { data: { subscription: { unsubscribe() {} } } }; });
+    render(<CoachApp />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Start Practice' }).hasAttribute('disabled')).toBe(false));
+    expect(api.loadServerSessions).not.toHaveBeenCalled();
+
+    const session = { id: 'other-device-session', kind: 'Practice' as const, date: '2026-08-28', creditHours: 1.5, roundId: 'round', expectedIds: ['player-1'], selectedTeamIds: ['blue'], allKaizen: false, roster: saved.prepared!.players, present: { 'player-1': true }, state: 'completed' as const, revision: 2 };
+    vi.mocked(api.loadServerSessions).mockResolvedValue([session]);
+    await changeOwner(id, data => { data.queue.push({ id: 'local-change', deviceId: data.deviceId, sequence: 1, kind: 'finish_v1', sessionId: 'local-session', baseRevision: 1, payload: {}, status: 'pending' }); return data; });
+    vi.stubGlobal('navigator', { ...window.navigator, onLine: true });
+    fireEvent(window, new Event('online'));
+
+    await waitFor(() => expect(api.sendOperation).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(api.loadServerSessions).toHaveBeenCalledTimes(1));
+    expect((await readOwner(id)).queue).toHaveLength(0);
+    expect((await readOwner(id)).sessions.map(session => session.id)).toContain('other-device-session');
+    fireEvent.click(screen.getByRole('button', { name: 'History' }));
+    expect(await screen.findByText('Practice · 2026-08-28')).toBeTruthy();
+  });
+
+  it('downloads history on reconnect even when no local changes need uploading', async () => {
+    const api = await import('./api');
+    const id = await savedCoach();
+    const saved = await readOwner(id);
+    vi.mocked(api.prepareFromServer).mockReset().mockImplementation(async () => structuredClone(saved.prepared!));
+    const session = { id: 'remote-only-session', kind: 'Practice' as const, date: '2026-08-29', creditHours: 1.5, roundId: 'round', expectedIds: [], selectedTeamIds: [], allKaizen: true, roster: saved.prepared!.players, present: {}, state: 'completed' as const, revision: 2 };
+    vi.mocked(api.loadServerSessions).mockReset().mockResolvedValue([session]);
+    vi.mocked(api.sendOperation).mockReset();
+    auth.getSession.mockResolvedValue({ data: { session: { user: { id } } }, error: null });
+    auth.onAuthStateChange.mockImplementation(callback => { queueMicrotask(() => callback('INITIAL_SESSION', { user: { id } })); return { data: { subscription: { unsubscribe() {} } } }; });
+    render(<CoachApp />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Start Practice' }).hasAttribute('disabled')).toBe(false));
+    expect(api.loadServerSessions).not.toHaveBeenCalled();
+    vi.stubGlobal('navigator', { ...window.navigator, onLine: true });
+    fireEvent(window, new Event('online'));
+    await waitFor(() => expect(api.loadServerSessions).toHaveBeenCalledTimes(1));
+    await waitFor(async () => expect((await readOwner(id)).sessions.map(session => session.id)).toContain('remote-only-session'));
+    expect(api.sendOperation).not.toHaveBeenCalled();
   });
 });
