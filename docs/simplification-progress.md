@@ -1,0 +1,1092 @@
+# Kaizen Tracker simplification progress
+
+Updated: 2026-09-27.
+
+Specification: [simplification-spec.md](simplification-spec.md).
+Baseline application commit: `40d9b0c2f57692cdc8439d453816418be3db5a39`.
+
+## Scope and current status
+
+**Current continuation:** Stage 5 is committed/pushed at `eaeea7c`. Stage 6 implementation and the guided physical-iPad rehearsal are complete locally; the Stage 6 changes are uncommitted/unpushed. Stage 7's A01–A33 audit and the authorized live read-only catalog comparison are complete. The isolated canonical-only admin view counts tracker records, and a combined first-launch candidate applied twice over existing test fixtures without losing raffle operations. The owner confirmed that the product has never been released, so old-client compatibility and prelaunch legacy import/archive reconciliation are not first-launch gates. A fresh local database rehearsal and a guarded purge release candidate are documented below. A physical iPad app update retained pending offline attendance, synced it once released, and reopened offline on the new shell. Stage 3 remains **incomplete** pending review and authorized rehearsal of the release migration in a production-shaped environment. See [the first-launch rehearsal](simplification-first-launch-rehearsal.md), [acceptance matrix](simplification-stage7-review.md) and [live compatibility review](simplification-stage3-compatibility-review.md). No production data or permissions changed, and no production release occurred.
+
+
+Stage 1 documentation is complete. The initial Stage 2 prototype was implemented, independently audited, and revised to address the audit: multiple simultaneous sub-team memberships (U01) and audit findings F01–F05 are implemented and verified. A same-day independent review of that revision found two further gaps, R01 and R02, which are also now addressed. See [the audit](simplification-stage2-audit.md) for the original findings and all revision statuses. D01–D15 are confirmed, including offline gym use, expected-team selection and full analytics preservation; the remaining recommendations (P01–P12 and the open decisions below) are still not blanket-approved by this work. Stage 3 is partially rehearsed in a separate test project; an isolated offline app exists, but no production migration or release has occurred.
+
+Current local continuation branch: `claude/dazzling-sagan-hxrwfp` in `johnfreyman/kaizen-tracker`. It descends from `claude/stage-2-prototype`, which descends from the earlier `codex/simplification-plan`. Use these documents from the newer branch, not the unchanged `main` checkout or the superseded seven-stage draft.
+
+Published Stage 2 review: [PR #2](https://github.com/johnfreyman/kaizen-tracker/pull/2), open as checked on 2026-09-22. The original planning review is [PR #1](https://github.com/johnfreyman/kaizen-tracker/pull/1). The initial reconciliation commit is `428d59a274965c172324958f3f8fa2b407f9880b`; use the latest branch head for subsequent handoffs. Stage 3 files in this branch are drafts for review, not a production release migration.
+
+| Stage | State | Deliverable / next gate |
+| --- | --- | --- |
+| 1. Product specification and migration plan | Complete | Source audit, approved requirements/decisions, recommendations, flows, data invariants, acceptance matrix and recovery plan documented. |
+| 2. Screen flows and prototype | Revision + follow-up complete | Multiple memberships (U01), audit F01–F05, and follow-up review findings R01–R02 implemented, with committed tests and browser walkthroughs. Product recommendations (P01–P12) and the open decisions below remain for Stage 3 review. |
+| 3. Data foundation | Isolated repeat rehearsal passed; live catalog reviewed; incomplete | 145/145 role checks pass. Sole-admin membership and live view grants confirmed. Remaining: fresh deployed-like migration, protected-admin endpoint and recovery checks. No prelaunch data backfill required. See [first-launch rehearsal](simplification-first-launch-rehearsal.md). |
+| 4. Coach attendance | Isolated implementation complete | Durable attendance/outbox and recovery implemented; full release acceptance remains open. |
+| 5. Kiosk | Committed/pushed; guided iPad checks passed | Jersey lookup, undo, custom PIN, offline Safari reopen and persisted marks rehearsed. |
+| 6. Raffle and analytics | Implemented locally; guided iPad rehearsal complete | Raffle/report/export checks recorded; changes remain uncommitted/unpushed. |
+| 7. Review and testing | Initial review complete; acceptance incomplete | 13 covered / 20 partial / 0 gaps after first-launch scope clarification. Remaining release implementation and targeted device checks are documented. |
+| 8. Production release | Not started | Separate release authorization and production validation. |
+
+## Changes made in Stage 1
+
+- Created `docs/simplification-spec.md` with R01–R12 approved requirements, D01–D03 confirmed decisions, P01–P11 recommendations and A01–A22 acceptance criteria.
+- Documented existing name-keyed attendance, hour-valued durations, unwired draft helpers, a single pending-save slot, non-idempotent legacy save, destructive raffle reset/player removal, local-only winner history and secured admin backend.
+- Defined proposed stable identity, explicit attendance writes, session lifecycle, coach-scoped recovery, independent raffle rounds and metric meanings.
+- Planned additive backfill, ambiguous legacy mapping, older-client compatibility, release gates and data-preserving recovery.
+- Preserved the pre-existing `.DS_Store` change. No app source, migration, dependency, environment or production modification.
+
+## Verification record
+
+- Read repository and ancestor instruction locations; no applicable `AGENTS.md` found.
+- Traced relevant TypeScript and SQL paths; checked draft helper call sites and the actual raffle reset implementation rather than relying on old brief claims.
+- Local baseline test run: `npm test -- --run --reporter=json --outputFile=/private/tmp/kaizen-stage1-tests.json` (console output in `/private/tmp/kaizen-stage1-tests.log`). Exit 1: 15 tests passed and 1 failed among 16 collected tests. The passing files were the store hooks (7 tests) and admin backend (8 tests). The LaunchPage preset test could not find `9:00 AM`. Separately, `src/lib/stats.test.ts` failed to load because `VITE_SUPABASE_URL` was missing, so its tests were not collected. These are baseline failures with application code unchanged; this was not a clean full-suite pass.
+- Initial Stage 1 documentation checks passed: relative links, balanced fences, whitespace, unique IDs and documentation-only scope. See the reconciliation record below for the revised counts and publication guard.
+- Production, browser and migration tests: not run; out of scope for this documentation stage.
+
+## Confirmed owner decisions
+
+Owner responses received during Stage 1 on 2026-09-19:
+
+1. **D01:** default kiosk exit code `0000`, with an option for the coach to set a PIN.
+2. **D02:** keep jersey numbers `0` and `00` distinct.
+3. **D03:** seed the first current raffle pool from current, unarchived trainings only.
+
+P01–P11 and detailed PIN behavior are recommendations for the Stage 2 walkthrough. Particularly review finalized-session credit, reset with no pending session, guest eligibility, non-consuming draws, player retirement and archive independence before implementing dependent data rules.
+
+Additional owner decisions on 2026-09-20:
+
+4. **D04:** retain a low-prominence date option for backdated paper attendance.
+5. **D05:** store new credit as `1.5` hours.
+6. **D06:** store team membership, allow Settings-managed sub-teams and offer roster assignment plus team sorting/filtering; default grouping can be Kaizen.
+
+Additional owner decisions during the prototype audit:
+
+7. **D07:** players can belong to multiple sub-teams simultaneously. Keep one stable player identity and do not duplicate attendance, hours or tickets across memberships.
+8. **D08:** each player uses one jersey number across all teams; the number belongs to the player, not to a membership.
+
+P12 still contains proposed reporting/attribution policies. Membership cardinality and jersey placement are now resolved; update the single-membership prototype rather than treating its old assumption as the data contract.
+
+## Reconciliation of Claude's plan — 2026-09-20
+
+### What happened and what was checked
+
+- The original local Stage 1 documents were untracked and never pushed. Claude therefore correctly found neither file in its fresh `main` checkout; the missing handoff was a publication gap, not evidence the prior planning had not occurred.
+- GitHub comparison confirmed `claude/inspiring-knuth-eovah7` is exactly one commit ahead of baseline: `6486e646361d11b1f9831c93f532a7bb090adaa6`, adding only the two planning documents. No app or migration files changed in that commit. There was no existing PR at inspection.
+- `seating-charts` retains its own Git remote. Its local checkout had unrelated untracked `Freyman-Family-History/` and `PRINT-ALL-SPEC.md`; these were left untouched. The remote main tree contained no Kaizen/simplification path or `.gitmodules`, and the branch list contained no `claude/inspiring-knuth-eovah7`. Its latest main commit was dated 2026-09-12. These checks found no seating-chart repository contamination from this work; they do not inspect Claude's private session filesystem or attachments.
+- Claude's reported `/home/user/kaizen-tracker` is in its environment, not this Mac. Attaching/cloning an existing repository does not itself create another GitHub repository. No repository or clone needs deletion based on the verified changes. Claude session attachments cannot be changed through the available repository tools.
+
+### Reconciled decisions
+
+- Retain the original eight-stage numbering. Stage 1 planning is complete; Stage 2 is the isolated interactive prototype. Claude's fixed-credit stage maps into our Stage 4, not a new Stage 1.
+- Incorporate approved D04–D06 throughout flows, data planning, acceptance checks and handoff. Multi/sub-team support is no longer a non-goal.
+- Keep the stable-ID design recommendation. The existing roster already has UUIDs; the store drops them. Deriving identity from mutable display strings risks broken history after a rename/number change and cannot safely distinguish players across teams. Additive mapping preserves legacy records instead of rewriting history blindly.
+- Keep the durable owner-scoped queue and server idempotency/revision plan. Existing draft helpers use one global slot and silently ignore storage failures; wiring them alone does not satisfy reliable account isolation, retries or interrupted saves.
+- Keep immutable raffle-round membership. A date-based `raffle_epoch` alone does not specify late-entered attendance, backdating, edits, archive restores or delayed retries. Preserve these behaviors explicitly; do not copy the cutoff proposal without resolving them.
+- Retain current-trainings-only initial eligibility, default `0000` plus custom PIN, and distinct `0`/`00`, which Claude's draft did not fully carry forward.
+- Keep the real-schema check before migration implementation. Stage 2 fixtures need no production access or live database. Stages 3–7 require an isolated database for migration/RLS/recovery verification.
+
+### Validation and publication
+
+- Reviewed both Claude documents and the exact two-file remote diff, plus current roster schema, draft helpers, store operations and the dated LaunchPage test fixture.
+- Claude reported 19 passed / 1 failed with placeholder environment variables; this is its environment's result, not a replacement for our recorded 15 passed / 1 failed plus stats collection failure. Source confirms the fixed May fixture and time-dependent preset logic; do not treat those test counts as contradictory or delete unrelated tests simply to make the suite green.
+- No application code, SQL, dependency or production changes in this reconciliation. Added `vercel.json` to disable Git-triggered deployments for **only** `codex/simplification-plan`, allowing the handoff to be published without deploying. This uses [Vercel's branch-specific configuration](https://vercel.com/docs/project-configuration/git-configuration#git.deploymentenabled). It does not alter the production branch or live project settings.
+- Publish the reconciled documents on the continuation branch with Claude's original commit retained as an ancestor. Keep the draft PR unmerged; Stage 8 remains the release gate. Do not delete Claude's branch or unrelated files.
+- Revised documentation checks passed: links resolve, fences balance, no trailing whitespace, and all 14 requirements, 6 confirmed decisions, 12 proposals and 25 acceptance criteria have unique entries. The Vercel JSON parses and disables only the exact continuation branch. No `.github` workflow directory was present in this checkout. Application tests were not repeated for planning/configuration-only edits; baseline results remain above.
+- Created the continuation branch from Claude's exact commit; both original documents remain recoverable in Git history. Publication is a draft PR against unchanged `main`, not a merge or production release. Verify the PR head and the branch's no-deploy guard before continuing work in another environment.
+- Post-publication inspection confirmed PR #1 is open/draft and contains exactly the two documents and `vercel.json`; `main` remains at `40d9b0c2f57692cdc8439d453816418be3db5a39`. The only remaining unrelated local modification is `.DS_Store`. No deployment was requested.
+
+## Stage 2 — isolated prototype — 2026-09-20
+
+Branch `claude/stage-2-prototype`, based on `codex/simplification-plan` at `fb10fec69fcf3a2d18a6095dbda9144bb8f9f54a`. The branch-specific no-deploy rule in `vercel.json` was extended to this exact branch before any push; the production branch and the live project settings were not changed.
+
+### Files changed
+
+| File | Purpose |
+| --- | --- |
+| `prototype.html` | Dev-only entry. Vite serves it at `/prototype.html`; `index.html` remains the only rollup input, so the page is never emitted into `dist/`. |
+| `src/prototype/types.ts` | Logical types mirroring spec §6. Local to the prototype; not a schema commitment. |
+| `src/prototype/fixtures.ts` | Invented roster, sub-teams and finalized history. No production or real-team data. |
+| `src/prototype/store.tsx` | In-memory reducer plus one namespaced `localStorage` key. No Supabase client, no fetch, no RPC. |
+| `src/prototype/PrototypeApp.tsx` | Shell, screen switching, kiosk takeover and the dev walkthrough panel. |
+| `src/prototype/components/ui.tsx` | Panel/button/pill helpers built on the existing Mission Control tokens. |
+| `src/prototype/screens/*.tsx` | Home, Attendance, Kiosk, Roster, Settings, Progress, Raffle. |
+| `src/prototype/prototype.css` | The prototype's own Tailwind entry. |
+| `src/styles/tailwind.css` | Adds `@source not '../prototype/**'` so prototype utilities stay out of the production stylesheet. |
+| `vercel.json` | Adds `claude/stage-2-prototype: false` alongside the existing rule. |
+
+No file under `src/app/`, `supabase/`, `migrations/` or `dist/` was modified. `package.json` and `package-lock.json` are unchanged. The pre-existing `.DS_Store` entry was left alone.
+
+### What the prototype demonstrates
+
+- **Home:** Start Practice and Start Optional Training as the only start actions, a resume state that new starts cannot overwrite, and a waiting-to-sync panel with Retry sync. No elapsed time, countdown, start/end time or duration control appears anywhere.
+- **Attendance:** large tappable cards with explicit present/absent writes, a secondary **Change date** beside the date, and **Finish & Save Attendance** with a zero-attendee confirmation. Changing the date preserves every mark and the 1.5-hour credit.
+- **Kiosk:** number pad, `Find player` submit only, all matching cards with team labels, a required tap even on a single match, undo on a checked-in card, and both exit paths. It suppresses coach navigation entirely and restores itself after a refresh while its bound session is active.
+- **Roster:** first-name/label/number setup, collision detection on the rendered card, one sub-team per player, transfer, and retirement copy that states history and tickets are kept.
+- **Settings:** add/rename/retire sub-teams, PIN replacement for the default exit code, and the raffle activation dialog with real fixture counts.
+- **Progress:** credited hours with practices and trainings counted separately, session-hours labelled distinctly from player-hours, and **Current roster** versus **Team at session** attribution with an explicit unknown group for legacy records.
+- **Edge states:** empty roster, incomplete legacy roster, no number match, pending save, failed save and session-finished-elsewhere, all reachable from a dev-only walkthrough panel that is not a product surface.
+
+### Findings
+
+1. **The prototype would have changed the production stylesheet.** Sharing the app's Tailwind source scan added 3.31 kB of unused CSS to the production bundle even though no prototype code was imported. Excluding `src/prototype` from that scan and giving the prototype its own stylesheet restored a byte-identical build. Any future dev-only surface in `src/` needs the same treatment.
+2. **There is no router, so "an isolated route" had to be an isolated entry.** `src/app/App.tsx` keeps page selection in memory. A second HTML entry keeps the prototype out of the working app *and* out of `vite build` without touching either. The consequence for Stage 5: in-memory page state cannot restore kiosk mode after a refresh by itself — the prototype had to persist the session binding and re-enter the kiosk on mount. Decide in Stage 5 whether the kiosk gets a real URL instead.
+3. **The four-digit exit code is safe only because jersey numbers are capped at three characters.** That cap is currently a recommendation, not a stored constraint. If Stage 3 permits a four-digit number, a jersey lookup and the kiosk exit become ambiguous. Recommend Stage 3 make the 1–3 character rule an actual constraint.
+4. **Collision detection must compare the rendered card, not the name.** Two Alexes both wearing #12 are distinguishable as soon as *one* of them carries a label; they collide only when neither does. Sharing a number alone, or a first name alone, is never a collision. The prototype flags existing identical cards and disables **Add to roster** while a new card would be identical.
+5. **A team filter needs an explicit hidden-selection message.** Filtering to one sub-team otherwise shows a present count that looks wrong for the visible cards. The prototype keeps hidden marks, reports the overall count, and names how many marked players the filter is hiding. Recommend Stage 4 keep this.
+6. **The unknown group is not hypothetical.** The fixture's oldest practice carries no membership snapshot, so under **Team at session** it lands in *Unknown (legacy record)* rather than being attributed to anyone's current sub-team. This is the behavior spec §7 asks for, and it is visible in the walkthrough.
+
+### Verification — exactly what was run
+
+- `npx tsc --noEmit`: 0 errors.
+- `npx vitest run`: 15 passed, 1 failed of 16 collected, across 4 files (2 failing files). Identical to the recorded baseline: the `LaunchPage` preset test cannot find `9:00 AM`, and `src/lib/stats.test.ts` still fails to load because `VITE_SUPABASE_URL` is missing. **Neither is a regression from Stage 2**, and no existing test was altered or deleted to make the suite green.
+- `npx vite build` into a temporary output directory (so the tracked `dist/` was never overwritten): emitted `index-DZ3ExIO7.css` (215.60 kB) and `index-B6EMAJLU.js` (1,239.80 kB) — the same filenames, content hashes and sizes as a build of this branch before the Stage 2 commit. The production bundle is byte-identical.
+- Browser walkthrough: headless Chromium via Playwright against `vite` on `localhost:5199`, at a 430×932 phone viewport and a 1024×768 tablet viewport. **63 scripted checks, all passing.** They cover the six required journeys (start and mark one player; enter the kiosk for a training; undo a mistaken check-in; enable the raffle with accrued tickets; enter backdated paper attendance; add, assign and filter sub-teams without losing selections) plus: refresh recovery of marks, absence of any time or duration input, `#12` matching three players across three sub-teams, `0` and `00` resolving to different people, the no-match message, exit with the default `0000`, `0000` ceasing to work once a PIN is set, exit with the custom PIN, the Keep/Start fresh/Cancel dialog against the real fixture count of 9, Cancel changing nothing, Start fresh producing a zero-ticket round while credited hours stay at 8 for the fixture's most-attended player, the archived training staying out of the pool, pending and failed save states retaining marks, the session-finished-elsewhere conflict, the empty and legacy rosters, the default-Kaizen scenario, the R03 collision and add-player block, no uncaught JavaScript errors, and no horizontal scroll at tablet width.
+- **Not tested, and not claimed:** production, any database, RLS or authorization behavior, migrations, real offline or service-worker behavior, screen-reader output, and real iOS/Android devices. The prototype has no backend, so it demonstrates intended behavior only — it does not establish the reliability guarantees in spec §5.
+
+### Open decisions and owner review points
+
+Review these during the walkthrough. None of them is settled by the prototype showing one behavior.
+
+| # | Question | Blocks |
+| --- | --- | --- |
+| 1 | **Resolved by D07–D08:** multiple simultaneous memberships, one player-wide jersey number. Initial prototype uses one membership; revise it. | Stage 2 revision; Stage 3 uses many-to-many membership. |
+| 2 | Should a coach-set PIN **replace** `0000`, or should `0000` keep working as a fallback? The prototype replaces it. | Stage 3 coach setting, Stage 5 exit. |
+| 3 | Should a backdated optional training join the **current** round (P08), or the round that was open on the date entered? The prototype uses the current round. | Stage 3 round assignment. |
+| 4 | **Resolved by D09:** a durably queued offline finish must NOT block the next session. The prototype's blocking behavior is superseded. | Stage 3 queue contract; Stage 4 implementation. |
+| 5 | Is **retirement** the right replacement for today's destructive player removal (P07)? | Stage 3 removal path. |
+| 6 | Should the kiosk have its own URL rather than in-memory state? See finding 2. | Stage 5. |
+| 7 | Should sessions be able to **target** one sub-team, which would change attendance-rate denominators? Not approved by the request to sort by team, and not prototyped. | Stage 6 reporting. |
+
+### Smaller notes for the walkthrough
+
+- On a narrow phone, a sub-team row in Settings wraps its Retire button onto its own line. Cosmetic; left as-is rather than churning the layout before the owner sees it.
+- Guest exclusion from regular-roster percentages and streaks is not re-implemented in the prototype; the existing `src/lib/stats.ts` behavior is preserved and migrates to stable ids in Stage 6.
+- Drawing a winner is Stage 6 work and is deliberately absent. The Raffle screen shows the eligible pool only.
+
+## Existing issues and limitations
+
+- Current reset deletes optional-training records; player removal scrubs attendance. Do not carry these implementations into the new reset/removal flow.
+- Existing SQL and client date formats differ; later stages must inspect the actual schema and cannot assume all migration files were applied exactly as checked in.
+- Browser-local winner records are not owner-scoped; imports require verified ownership, and inaccessible local data cannot be reconstructed.
+- Historical names may refer to a retired/reused identity; do not silently merge people or claim previously lost history was recovered.
+- D09 now requires offline reopening on a previously prepared device. First-ever offline setup, payment verification and device-level kiosk lockdown remain excluded.
+- Baseline LaunchPage failure and stats test setup failure are recorded above; do not describe them as regressions from this documentation stage.
+
+## Independent Stage 2 audit — 2026-09-20
+
+Audited source: `d54c587ed4bdb10d23122b8357ba849348da8278`. Full report: [simplification-stage2-audit.md](simplification-stage2-audit.md).
+
+- Recorded approved D07–D08 in the specification, including multi-select roster assignment, membership-set snapshots, player-wide jersey numbers and one credit/ticket per player/session.
+- Browser-confirmed incorrect historical filtering after a transfer (F01), ambiguous identities saved through Edit (F02), and raffle off for the new-coach fixture (F03).
+- Source-confirmed missing coach exit from closed kiosk (F04) and archive-dependent ticket derivation conflicting with immutable rounds (F05). Their browser-reproduction limits are stated in the report.
+- Independently verified manual marks, filtering, native backdating and refresh, kiosk lookup/undo/refresh/default exit, fixture raffle reset preserving hours, and simulated pending save/retry. No browser warning/error logs for the exercised paths; no page-level overflow at phone/tablet widths tested.
+- Type checking and temporary production build passed. Existing tests remain 15 passed / 1 failed plus stats collection blocked by missing configuration. No test failures were hidden or rewritten.
+- Changes in this audit: `docs/simplification-spec.md`, this progress file and new `docs/simplification-stage2-audit.md`. No prototype/application code, migration, dependency or deployment settings changed. The existing no-deploy rule for `claude/stage-2-prototype` remains in place; unrelated `.DS_Store` is preserved.
+- This audit is not a bug-fix pass. Findings remain open. The next step is a bounded Stage 2 revision, not an automatic advance into Stage 3.
+
+## Stage 2 revision — 2026-09-21
+
+Branch `claude/dazzling-sagan-hxrwfp`, based on `claude/stage-2-prototype` at `adcc727` (the audited head). Implements U01 and audit findings F01–F05 exactly as scoped by the handoff below. No Supabase/production calls, migrations, real roster data, backend authorization changes, deployments or PR merges. The existing no-deploy guard in `vercel.json` was extended to this exact branch before any push (`claude/dazzling-sagan-hxrwfp: false`), alongside the unchanged existing entries.
+
+### U01 — multiple simultaneous memberships, one jersey number
+
+`Player.subTeamId` (scalar, nullable) became `Player.subTeamIds` (array; empty means the default Kaizen grouping). The jersey number stays on the player alone (D08), never per membership. `FinalizedSession.teamAtSession` became a membership-*set* snapshot (`Record<string, string[]>`) instead of one team per attendee. Roster add/edit now offers a checkbox group (`SubTeamCheckboxes`, shared by both paths) instead of a single `<select>`. Kayla (`pl-11`, `#12`) is the fixture's simultaneous-membership player: Blue 6th **and** Blue 7th at once. Every list that shows players (All teams, kiosk matches, Progress "All teams") already showed one row per player id, so multi-membership needed no separate de-duplication — only the filter predicates changed, from `=== teamId` to `.includes(teamId)`. The stale "single membership, still open" note and hint text in `RosterScreen.tsx` were rewritten to state D07/D08 as confirmed.
+
+### F01 — historical team filtering now uses session snapshots
+
+Added `historicalTeamRows(state, teamId)` in `store.tsx`: for a specific team filter in Progress's "Team at session" mode, it filters to sessions whose *own* snapshot names that team, then sums hours/practices/trainings/tickets from only that qualifying subset — instead of reusing the player's all-time `playerTotals` under a relabelled group. A transfer (`updatePlayer` changing `subTeamIds`) therefore cannot move a past session's hours onto the new team, because old snapshots are never touched. Every row from `historicalTeamRows` also carries `otherTeams`: the other teams that same player qualifies for historically, rendered as "also counted under …" so a reader never mistakes two teams' totals as additive; a persistent note next to the team filter says the same for "Current roster" mode. Retired sub-teams and sessions with no snapshot at all stay reachable: the team-filter chip list in "Team at session" mode is built from every team any snapshot ever names (active or retired), and "Unknown (legacy record)" remains its own group under "All teams" rather than silently disappearing.
+
+### F02 — edits are a draft with Save/Cancel, validated like Add
+
+`PlayerRow` in `RosterScreen.tsx` no longer calls `updatePlayer` on every keystroke. It holds a local `draft`, re-synced whenever the row (re)enters edit mode, and reuses the exact same collision rule Add uses (`wouldCollide`, extracted from the inline duplicate check `AddPlayerForm` already had). A blank first name or a rename that would render identically to another card disables Save and shows an inline reason; Cancel discards the draft and restores the last-saved card untouched. A pure `playerEditIsValid` helper exposes the same rule outside the component for the committed tests.
+
+### F03 — new-coach fixture starts with the raffle on
+
+The `"empty"` scenario (labelled "a new coach with nobody on the roster yet") now overrides `raffleEnabled: true` in `buildScenario`, instead of inheriting the shared `false` default. The `"team"` scenario (an existing coach, described in its own blurb as starting off with tickets already accrued) keeps the explicit `false` default, so the Keep/Start-fresh activation dialog still has a real accrued-ticket count to exercise.
+
+### F04 — closed-session kiosk offers a coach exit
+
+`KioskScreen` no longer collapses "no session" and "closed elsewhere" into the same bare notice. A `closedElsewhere` session now renders `ClosedKiosk`: the notice plus a number pad and a **Coach exit** button, with no player lookup at all — check-in stays fully disabled (the reducer already rejected `setPresent` once `closedElsewhere` was true; now the UI matches). The bound-kiosk-survives-refresh effect in `PrototypeApp.tsx` needed no change: it already re-enters `KioskScreen` regardless of `closedElsewhere`, so a refresh lands back on the same closed screen. Entering the correct code calls the same `onExit` the normal pad uses, which returns to `AttendanceScreen`'s existing "finished on another device" conflict panel. That panel's "Back to Home" button previously left a phantom `activeSession` behind (Home would still offer to "Resume" a session that had already finished elsewhere); it now dispatches a new `acknowledgeClosedElsewhere` action that clears it, so Home offers a clean Start again. Since the walkthrough panel's own controls are hidden while kiosk owns the screen, a small labelled dev-only "finish this session on another device" control was added inside `KioskScreen` itself so this transition stays reachable and testable while kiosk is active.
+
+### F05 — raffle eligibility follows round assignment, not archive status
+
+`ticketLines` no longer excludes every `archived` session. Eligibility for the current round is (and was already) governed entirely by `roundId === state.currentRoundId`; archived is now purely a reporting flag, matching P10. `ev-02` (the fixture's original archived-history example) still sits outside the current pool, but because it is assigned to the *previous* round, not because it is archived. A new fixture, `ev-07`, is a training archived for reporting but assigned to the *current* round, to make the distinction demonstrable: RaffleScreen now shows separate pills for "archived training(s) from earlier rounds" versus "archived training(s) still counted in this round," and both the committed tests and the live screen show its ticket count is identical whether `archived` is `true` or `false`.
+
+### Also fixed: a visible local-persistence failure, and dialogs that are actually accessible
+
+- The store's `localStorage.setItem` failure was previously swallowed with a comment claiming it "surfaces in the dev panel," which nothing did. `trySave` now reports success/failure into `state.localPersistenceFailed`; a banner replaces the false "Saved on this device" claim, and `AttendanceScreen`'s own delivery pill turns into "Local save failed — your marks are still here in memory" rather than continuing to claim a successful device save. A new dev-only "Simulate save failure" toggle exercises the identical failure branch a real quota/private-browsing exception would take (including that toggle itself failing to persist on the next refresh — the same risk a genuine failure carries).
+- The raffle activation dialog was a raw `role="dialog"` div. It is now built on the app's existing `@/app/components/ui/dialog` (Radix) primitives, wired through a real `DialogTrigger` rather than a plain `onClick`. That second detail mattered in practice: without it, Radix cannot return focus to the trigger on close. Getting there required two small ref-forwarding fixes, one of which is the sole change to `src/app/` in this revision:
+  - `src/prototype/components/ui.tsx`: `BigButton` now uses `React.forwardRef`, needed because `<DialogTrigger asChild>` clones its child and attaches a ref to it — a plain function component silently drops that ref (a real, reproducible `console.error`, not a style preference).
+  - `src/app/components/ui/dialog.tsx`: `DialogOverlay` had the same gap and is fixed the same way. This is the one exception to Stage 2's "no file under `src/app/` modified" invariant, made deliberately: the handoff explicitly asked to reuse the app's accessible dialog primitives, and reusing them surfaced a latent, pre-existing defect in that shared file (it would affect every other consumer of `Dialog`, such as `InviteCoachModal`/`PlayerTypeDialog`, not just this prototype). The fix is a mechanical, behavior-preserving `forwardRef` wrap — the same pattern current shadcn/ui ships — and does not touch any route, business logic, or the admin-coach-actions backend.
+
+### Verification — exactly what was run
+
+- `npx tsc --noEmit`: 0 errors.
+- `npx vitest run`: 31 passed, 1 failed of 32 collected, across 5 files (2 failing files). The new `src/prototype/store.test.ts` contributes 16 tests, covering U01, F01, F02, F03 and F05 with expected totals (not just label presence) — all 16 pass. The two failing/blocked files are identical to the previously recorded baseline: `LaunchPage.test.tsx`'s dated `9:00 AM` preset assertion, and `src/lib/stats.test.ts` still failing to collect because `VITE_SUPABASE_URL` is missing. **Neither is a regression from this revision.**
+- `npx vite build` into a temporary output directory (the tracked `dist/` was never touched): emitted the same three files as before (`index.html`, one CSS, one JS). `index-DZ3ExIO7.css` (215.60 kB) is byte-identical to the hash recorded in Stage 2 and the audit. The JS bundle's hash changed (1,239.80 kB → 1,239.83 kB, about 30 bytes) — this is expected and solely attributable to the one `forwardRef` line added to `src/app/components/ui/dialog.tsx` above; no prototype code is included (`grep` for `prototype` in the built JS matches only JavaScript's/React's own `.prototype` mechanics).
+- Browser walkthrough: headless Chromium via Playwright against `vite` on `localhost:5199`, at a 430×932 phone viewport and a 1024×768 tablet viewport. **36 scripted checks, all passing.** Beyond the existing six core journeys, this run specifically added and passed: a shared-membership player (Kayla) found under either team filter and exactly once under "All teams"; a rejected duplicate-card edit that never persists past a refresh; "Team at session" showing the same, full, non-split hours for Kayla under both of her teams with an explicit overlap label; the new-coach fixture starting with the raffle on; the existing-coach fixture keeping it off with accrued tickets; the RaffleScreen pill distinguishing an archived-but-current-round training from ones in earlier rounds; the activation dialog opening, Escape-dismissing, and returning focus to its trigger button; a simulated local-storage failure showing and clearing its banner; and the full F04 sequence — entering kiosk, forcing a remote finish, confirming the player pad is replaced by a code-only pad, surviving a refresh, rejecting a wrong code, accepting the right one, landing on the coach's conflict panel, and returning to a clean Home. No unexpected console errors or page errors were captured; one pre-existing, environment-only failure (`ERR_CERT_AUTHORITY_INVALID` for `prototype.html`'s external Google Fonts `<link>`, which cannot reach the internet from this sandbox) was identified, confirmed unrelated to any code in this revision — it predates it — and excluded.
+- **Not tested, and not claimed:** the same limits as the original Stage 2 prototype — no production, database, RLS, authorization, migration, real offline/service-worker behavior, screen-reader output, or real device testing. This remains a fixture-only demonstration of intended behavior, not the Stage 3 data/reliability contract.
+
+### Open decisions carried forward, unresolved by this revision
+
+U01's cardinality/jersey question (row 1 of the original open-decisions table) is now resolved and implemented. The rest are unchanged and still require an explicit owner decision before Stage 3 finalizes the corresponding operation — this revision does not approve any of them by having used one behavior:
+
+| # | Question | Blocks |
+| --- | --- | --- |
+| 2 | Should a coach-set PIN **replace** `0000`, or should `0000` keep working as a fallback? Still replaces it here. | Stage 3 coach setting, Stage 5 exit. |
+| 3 | Should a backdated optional training join the **current** round (P08), or the round that was open on the date entered? Still uses the current round here. | Stage 3 round assignment. |
+| 4 | **Resolved by D09:** a durably queued offline finish must NOT block the next session. The prototype's blocking behavior is superseded. | Stage 3 queue contract; Stage 4 implementation. |
+| 5 | Is **retirement** the right replacement for today's destructive player removal (P07)? | Stage 3 removal path. |
+| 6 | Should the kiosk have its own URL rather than in-memory state? | Stage 5. |
+| 7 | Should sessions be able to **target** one sub-team, changing attendance-rate denominators? Not approved by the request to sort by team, and not prototyped. | Stage 6 reporting. |
+
+P01–P12 in the specification remain recommendations, not approvals, exactly as before this revision.
+
+## Stage 2 revision follow-up (R01/R02) — 2026-09-21
+
+Branch `claude/dazzling-sagan-hxrwfp`, continuing from the Stage 2 revision at `92eb4df`. A same-day independent review of that revision (see [the audit](simplification-stage2-audit.md#independent-revision-review--2026-09-21) for the findings themselves) surfaced two further gaps, R01 and R02, both now closed. Same fixture-only scope and no-deploy guard as before: no Supabase/production calls, migrations, real roster data, backend authorization changes, deployments, merges or PRs.
+
+### R01 — retired attendees and all-teams-retired navigation
+
+`ProgressScreen`'s "Team at session > All teams" view was built from `roster` (`state.players.filter(p => !p.retired)`) — the same active-only list Current roster mode correctly uses — so a retired player's history disappeared from historical reporting entirely, not just from the current roster. Separately, the whole Attribute-to/Team panel, including the "Team at session" toggle, was gated on `activeTeams.length > 0`; retiring every sub-team removed it along with the panel, closing off the one view that still explains a now-retired team's history.
+
+Fixed: `historicalAllRows` now sources from `state.players` (every player, retired or not) and tags each row with `retired`, shown as a "Retired" pill. The panel's gate changed to `state.subTeams.length > 0` (any sub-team ever created, active or not), so it survives every team being retired. Current roster mode, program-wide totals (session-hours/player-hours), and the specific-team historical view (`historicalTeamRows`, which already iterated `state.players` correctly) are unchanged.
+
+### R02 — local-save failure inside kiosk
+
+The revision's persistence-failure banner and qualified delivery-status pill live in `PrototypeApp.tsx`'s `Shell`, which kiosk never renders (`Shell` returns only `<KioskScreen>` while kiosk owns the screen). A local-save failure during an actual check-in or undo therefore stayed invisible to the kiosk, and the confirmation panel kept claiming an unqualified "You're checked in" / "Check-in undone" regardless.
+
+Fixed: kiosk now shows its own plain-text failure banner whenever `state.localPersistenceFailed` is true, and the confirmation panel becomes "Checked in — not saved yet" / "Undo recorded — not saved yet" (warning tone, explanatory line) for as long as the failure lasts, reverting to the normal confirmation once storage recovers. No new coach-navigation affordance was added — the only way out of kiosk is still the exit code. This is still a best-effort read of the last known save attempt, not the real outbox/acknowledgment model spec §5 describes for Stage 4; it does not require that backend to exist yet, matching the handoff's own scope note.
+
+### Verification — exactly what was run
+
+- `npx tsc --noEmit`: 0 errors.
+- `npx vitest run`: 45 passed, 1 failed of 46 collected, across 8 files (2 failing files). Three new component-test files were added — `ProgressScreen.test.tsx` (5 tests), `KioskScreen.test.tsx` (4 tests) and `RosterScreen.test.tsx` (5 tests) — all rendering the real screens against a `PrototypeStoreProvider` (not calling the pure store helpers directly), covering exactly the three things asked for: a retired player's historical row and totals, historical navigation surviving every sub-team being retired, and kiosk's failure exposure/qualified feedback/live recovery. The Add and Edit `RosterScreen` tests specifically drive the actual Save button, not `wouldCollide`/`playerEditIsValid` in isolation, confirming a duplicate attempt disables Save and leaves the previously stored identity unchanged after Cancel. The 1 failure and 1 collection-blocked file are the same pre-existing `LaunchPage`/`stats.test.ts` baseline issues recorded throughout this project — reported separately here because they are not regressions from this follow-up.
+- `npx vite build` into a temporary directory: `index-DZ3ExIO7.css` and the JS bundle are both byte-identical to the Stage 2 revision's build (same hashes as recorded there) — this follow-up touched only `src/prototype/`, so the one shared-dialog-driven bundle change already documented in the revision is unchanged and no new one was introduced. No prototype code reaches the bundle.
+- Browser walkthrough: headless Chromium, phone 430×932 and tablet 1024×768. **20 scripted checks, all passing:** retiring a player through the real Roster UI removes them from Current roster and the roster count but surfaces them (labelled Retired) under Team at session > All teams; retiring all four sub-teams through Settings still leaves the Team at session toggle and a "(retired)" team filter reachable and renders real rows; enabling the storage-failure dev toggle from the coach controls, then entering kiosk, shows the failure banner inside kiosk with no coach navigation visible, and check-in confirmation reads "Checked in — not saved yet"; turning the toggle back off and re-entering kiosk restores the plain "You're checked in" confirmation. No unexpected console/page errors; the same pre-existing, environment-only Google Fonts certificate failure noted in the revision was excluded.
+- **Not tested, and not claimed:** the same limits as the Stage 2 revision — no production, database, RLS, authorization, migration, real offline/service-worker behavior, screen-reader output or real device testing.
+
+Unresolved product policies are unchanged by this follow-up: the "Open decisions carried forward" table above still applies in full, and P01–P12 remain recommendations, not approvals. Neither R01 nor R02 was a data-affecting policy question — both were completeness gaps in already-approved behavior (retirement keeps history per P07; a local-save failure must be visible per the revision's own persistence-failure fix), so closing them does not resolve or imply approval of any open item in that table.
+
+## Stage 2 revision handoff (fulfilled — 2026-09-21)
+
+Recommended model: **Claude Sonnet, High effort** for the focused Stage 2 revision. Stage 3 remains **Claude Opus 5, High effort** after the revised walkthrough and resolution of consequential data policies. This handoff does not authorize another stage by itself.
+
+This exact prompt was carried out on 2026-09-21 (see "Stage 2 revision" above); it is kept here as the historical record of what was requested. The live pointer for what to do next is the **Exact next-stage handoff** section below.
+
+Copy this when requesting the revision:
+
+```text
+Work only in johnfreyman/kaizen-tracker, starting from the latest
+claude/stage-2-prototype branch, including the independent audit documents.
+Verify the remote and head before editing. Preserve unrelated changes,
+including .DS_Store. Do not work in seating-charts or start from main.
+
+Read repository instructions, docs/simplification-spec.md,
+docs/simplification-progress.md and docs/simplification-stage2-audit.md.
+Implement only the Stage 2 prototype revision described below. The audited
+prototype commit was d54c587; use the newer branch head containing the audit.
+
+Confirmed D07-D08: one player can belong to several sub-teams simultaneously,
+but uses ONE jersey number across them. Retain one stable player identity.
+Use multiple membership selection in add/edit, membership-set history
+snapshots, and correct matching in roster, attendance, kiosk and reports.
+All teams and kiosk show the player once. One training attendance yields
+1.5 hours and one raffle ticket even if several team filters match. Removing
+one membership preserves others and historical memberships. Keep 0 and 00
+as distinct strings. Update the stale single-membership assumption copy.
+
+Address audit F01-F05:
+- Historical team filtering must use session membership snapshots and sum
+  only qualifying attendance; preserve unknown and retired history. Team
+  transfer must not move past hours to the new team. Explicitly label any
+  overlapping team totals and deduplicate whole-program totals.
+- Validate edits as well as adds. Draft edits with Save/Cancel; do not persist
+  empty names or unresolved identical cards. Preserve stable identity.
+- New-coach fixtures start with raffle enabled. Keep a separate existing
+  coach/off fixture for the activation dialog and preserved old settings.
+- Closed-session kiosk stops check-in but offers code-protected coach exit;
+  demonstrate closure while kiosk is active and recovery after refresh.
+- Derive raffle eligibility from immutable round membership, independent of
+  later archive/restore. Seed old archived fixtures outside the initial current
+  pool; include a current-round archive/restore regression fixture.
+
+Demonstrate a visible local-persistence failure state instead of claiming
+Saved on this device after a failed write. Keep reliability limitations clear:
+fixture network switches are not proof of real offline recovery. Use the
+existing accessible dialog primitives for modal focus/keyboard behavior.
+
+Add focused committed tests with expected totals for multiple memberships,
+transfer/history filtering, rejected edits, raffle defaults and archive/round
+eligibility. Browser-check the existing core flows plus new multi-team and
+closed-kiosk recovery journeys at phone and tablet sizes. Re-run type/build
+checks and distinguish existing baseline failures from new regressions.
+Keep the production bundle free of prototype code.
+
+Fixture-only work: no Supabase or production calls, migrations, real roster
+data, backend authorization changes, deployments or PR merges. Preserve the
+normal app and secured admin-coach-actions backend. If using a differently
+named branch, extend the existing branch-specific no-deploy guard for that
+exact branch before pushing, without disabling production.
+
+Update progress and audit finding statuses with actual results. Record which
+product recommendations remain unresolved; do not infer approval from this
+prototype. Prepare a Stage 3 handoff using many-to-many memberships, one
+player-owned jersey number, stable IDs, independent raffle rounds and an
+isolated migration rehearsal. STOP after the Stage 2 revision; do not start
+Stage 3 or the real coach attendance rewrite.
+```
+
+### Stage 3 gate after the revision
+
+Apply approved D09 for pending finishes. Resolve the applicable PIN,
+backdated-training round, retirement and team-attribution policies before finalizing operations that
+encode them. A labeled recommendation is not approval. Do not copy the
+prototype's simplified local storage or name/group filters into production.
+Stage 3 must inspect an isolated deployed-like schema, preserve historical
+records, rehearse additive backfill twice, and verify cross-coach ownership
+and idempotent operations using actual database roles. If an isolated
+environment is unavailable, report that gap rather than using production.
+
+### Before the walkthrough
+
+To open the prototype: `npm install`, then `npm run dev`, then visit `/prototype.html` on the dev server — not `/`, which is the current working app. The amber **Walkthrough controls** bar switches roster fixtures and simulates offline, failed saves, a storage-write failure, and a session finished on another device. Everything is fixture data held in the browser; the *Empty roster* button resets it.
+
+## Stage 3 data handoff (read with final D09 addendum)
+
+Recommended model: **Claude Opus 5, High effort**, per the specification's build sequence (§10). This handoff does not authorize Stage 4 or any production change by itself.
+
+Copy this when requesting Stage 3:
+
+```text
+Work only in johnfreyman/kaizen-tracker, starting from the latest
+claude/dazzling-sagan-hxrwfp branch (the Stage 2 revision), or the newer
+branch head if that revision was published elsewhere. Verify the remote and
+head before editing. Preserve unrelated changes, including .DS_Store. Do
+not work in seating-charts or start from main.
+
+Read repository instructions, docs/simplification-spec.md,
+docs/simplification-progress.md (including the Stage 2 revision section and
+its "Open decisions carried forward" table) and
+docs/simplification-stage2-audit.md.
+
+This is Stage 3: the data foundation and migration rehearsal. Work in an
+isolated, non-production environment only. Do not touch production data,
+run a production migration, or use the live Supabase project. If an
+isolated database/environment is unavailable, report that gap rather than
+substituting production.
+
+1. Inspect the actual deployed-like schema, constraints, grants, views,
+   triggers and RPC definitions rather than assuming the checked-in
+   migration files were applied exactly as written (spec S8.A).
+2. Design additive tables/columns for: a stable player identity (existing
+   roster UUIDs reused where unambiguous, never derived from name or
+   number); a player-owned jersey number, one per player across every team
+   and never per membership (D08); a many-to-many player/sub-team
+   membership table with a unique owner/player/team combination, matching
+   the Stage 2 revision's subTeamIds contract (D07); a session-membership
+   snapshot so historical attribution never depends on a player's current
+   membership (this is F01's fix as a real schema, not the fixture-only
+   snapshot the prototype used); and independent raffle rounds with an
+   immutable per-session round assignment, so ticket eligibility depends on
+   round assignment alone and never on archived status (F05).
+3. Do not carry the prototype's in-memory reducer or its single
+   localStorage key into this stage. Design a durable, coach-scoped
+   outbox with operation ids, revisions and idempotent RPCs (spec S5-S6).
+   Apply D09: multiple locally finished sessions may await sync beside a new
+   active session. Specify prepared-device offline reopening, owner-scoped
+   cache/auth recovery, ordered replay and immutable cached round binding.
+   Implementation of the offline app remains Stages 4–5; verify A27–A30 later.
+4. Rehearse the additive backfill twice in the isolated environment; the
+   second pass must produce no extra attendance/ticket/draw/round records.
+   Seed the initial current raffle pool from current, unarchived trainings
+   only (D03), assigning older archived history to non-current rounds
+   rather than filtering by the archived flag.
+5. Resolve, or explicitly re-confirm as still open, each item in the Stage
+   2 revision's "Open decisions carried forward" table before encoding it
+   into a migration or RPC contract: PIN replace-vs-fallback, backdated
+   training round assignment, retirement vs. destructive removal, kiosk
+   URL vs. in-memory binding, and whether a session can target one
+   sub-team. Pending-finish blocking is no longer on this list: D09
+   resolved it (a durably queued local finish must not block the next
+   session). A recommendation the prototype happened to use is not owner
+   approval.
+6. Verify cross-coach ownership and idempotent operations using actual
+   database roles in the isolated environment, not only UI mocks. Confirm
+   the sole super admin (johnfreyman70@gmail.com) and the secured
+   admin-coach-actions backend remain the only privileged path; do not
+   grant browser SELECT on any admin aggregate view or promote a user via
+   client-supplied metadata.
+
+Update docs/simplification-progress.md with the Stage 3 state, evidence,
+and any newly surfaced gaps, using the same "exactly what was run"
+standard as the Stage 2 revision. Do not claim Stage 4 (coach attendance)
+work. STOP after the Stage 3 data foundation and migration rehearsal; do
+not start the real coach attendance rewrite or any production deployment.
+```
+
+## Independent revision review — 2026-09-20 local / 2026-09-21 UTC
+
+Reviewed remote `claude/dazzling-sagan-hxrwfp` at `92eb4df` in an isolated temporary export without switching this checkout. See [simplification-stage2-revision-review.md](simplification-stage2-revision-review.md) for findings, verification and the exact next handoff. This addendum records a review of the newer branch; the earlier sections in this checkout predate that revision.
+
+Type/build checks and all 16 added tests pass. Full suite: 31 passed, one existing failed test, plus a separate existing collection failure. Three temporary component reproductions confirm remaining historical-retirement visibility gaps (R01; F01 partially open) and hidden kiosk save failures (R02). The production JS bundle changes through the shared dialog fix; no deployment occurred. Claude's browser checks were not independently repeated in this review.
+
+Subsequent branch status: Claude committed the R01/R02 follow-up at `3f1d398`. Its reported results are preserved above; this documentation publication does not independently re-audit that implementation. Next: confirm follow-up acceptance, resolve applicable product policies and prepare the isolated Stage 3 environment. No stage implementation, production access, merge or push was performed. Local application files and the unrelated `.DS_Store` change remain untouched.
+
+
+## Approved offline gym scope and exact continuation handoff — 2026-09-21 UTC
+
+The owner approved the proposed offline plan with “Yes, add it.” D09 is now approved in the specification, expanding R07. This is a documentation update, not permission to begin another implementation stage.
+
+### Changes and remaining work
+
+- A previously prepared iPad must reopen without internet, even with no session already started, and support start, backdating, attendance/undo, kiosk/exit and finish.
+- Confirm success only after durable local storage, with clear pending/synced/failure feedback in coach and kiosk modes. Cache readiness must reflect actual app/data availability.
+- A locally finished session waiting for sync must not block another session. P02's former blocking policy and the old offline-reopening exclusion are superseded. A multi-session queue must survive restarts, delayed acknowledgments, interrupted updates and retry without duplication or clearing newer work.
+- Automatically retry while the app is open and connectivity returns, and when it reopens. No promise of closed-app background sync. Initial scope: one attendance iPad per session; sync before drawing or resetting raffle eligibility. Cached offline ownership does not bypass server authentication.
+- Stage 3 must define queue ordering, session/operation identity, cached owner/round semantics, auth expiration and recoverable stale-device conflicts. Stages 4–5 implement offline app loading and coach/kiosk behavior; Stage 6 enforces draw readiness; Stage 7 proves A27–A30 on an actual supported iPad and against isolated services.
+- R01/R02 were addressed by Claude in `3f1d398`; independent acceptance remains to be confirmed. PIN replacement, newly backdated training round policy, retirement and session targeting remain separate unresolved policies; D09 does not approve them. Service worker/IndexedDB details remain implementation recommendations.
+
+### Validation
+
+Documentation consistency review checked R07/D09, P02, Home/session transitions, offline scope, outbox contract, A08/A27–A30 and stage handoffs. No application tests were run for this documentation-only change, and no offline behavior is claimed implemented or tested. No code, dependency, schema, production settings or deployment changed. Existing local review documents and `.DS_Store` were preserved. These updates are included in this documentation publication on Claude's branch, on top of `3f1d398`.
+
+### Exact handoff
+
+```text
+Continue johnfreyman/kaizen-tracker from claude/dazzling-sagan-hxrwfp
+at the latest published head including 3f1d398 and this documentation update.
+Read the approved D09 specification, this progress document, and the
+independent revision review before continuing.
+Preserve existing changes and the branch-specific no-deploy guard.
+
+The bounded Stage 2 R01/R02 follow-up is already committed in 3f1d398;
+do not repeat it blindly. Confirm acceptance of that work and retain its
+reported evidence. D09 is approved; fixture-only offline behavior remains
+simulation. Do not claim the prototype can reliably reopen offline. STOP
+before Stage 3 unless it is separately requested.
+
+When Stage 3 is requested, extend its isolated data/migration rehearsal to
+support D09: offline-created stable session/operation identities, multiple
+finished unsynced sessions beside the next active session, ordered replay,
+idempotent finalization, exact-session acknowledgments, coach/device-scoped
+cache/outbox, auth-expiration recovery and immutable cached round binding.
+A pending finish must not block the next local session. Preserve historical
+credit, memberships, tickets, sole-admin authorization and all owner boundaries.
+Resolve consequential remaining policies explicitly; do not assume a stale
+cached round can be silently reassigned to the newest round.
+
+Specify preparation/readiness, offline close/reopen, app/cache update and
+storage-failure contracts for Stages 4–5; do not implement those later stages
+as part of Stage 3. Keep initial attendance operation to one iPad per session
+and require online synchronized state for draws/resets. Rehearse migration
+and queue/idempotency contracts only in an isolated environment. If no such
+environment exists, report the gap; never substitute production.
+
+Retain A27–A30 as actual Stage 7 verification gates: prepared iPad airplane-
+mode close/reopen, start/finish A and B while offline, retain active C, recover
+all after reopening and repeated/lost acknowledgments, and reconcile exact
+hours/tickets. Test real storage/network/auth failures, not only toggles.
+Update progress with evidence and unresolved issues; no production deployment.
+```
+
+## Documentation publication checkpoint
+
+Published documentation is based on remote `3f1d398`, preserving Claude's implementation and verification notes. Only the specification, progress document and independent review are included. The exact branch remains deployment-disabled. Documentation checks cover unique requirement/decision/acceptance IDs, balanced fences and conflict/whitespace checks. No application tests were rerun for this publication; new follow-up results above remain attributed to Claude. Remaining work: confirm the follow-up, resolve remaining product decisions, then separately authorize Stage 3 in isolation.
+
+## Stage 2 follow-up acceptance confirmed — 2026-09-21
+
+Continuing on `claude/dazzling-sagan-hxrwfp`, pulled to `3147635` (the documentation publication above) before this pass. No source files needed further changes: the R01/R02 fixes and their component tests, committed at `3f1d398`, were already correct. This entry is the requested independent confirmation and fresh verification evidence, not a re-implementation — the "Exact handoff" above explicitly asked not to repeat that work blindly.
+
+### What was confirmed, and how
+
+- **R01** (retired attendees and unknown legacy history stay visible under "Team at session > All teams"; those controls survive every sub-team being retired): re-verified against the freshly pulled state with both a full test run and a fresh browser pass.
+- **R02** (kiosk exposes a local-save failure and never shows an unqualified check-in/undo success while one is active): same fresh re-verification.
+- Regression tests: `ProgressScreen.test.tsx`, `KioskScreen.test.tsx` and `RosterScreen.test.tsx` (14 tests total) plus `store.test.ts` (16 tests) all still pass unmodified.
+
+### Verification — exactly what was run, fresh, after the pull
+
+- `npx tsc --noEmit`: 0 errors.
+- `npx vitest run`: 45 passed, 1 failed of 46 collected, across 8 files. **Reported separately, as requested:** the 1 failure is `LaunchPage.test.tsx`'s pre-existing dated `9:00 AM` preset assertion, and `src/lib/stats.test.ts` still fails collection because `VITE_SUPABASE_URL` is missing from this environment. Both predate this branch and are not regressions from any work here.
+- `npx vite build` to a temporary directory: `index-DZ3ExIO7.css` and `index-CAFHf2CU.js` are byte-identical to the hashes recorded in the Stage 2 revision and its R01/R02 follow-up — this confirmation touched no source, so the one shared-dialog-driven bundle change already disclosed there is unchanged and no new one was introduced.
+- Browser walkthrough: headless Chromium, phone 430×932 led this pass (earlier passes led with desktop), plus a tablet 1024×768 spot check. **16 scripted checks, all passing:** retiring a player through the real Roster UI removes them from Current roster but surfaces them, labelled Retired, under Team at session > All teams; retiring every sub-team through Settings still leaves the Team at session toggle and a "(retired)" filter chip reachable, at phone width with no horizontal overflow; enabling the storage-failure dev toggle from the coach controls, then entering kiosk, shows the failure banner with no coach navigation visible and "Checked in — not saved yet" instead of an unqualified success; turning the toggle off and re-entering kiosk restores the plain "You're checked in" confirmation. No unexpected console/page errors; the same pre-existing, environment-only Google Fonts certificate failure noted throughout this project was excluded.
+
+### D09 (offline gym use) — preserved in the handoff only
+
+D09 is confirmed approved (see `simplification-spec.md` and `simplification-stage2-revision-review.md`). Per this task's explicit scope, it is preserved in the Stage 3 data handoff above (step 3: durable multi-session queue, ordered replay, owner-scoped cache/auth recovery, immutable cached round binding — data/contract design only) and in D09's own row of the confirmed-decisions table. **No offline implementation, service worker, IndexedDB, queue code or Stage 3 work was started or is claimed working.** The prototype remains a fixture-only, in-memory demonstration with no real offline capability; D09's acceptance criteria (A27–A30 in the specification) remain future-stage verification gates, not something this pass attempted.
+
+### Unresolved product policies
+
+Unchanged by this confirmation pass. The "Open decisions carried forward" table (under the Stage 2 revision above) still applies, minus the pending-finish item D09 resolved. P01–P12 remain recommendations, not approvals. Nothing here infers additional owner approval from the prototype's existing behavior.
+
+No Supabase/production calls, migrations, deployments, merges or PRs were made. The branch-specific no-deploy guard in `vercel.json` is unchanged. Stopping here, before Stage 3, as requested.
+
+
+## Approved expected-attendance / test-data / analytics update — 2026-09-21
+
+The owner approved publishing these revisions and preparing the next prototype task with “Go.” This authorizes this planning publication; it does not authorize production work or a later stage.
+
+- **D10:** Practice starts with Who’s expected? team cards, one or multiple teams, All Kaizen and Take attendance. Expected players are the saved union, not current membership recalculated later. Only expected practices enter attendance percentages/streaks. Optional training opens directly and has no absence penalty.
+- **D11:** Existing records are test/sample data and the app has never officially been used. Real-history reconstruction/backfill reconciliation is unnecessary. No test-account deletion, database reset or production mutation is authorized. Preserve all real attendance/credit/raffle history after launch.
+- **D12:** Preserve the original Reports capabilities listed in the published analytics inventory. The small prototype Progress table is not a substitute for that scope. Shared calculations should use stable IDs, expected attendance, saved memberships and explicit pending/synced status.
+- Superseded: older statements that session targeting is unapproved, a single tap must bypass all practice selection, or Stage 3 must reconstruct real prelaunch history. Older embedded handoffs are historical; use the current prompt and this update.
+- Still open: PIN replacement/recovery detail, newly backdated training round assignment, player retirement behavior, excused-absence/expected-list correction and unexpected-attendance streak policy. Do not infer blanket approval of earlier recommendations. D09 already resolves pending-finish blocking: allow the next local session.
+
+### Exact next-stage handoff
+
+Use Claude Sonnet, High effort, with [simplification-next-prototype-prompt.md](simplification-next-prototype-prompt.md). Pull the published branch after `79f4021`, implement only the expected-team fixture flow and focused expectation metrics, verify it, update these records and STOP for review. Do not redo the completed R01/R02 fixes.
+
+After prototype acceptance and a separate Stage 3 request, use the revised specification §8: inspect an isolated schema, establish stable player/membership/expected-attendance/round entities and offline-operation contracts, and verify repeat-safe setup, real-role isolation and idempotent replay with invented fixtures. No live-data reconstruction or cleanup is required or authorized. Stages 4–5 implement real offline coach/kiosk behavior; Stage 6 adapts the old analytics and exports; Stage 7 verifies A01–A33.
+
+### Validation and limits
+
+Documentation-only update: checked numbered IDs, code fences, local links, whitespace, exact changed-file scope and existing branch no-deploy guard. Application tests/browser checks were not rerun because no application code changed. Production data/settings, schema, dependencies and local unrelated changes remain untouched. This publication preserves all commits through `79f4021` and the earlier confirmation evidence. The new prototype flow, offline implementation and database foundation are not claimed complete.
+
+
+## Stage 2 expected-team practice prototype — 2026-09-21
+
+Fulfills the "Exact next-stage handoff" immediately above and [simplification-next-prototype-prompt.md](simplification-next-prototype-prompt.md), continuing from `79f4021` after pulling the owner's planning publication at `a46baed`. R01/R02 were not touched — already complete; see the confirmation entry above.
+
+### What was implemented
+
+- **D10 "Who's expected?"**: a new step between Start Practice and attendance (`src/prototype/screens/ExpectedScreen.tsx`). Selectable active sub-team cards plus an explicit **All Kaizen** card; **Take attendance** stays disabled until one is chosen — an empty selection is never silently treated as everyone. **Cancel** dispatches nothing at all, so it cannot create an orphan session or touch one already in progress. With no active sub-teams, the screen shows the single default Kaizen choice already reachable, with no empty picker.
+- Selecting several teams resolves their union once per player (`resolveExpectedPlayerIds` in `store.tsx`): a player on two selected teams is expected once, and a player on an unselected team never appears. All Kaizen resolves the whole non-retired roster, including players with no sub-team (e.g. guests), which a team-card union alone would miss.
+- The chosen team IDs and resolved player IDs are saved once, at confirmation, on the session (`ActiveSession.expected` / `FinalizedSession.expected`, both optional — absent means "no saved expectation," the same convention already used for `teamAtSession`). Later roster/membership edits never rewrite a saved snapshot; a regression test proves this by editing the exact membership that made a player expected, after the session is finalized.
+- Attendance and kiosk are otherwise unchanged: number lookup (0 vs 00), undo, exit, save-failure feedback and the retired-history fixes all still work exactly as before. `AttendanceScreen` adds one small **Expected: `<scope>` · `<count>`** pill for practice sessions (or "No saved expectation (legacy)" for a session resumed from before D10), so the saved snapshot is visible while taking attendance, not only internal state.
+- Optional Training is unchanged: it still opens attendance directly, with no Who's-expected step and no practice-absence penalty.
+- **Small fixture demonstration, not a rebuild**: `expectedPracticeStats` (`store.tsx`) computes an expected-only attendance percentage and current streak from only the practices whose saved snapshot names a player — never every practice on today's roster. Two new fixture practices (`ev-08`, `ev-09`, Blue 6th Grade) exercise it end to end and are shown in a clearly labelled "Expected-practice attendance" demonstration panel on Progress. It is additive only: the existing totals table, its denominator and its own tests are untouched, matching the instruction not to rebuild all analytics yet.
+- D09 (offline gym use) and D11/D12 (test-data scope, rich-analytics preservation) were not implemented here — see below.
+
+### Labelled assumptions — not settled policy
+
+- With no active sub-teams, **Take attendance** is enabled immediately on the default Kaizen choice rather than requiring a redundant tap on a single option with no alternative. Cancel is still available.
+- "All Kaizen" and each team's expected set are every **non-retired** player matching the rule, guests included. The prototype does not exclude guests from this denominator, the same way the existing Progress totals table does not; that exclusion belongs to the old `src/lib/stats.ts` module and is out of scope here.
+- Excused absences, correcting an already-saved expected list, and whether an unexpected attendee affects a streak are explicitly left as open recommendations (spec §4), not settled by this work, per the bounded prompt.
+
+### Verification — what was run, fresh
+
+- `npx tsc --noEmit`: 0 errors.
+- `npx vitest run`: 55 passed, 1 failed of 56 collected, across 9 files. **Reported separately:** the 1 failure is `LaunchPage.test.tsx`'s pre-existing dated `9:00 AM` preset assertion, and `src/lib/stats.test.ts` still fails collection for the pre-existing missing `VITE_SUPABASE_URL`. Both predate this branch and are not regressions from this work. New, passing: 5 tests in `store.test.ts` (union dedup, All Kaizen vs. a team union, never-overwrite guard, a saved snapshot surviving a later membership edit, 50%/streak/exclusion against an isolated two-player fixture), 4 in a new `ExpectedScreen.test.tsx` (disabled-until-chosen, saved snapshot content, Cancel creates nothing, the no-sub-teams path), and 1 in `ProgressScreen.test.tsx` (the demonstration panel).
+- `npx vite build`: succeeded; `index-DZ3ExIO7.css` and `index-CAFHf2CU.js` are byte-identical to every prior hash recorded on this branch. This update touched no `src/app` file, so the prototype stays fully excluded from the production bundle.
+- Browser walkthrough: headless Chromium, phone 430×932 then a tablet 1024×768 spot check. **23 scripted checks, all passing:** Start Practice opens Who's expected? (not attendance) with Take attendance disabled until a choice is made; Cancel returns Home with no in-progress session; selecting Blue 6th Grade (3 players) and Blue 7th Grade (6 players, shared member Kayla) previews exactly 8, not 9; confirming shows the matching Expected pill on Attendance; a full page refresh keeps both the saved Expected scope and the in-progress present mark (Resume, not a recomputed selection); Optional Training still opens attendance directly with no Expected pill; the no-sub-teams scenario shows the default Kaizen choice already enabled and saves as All Kaizen; the Progress demonstration panel renders; no horizontal overflow at either width; no unexpected console/page errors.
+
+### D09 (offline gym use) — preserved, not implemented
+
+Unchanged from the confirmation entry above: D09 stays in the Stage 3 data handoff below and in its own row of the confirmed-decisions table only. No service worker, offline queue, IndexedDB or Stage 3 code was written in this pass.
+
+### Unresolved product policies
+
+Unchanged, plus one addition from this task: PIN replacement/recovery detail, backdated training round assignment, player retirement behavior, and now excused absences, correcting an already-saved expected list, and unexpected-attendance streak treatment. None of these are approved by this prototype's current behavior.
+
+No Supabase/production calls, migrations, deployments, merges or PRs were made. The branch-specific no-deploy guard in `vercel.json` is unchanged. Stopping here, before Stage 3, as requested.
+
+### Stage 3 data handoff
+
+Use Claude Opus 5, High effort. Pull `claude/dazzling-sagan-hxrwfp` at or after this entry's commit before starting. Read `simplification-spec.md` §6–9, this document in full, and `simplification-analytics-inventory.md`.
+
+In an isolated, non-production database only:
+
+1. Design stable coach-owned players, multiple simultaneous memberships (D07/D08), sessions, **saved expected-player snapshots (D10)**, attendance, independent raffle rounds and durable per-operation identities for the offline outbox (D09). Preserve the sole super-admin and the secured `admin-coach-actions` backend boundary.
+2. Verify with invented fixtures only: repeat-safe setup, cross-coach rejection, idempotent start/mark/undo/finish/reset, and that replaying a delivered operation never duplicates attendance, hours, expected-player sets, rounds or tickets, nor clears a newer active session. Include multiple locally finished sessions awaiting sync (D09) and a same-day multi-session ordering case.
+3. D11 removes any real-history reconstruction requirement: do not attempt legacy name-matching, archive backfill or live-data import. Existing sample data stays untouched unless separately authorized.
+4. Keep the original report metrics representable (D12 / `simplification-analytics-inventory.md`): shared IDs, the expected-attendance denominator, multiple memberships and pending/synced status must all fit the schema this stage designs, even though the reports themselves are Stage 6 work.
+5. If no isolated environment is available, report that gap rather than substituting production.
+
+Stage 4 implements the real coach/offline flow against this contract; Stage 5 kiosk; Stage 6 restores/adapts the full analytics inventory and exports; Stage 7 verifies A01–A33, including the offline/reconnection scenarios. STOP after Stage 3 for review — do not implement Stage 4 behavior early.
+
+
+## Background-task check and fresh recheck — 2026-09-21
+
+A leftover background browser-walkthrough process (id `bz5ndyv1b`) from earlier in this branch's work was checked. It held only a stale crash — a pre-fix scratch script hitting an ambiguous "Roster" button selector, the exact issue already documented as found-and-fixed under the original Stage 2 revision above — not a pass/fail result for current code. It was already stopped; no walkthrough is owed from it.
+
+A fresh, independent re-run on the current head (`aa0eac8`, unchanged by this check) reproduced exactly the state already on record: `npx tsc --noEmit` 0 errors; `npx vitest run` 55 of 56 passing (the same 2 pre-existing, unrelated failures — `LaunchPage.test.tsx`'s dated preset assertion and `stats.test.ts`'s missing `VITE_SUPABASE_URL`); `npx vite build` (to a scratch directory, so the repository's own tracked `dist/` was left untouched) byte-identical to every hash recorded on this branch. No source changes were needed or made.
+
+## Coach attendance list follows Who’s expected? — 2026-09-22
+
+The owner found that selecting Blue and Gray 7th Grade still showed 6th Grade cards on the coach attendance screen. Cause: D10 saved the expected-player snapshot, but AttendanceScreen initialized its visible list from all active players; its All teams chip meant the full roster.
+
+The fixture prototype now defaults practice attendance to saved expected player IDs. A separate Other players view lets a coach mark an unexpected attendee present without rewriting who was expected. Selected-team filters and sort apply within the chosen view; changing views resets the team filter. Optional training and old practices without saved expectations retain the full-roster behavior. A player on both 6th and 7th Grade teams legitimately remains visible for the selected 7th Grade practice; one player card and one credit. The kiosk lookup is unchanged and still matches the whole active roster, as its unexpected-attendance policy remains open.
+
+Two new component tests cover the selected-team default, shared-membership player, hidden other-team player, exception path, retained selected count and optional-training full roster. Both pass. Type check and temporary production build pass; production hashes remain `index-DZ3ExIO7.css` and `index-CAFHf2CU.js`. Full suite with browser-style storage: 57 passed, one existing dated LaunchPage failure, plus the existing stats collection failure from missing Supabase configuration. No database, production, merge or deployment work. Next: verify the refreshed coach flow locally, then carry this behavior into Stage 4 after the Stage 3 contract. The exception/streak and kiosk expectation policies remain to be decided; D09 offline guarantees are still future work.
+
+## Stage 3 data-contract preparation — 2026-09-22
+
+The owner asked Codex to tackle the Stage 3 handoff. The local checkout is `claude/dazzling-sagan-hxrwfp` at `6a510a3` with a clean starting worktree. A remote-head refresh failed because `github.com` did not resolve; no claim is made that the local head matches the current remote. Repository instructions were searched; no applicable `AGENTS.md` was found. The Stage 3 handoff, specification, analytics inventory, old SQL and backend authorization path were reviewed. Supabase and Postgres guidance were consulted.
+
+**Work prepared for review:** [simplification-stage3-data-contract.md](simplification-stage3-data-contract.md) defines the proposed stable player/membership/session/expected-attendance/round/operation model, owner and idempotency boundaries, multi-session offline queue ordering, cached-owner/round handling, analytic invariants and synthetic rehearsal cases. [simplification-stage3-inspect.sql](simplification-stage3-inspect.sql) is a read-only catalog/security inspection script for an isolated deployed-like Supabase database. These are design artifacts, **not** an applied migration or a completed Stage 3 verification. They do not change the current app, backend, sample accounts or production database.
+
+**Environment gate:** the connected live Kaizen Supabase project has no database branches. No local Supabase CLI, Postgres or Docker server was found; the live project was neither queried nor changed. Thus the required deployed-like schema inspection, actual-role ownership tests, twice-run additive migration/backfill, RPC replay tests and database advisors have **not** run. The handoff explicitly says to report this gap rather than substitute production. No migration filename or untested production SQL was added. A test environment is needed before Stage 3 can be marked complete.
+
+**Source-level finding needing isolated verification:** checked-in migrations 005, 007 and 008 grant `authenticated` SELECT on `admin_coach_summary_view`. The actual deployed privileges are unknown. The approved backend boundary requires browser SELECT to be closed; inspect and correct this in isolation as part of the security rehearsal, while preserving `admin-coach-actions` and checking the sole designated super-admin. Old `save_session` also deletes the coach-wide active row and does not provide the proposed operation-id replay contract; it is left untouched until the compatible versioned path is tested.
+
+**Open choices:** the owner was asked whether a custom kiosk PIN replaces `0000`, whether backdated trainings belong to the current round or the historical date's round, and whether roster removal retires players while preserving history. Record answers before encoding affected settings/removal/round behavior. Kiosk URL and excused/exception streak semantics remain later-stage choices. D09 already resolves locally finished sessions not blocking the next start; D10 resolves Who's expected? targeting.
+
+**Checks actually run:** read-only source/catalog-tool availability checks, GitHub branch/PR metadata lookup, `git status`, `git diff --check` and local Markdown-link resolution (10 links in this document and 2 in the contract, all present). No application tests are applicable to these docs-only additions. No isolated SQL execution, role simulation, browser test, production query, deploy, merge or push occurred. Preserve all unrelated local work.
+
+**Exact next-stage handoff:** obtain an isolated Supabase branch or local Postgres/Supabase stack; confirm its identity is not the live project. Run the read-only inspection script there and reconcile the actual constraints, grants, triggers, views and RPCs with this contract. Resolve the owner policy answers. Generate the real migration through the available Supabase CLI, rehearse it twice with invented fixtures, and test `start/mark/undo/finish/start-fresh` retry/ownership cases as authenticated coach A, coach B and anonymous users. Run security advisors and verify the admin view is not browser-readable. Only then update this progress record with exact database evidence and mark Stage 3 complete. Stage 4 coach/offline frontend work remains out of scope; do not deploy or alter production.
+
+### Isolated-environment quote and branch attempt — 2026-09-22
+
+The owner confirmed organization `cmycydiglowyfqdyizwv` for a branch quote, then approved creating a test branch at the quoted `$0.01344/hour`. The connector's `create_branch` returned `INVALID_ARGUMENT` twice; after the first call, `list_branches` showed only the default `main` branch registered at 2026-09-22 23:01 UTC, and a final listing still showed no test branch. `get_organization` reports the organization is on the Free plan. Supabase's current [pricing page](https://supabase.com/pricing) lists branching as unavailable on Free, which likely explains the error; the tool itself returned no detailed reason. The attempts made no database query or migration against Kaizen production. Default-branch registration is a Supabase branching-metadata change and is disclosed here.
+
+The connector quoted a separate isolated **project** in the same organization at `$0/month`. This is a different resource from the branch the owner approved, so it has not been created. If approved, create a clearly named test-only project and load the checked-in schema there for rehearsal with synthetic users/data; reconcile that fresh project's schema against the repo and treat differences from the actual live deployed schema as an explicit Stage 8 release risk. The original Stage 3 handoff's "deployed-like" inspection cannot be fully established from a fresh blank project alone. No production clone, upgrade, billing-plan change, or use of unrelated inactive projects is authorized by the branch approval.
+
+### Separate test-project rehearsal — 2026-09-22 (supersedes the earlier environment gate)
+
+The owner subsequently approved creating the separately quoted free project. **Kaizen Tracker Stage 3 Test** (`viouquduxutuslafiooy`) was created in the same organization and `us-west-1` region and confirmed healthy/empty. The live Kaizen project (`pwgqwcvultxihntvaewo`) was never queried or changed. No production deployment, merge, sample-account cleanup, or Stage 4 application work occurred. The earlier "no test database" and "not created" statements above are historical status, not current status.
+
+The exact setup, fixture identities, observed results and limits are in [simplification-stage3-rehearsal.md](simplification-stage3-rehearsal.md). Repository migrations 001–007 and 009 were loaded into the test project. Automatic approval review **rejected loading migration 008** because it installs a persistent daily cron capable of irreversibly deleting auth users and cascaded data; no retry or workaround was made. Unrelated destructive migration 010 was not loaded. The resulting database is source-derived but not a deployed-like clone; no live schema or sole-super-admin membership was inspected. The secured `admin-coach-actions` backend remains unchanged.
+
+The versioned [test SQL](simplification-stage3-test-migration.sql) was applied three times successfully in the separate project, including after synthetic fixtures existed. It creates stable coach-owned players, multiple memberships, frozen session/expected snapshots, fixed 1.5-hour new sessions, independent raffle rounds, derived training-ticket entitlements, owner-scoped RLS and an idempotent operation ledger/RPC. It also sets the new-coach raffle default to on without rewriting existing settings and closes browser SELECT on the legacy admin summary view **in the test project**. Initial advisor feedback found two unindexed new foreign keys; the final SQL includes indexes and the repeated application cleared those warnings.
+
+Actual-role synthetic checks passed for cross-coach isolation, `0` versus `00`, multi-team expected-player deduplication, saved snapshots after a membership change, start/mark/undo/finish replay, same-day A/B/C sequencing, a delayed finish unable to close C, training tickets while raffle is off, one-time Start fresh, stale cached round review, and archived 2-hour history surviving archive/restore. Rejected operations left no rows. This is a database operation rehearsal, **not** an offline iPad or browser test. Supabase's security advisor reports inherited legacy definer-function/search-path warnings and configuration issues from the old baseline; no new tracker warning was reported. The actual deployed legacy grants require separate review.
+
+A further invented practice selected Blue 6th (Alex expected) while Kayla attended unexpectedly. Across two selected practices, Kayla's expected attendance was 1/2 = 50%; the Blue 6th visit did not enter her expected denominator, but it credited another 1.5 hours. This checks the saved-set arithmetic directly in the test database, not the final report UI or streak policy.
+
+Local checks: `npx tsc --noEmit` passed; `npx vitest run supabase/functions/admin-coach-actions/index.test.ts` passed 8/8. No application code changed. The release migration has **not** been created because the Supabase CLI is unavailable and the deployed-like schema has not been reconciled. The earlier draft contract is now annotated with test evidence and remaining limitations. Unanswered policy choices remain custom PIN replacement/recovery, backdated training round assignment and player retirement; expectation correction and unexpected-attendance streak treatment remain later reporting choices.
+
+**Exact next-stage handoff:** reconcile an authorized deployed-like schema, the sole-admin account and inherited legacy grants; settle data-affecting policy choices; review/convert the tested SQL into an additive repository migration and rerun the actual-role fixture suite in isolation. Finish Stage 3 by adding the missing roster/team write and completed-session correction contracts and testing the remaining expected-attendance and conflict cases. Then Stage 4 implements the coach UI and owner-scoped durable iPad outbox with real refresh, offline, auth-expiry and reconnect tests. Do not deploy or alter Kaizen production during Stages 1–7.
+
+
+## Stage 3 continuation — roster/sub-team writes and completed-session corrections (2026-09-23)
+
+Continued on `claude/dazzling-sagan-hxrwfp` after fast-forwarding to the owner's publication `240f1b8` (clean worktree; no repository `CLAUDE.md`/`AGENTS.md`). The first attempt found the three Stage 3 drafts absent from every branch and stopped without recreating them; the owner then pushed them. Isolated test project only: **Kaizen Tracker Stage 3 Test** (`viouquduxutuslafiooy`), identity confirmed before any SQL. The live project `pwgqwcvultxihntvaewo` was never queried or changed. Migration 008 was not retried or worked around; 010 stays out. No accounts or data were deleted or reset, no super-admin fixture was added, and `admin-coach-actions` and `002_super_admin.sql` are unchanged. No application code, deployment, merge or production migration.
+
+### Exact changes
+
+- [simplification-stage3-test-migration.sql](simplification-stage3-test-migration.sql): appended roster/sub-team write operations (`create_team_v1`, `rename_team_v1`, `create_player_v1`, `update_player_v1` via `tracker_apply_roster_operation_v1`) and a versioned, audited completed-session correction (`correct_v1` via `tracker_correct_session_v1`, new `tracker_session_corrections` table). Also added player/sub-team revisions, a shared ledger-claim helper, a widened ledger kind check, and a trigger that stops even the table owner from changing credit, kind or expected scope, or reopening or re-dating a completed session. The previously rehearsed 548 lines are byte-identical.
+- New [simplification-stage3-role-tests.sql](simplification-stage3-role-tests.sql): 90 checks as authenticated coach A, authenticated coach B and `anon`, in one transaction that rolls back, so it is repeatable and leaves the test project unchanged.
+- [simplification-stage3-rehearsal.md](simplification-stage3-rehearsal.md) and [simplification-stage3-data-contract.md](simplification-stage3-data-contract.md): continuation record, operation payloads, and an SQLSTATE-to-client-response table.
+
+### Checks run and results
+
+- `apply_migration` of the whole candidate file twice (`stage3_test_roster_correction_v1`, then `_repeat` over existing synthetic data): both succeeded. The stored SQL MD5 `b5e2fcaa23ca3062d5b5507c27d52b41` matches the repository file. Existing rows were unchanged (4/4/9/7/25), with no duplicate triggers, constraints or policies, so the new SQL is repeat-safe in isolation.
+- Role suite run after each application: **90/90 passed both times**. Nothing persisted; counts, accounts and schemas were verified unchanged afterward. Covered:
+  - ownership and direct-table denial for every tracker table, the ledger and the private helper;
+  - same-ID replay for start, mark, finish, roster and correction operations, and changed-payload rejection;
+  - roster edits after a saved session (number, label, memberships and team rename leave saved roster, membership, expected and selected-team snapshots intact);
+  - the expected-player union with the shared player once, and unexpected attendees credited but never added to the expected set;
+  - training tickets while the raffle is off;
+  - start fresh deleting no attendance;
+  - correction of an older-round training changing only that round's pool while keeping the round, 1.5 credit and date;
+  - a legacy 2.00-hour session keeping 2.00 hours after correction;
+  - a delayed finish unable to close or change a newer active session.
+- Advisors: no security or performance finding names a tracker object. The inherited legacy security warnings remain as recorded on 2026-09-22 (6 mutable `search_path`, 13 legacy definer functions each executable by `anon` and by `authenticated`, leaked-password protection off). There are no unindexed foreign keys.
+- Local: `npx tsc --noEmit` 0 errors; `npx vitest run supabase/functions/admin-coach-actions/index.test.ts` 8/8.
+
+### Limitations
+
+- The test project is source-derived, not a deployed-like clone: 008/010 are omitted, and live grants and the sole-super-admin account are unverified. The SQL stays a **candidate** under `docs/`; no release migration exists and the Supabase CLI is unavailable here. **Stage 3 is not complete.**
+- Database behavior only. No browser, IndexedDB outbox, offline, auth-expiry or reconnect result is claimed.
+- A coach can learn that a foreign UUID exists via an "id already exists" rejection; nothing about its owner or contents leaks. Low risk with random v4 IDs; noted for release review.
+- Legacy `save_session`, `archive_events`, `restore_archive` and the purge functions remain browser-executable definer functions in the source-derived baseline. They were deliberately left unchanged here and need a reviewed hardening decision before release.
+
+### Open policies, still undecided and not encoded
+
+- **Custom PIN replacement/recovery:** no PIN storage was added.
+- **Round for a newly entered backdated training:** `start_v1` binds whatever round the client sends, normally the current one, regardless of `session_date`. That follows P08's recommendation but is not an owner decision; a historical-date rule would change `start_v1`.
+- **Player retirement behavior:** no retire/remove operation exists, and editing an already-retired player is refused pending the policy. Sub-team retirement (spec §4 recommendation) is likewise not added.
+- Also left as recommendations: correcting a saved expected list, re-dating a completed session, excused absence and unexpected-attendee streak effects (Stage 6), which sessions the UI offers for correction (P09), and draw records (Stage 6).
+
+### Exact next-stage handoff
+
+**Before Stage 3 can be marked complete (owner/release gate):** decide the three open policies above; obtain an authorized deployed-like schema (or read-only catalog export) and run [simplification-stage3-inspect.sql](simplification-stage3-inspect.sql) against it; reconcile live grants, `admin_coach_summary_view` access and the sole super-admin `johnfreyman70@gmail.com`; decide the legacy definer-function hardening; then convert the candidate SQL into a reviewed additive migration and rerun it twice plus [the role suite](simplification-stage3-role-tests.sql) in isolation.
+
+**Stage 4 (coach UI + prepared-iPad outbox), buildable against the rehearsed contract in the test project only:**
+
+1. Call only the versioned entry points: `tracker_initialize_owner_v1`, `tracker_apply_operation_v1` (start/mark/finish/start fresh), `tracker_apply_roster_operation_v1` (team and player create/edit), and `tracker_correct_session_v1`. Never write tracker tables directly (denied) and never call legacy `save_session`/`remove_player`.
+2. Generate player, team, session, operation and device UUIDs on the device before local persistence. Each Save is one operation carrying the full desired state and the current `revision`. Persist the operation in an owner-namespaced IndexedDB outbox before showing success (D09).
+3. Send the outbox in global per-device order. Retry a lost response with the **same** operation ID, device sequence and payload. Remove only the acknowledged entry. Map rejections by SQLSTATE `code` (contract table): `40001` means conflict, so refetch and show for review; `23505` is either validation (collision) or a corrupted intent (ID reuse); `42501`/`22023` must not be retried blindly.
+4. Practice start sends the prepared roster snapshot, selected team IDs and resolved expected union. Unexpected attendees and corrections send an owned `snapshot` for a player not yet in that session. Training sends no expected set.
+5. Keep open-policy surfaces out of the UI or clearly disabled: player/sub-team retirement, PIN recovery, backdated-round choice, expected-list correction.
+6. Test at phone and tablet sizes with real refresh, airplane mode, auth expiry and reconnect, including A/B finished and C active, and a delayed finish (A27–A30).
+
+Do not deploy, merge, or apply anything to the live project; Stage 8 remains a separate authorization.
+
+
+## Owner decisions D13–D15 and exact continuation — 2026-09-23
+
+The owner explicitly approved all three recommended policies after reviewing Claude's continuation at `2a5d8c3`:
+
+- **D13:** `0000` works initially; a custom PIN replaces it. A signed-in coach can reset the PIN in Settings.
+- **D14:** training newly entered from paper uses the current raffle round at record creation regardless of its attendance date. A session already recorded offline retains its original round when it syncs after a reset. Do not reassign queued attendance to a new round.
+- **D15:** retirement hides players from future attendance lists and preserves identity, attendance, hours and earned tickets. Coaches can restore retired players. Retirement alone does not remove current-round raffle eligibility.
+
+These decisions supersede the corresponding open-policy statements in earlier dated entries. Sub-team retirement, saved expected-list correction, re-dating completed sessions, excused absence and unexpected-attendee streak treatment remain outside this approval. The previous implementation/testing record remains historical evidence, not proof that these newly approved paths are implemented.
+
+**Exact next handoff for Claude (Opus 5, High effort):** pull this branch and read D13–D15 in the specification and the updated contract. Continue Stage 3 only in test project `viouquduxutuslafiooy`. Implement versioned owner-scoped PIN setting/reset and player retire/restore contracts, including retry and stale-revision handling; preserve the same player UUID, historical snapshots, credits and tickets. For restore collisions, require a distinguishing label instead of overwriting another player or inventing a second identity. Define the prepared-device PIN update contract for Stage 4/5 without implementing the offline UI. Validate D14 with distinct tests for a newly backdated training and a previously recorded offline session delivered after a round reset; preserve immutable round binding and surface stale-round review. Tighten role test B05: its earlier rejection used a duplicate team name rather than the intended existing-ID check, so isolate that condition and assert the intended cause. Run the role suite and repeat-safe setup in isolation, update exact test evidence and the remaining handoff, commit and push to this branch, and STOP before Stage 4.
+
+No live-project query/export, migration, merge or deployment is authorized by these decisions. Do not retry or work around migration 008; 010 remains excluded. The actual production schema/grant and sole-admin checks remain separately authorized release work; document compatibility gaps without treating them as permission to query production. This policy publication changes documentation only; no new database or application test result is claimed. Markdown links and whitespace are checked before publication.
+
+
+## Stage 3 continuation — D13–D15 contracts and tightened B05 (2026-09-24)
+
+Pulled `claude/dazzling-sagan-hxrwfp` at `fb52a49` (local and remote heads equal) and followed the exact continuation above. Test project only: **Kaizen Tracker Stage 3 Test** (`viouquduxutuslafiooy`), identity confirmed before any SQL. The live project `pwgqwcvultxihntvaewo` was not queried or changed. Migration 008 was not retried or worked around; 010 stays out. No account or data was deleted or reset, no super-admin fixture was added, and `admin-coach-actions` and `002_super_admin.sql` are unchanged. No application code, deployment, merge or production migration. **Stage 4 was not started.**
+
+### Exact changes
+
+- [simplification-stage3-test-migration.sql](simplification-stage3-test-migration.sql):
+  - D15: `retire_player_v1` and `restore_player_v1` in the roster entry point. The player keeps the same UUID; memberships, session snapshots, attendance, credit and tickets are not touched. A restore onto an identical active card needs a distinguishing label; it never edits the other player or makes a second identity.
+  - D13: a new `tracker_exit_codes` table and `tracker_apply_settings_operation_v1` with `set_exit_pin_v1` and `reset_exit_pin_v1`. The server keeps only a salted PBKDF2-SHA256 verifier and a revision. `0000` is the default until a custom PIN replaces it, and a signed-in coach can replace or reset it without the old PIN. A NULL-safe check stops even the table owner from setting `custom` mode without a complete verifier.
+  - D14: no new SQL. A comment records that `start_v1` already binds the round the device sends and flags a stale round for review.
+  - Check order in every roster path: payload shape, then identity and state, then new values. This is the fix for the wrong B05 cause. Editing a retired player now returns `55000`.
+  - The first 548 lines are byte-identical to the 2026-09-22 rehearsal.
+- [simplification-stage3-role-tests.sql](simplification-stage3-role-tests.sql): from 90 to 145 checks. Every expected rejection now asserts both SQLSTATE and message. New checks: D13 K01–K11; D14 G01–G04 and C09e; D15 Q01–Q13; cross-coach B03b, B03c and BK1; X08–X09; N09–N10; I06–I09 with I08b. B05 is now B05pre–B05d, run while coach B has no team or player, with exact messages. Checks read an operation's effect in a later statement. The final report adds `suite_md5`.
+- [simplification-stage3-data-contract.md](simplification-stage3-data-contract.md): retire/restore and PIN operation rows, the check order, the SQLSTATE table (`55000` states, `22P02`), the PIN verifier format and test vectors, the prepared-device PIN contract for Stages 4–5, D14 behavior, and compatibility gaps for release.
+- [simplification-stage3-rehearsal.md](simplification-stage3-rehearsal.md): a dated section with every command and result.
+
+### Checks run and results
+
+- The first `apply_migration` failed with a PL/pgSQL syntax error and rolled back; nothing was applied. It was fixed, and a local `pglast` syntax check was added.
+- `stage3_test_d13_d15_v1` applied (stored MD5 `fcaaa78b92894418fc88978f68c6635d`). Suite run 1 gave 142/144. It found a test snapshot defect (BK1) and a real schema defect: a CHECK that passed on NULL, so `custom` mode without a verifier was possible (I08). Both are fixed and covered.
+- `stage3_test_d13_d15_v2` and `stage3_test_d13_d15_v2_repeat` applied. The stored MD5 `b3370714fe70553cd79b20978e36db3c` equals the committed SQL. There are no duplicate triggers, constraints or policies, and every application left the 8 tracker-table fingerprints unchanged, so the SQL is repeat-safe in isolation.
+- Role suite: **145/145** after each of the two final applications. `suite_md5` `12cbeb25637fe22342da21a532bfd55f` equals the committed suite. Nothing persisted (4/4/9/7/25/0, no test schema or accounts).
+- Advisors: no tracker finding; the legacy warnings are unchanged.
+- Local: `npx tsc --noEmit` 0 errors; admin backend 8/8; full `npx vitest run` 57 of 58, with the two recorded baseline failures (LaunchPage `9:00 AM`, `stats.test.ts` without `VITE_SUPABASE_URL`).
+
+### Limitations
+
+- **Stage 3 is not complete.** The test project is source-derived, not a deployed-like clone. The SQL stays a candidate under `docs/`; no release migration exists, and the Supabase CLI is unavailable here.
+- Database behavior only. No browser, IndexedDB outbox, offline, auth-expiry, reconnect or kiosk-exit result is claimed.
+- Compatibility gaps from source only (production not queried): legacy data has no PIN to migrate; legacy `remove_player` must be disabled or guarded; the legacy purge conflicts with history preservation because tracker foreign keys to `auth.users` have no `ON DELETE`; the ledger keeps old PIN verifiers (never a plaintext PIN); the server accepts a retired player in a stale offline start or mark. Details are in the contract.
+- A four-digit PIN is a supervised-kiosk convenience, not a security boundary. If a coach forgets a custom PIN while the kiosk is offline, the kiosk stays bound until it can sync after a reset. Stage 5 must present that recovery path.
+
+### Still outside the approval
+
+Sub-team retirement, deleting players, correcting a saved expected list, re-dating a completed session, excused absence, unexpected-attendee streak treatment, which sessions the UI offers for correction (P09), and draw records (Stage 6).
+
+### Remaining handoff
+
+**Release gate before Stage 3 can be marked complete** (separate authorization; no production access was used here): obtain an authorized deployed-like schema or read-only catalog export and run [simplification-stage3-inspect.sql](simplification-stage3-inspect.sql) against it. Reconcile live grants, `admin_coach_summary_view` access and the sole super-admin `johnfreyman70@gmail.com`. Decide the legacy definer-function hardening, the `remove_player` guard, purge versus history preservation, and whether the ledger keeps old verifiers. Then convert the candidate SQL into a reviewed additive migration and rerun it twice, with [the role suite](simplification-stage3-role-tests.sql), in isolation.
+
+**Stage 4 — not started; begin only on the owner's instruction.** Use the 2026-09-23 Stage 4 list above, with these additions. They replace its item 5 for player retirement, PIN reset and backdated rounds; sub-team retirement and expected-list correction stay out of the UI.
+
+1. Also call `tracker_apply_roster_operation_v1` for `retire_player_v1`/`restore_player_v1` and `tracker_apply_settings_operation_v1` for `set_exit_pin_v1`/`reset_exit_pin_v1`.
+2. Build the prepared-device PIN contract in the data contract: cache `{mode, revision, verifier}`; check the exit code offline with WebCrypto; set or reset only online from Settings; refetch on `40001`; clear on logout.
+3. Show retired players outside the attendance list with **Restore**. On a restore collision, ask for a distinguishing label.
+4. Show the stale-round review list (`needs_round_review`). Block Start fresh while unsent work exists. Enter paper trainings after a sync.
+5. Map `55000` and `22P02` as in the contract table.
+
+**Session tooling (owner choice, 2026-09-24):** `.claude/settings.json` now runs [`.claude/hooks/supabase-test-project-guard.mjs`](../.claude/hooks/supabase-test-project-guard.mjs) before every Supabase tool call. It approves calls to the test project `viouquduxutuslafiooy` without a prompt and blocks calls to the live project `pwgqwcvultxihntvaewo`. Every other call gets the normal permission prompt. A pipe test of 11 payloads and one real read-only test-project call confirmed that it works. A release session that is authorized to change production must update this hook first.
+
+## Stage 4 coach attendance and prepared-device outbox — 2026-09-24
+
+**Code commit:** `2a0bcd7` (`Implement isolated Stage 4 coach attendance and offline outbox`). Work is on `claude/dazzling-sagan-hxrwfp`. The isolated test project identity was checked before database work: `viouquduxutuslafiooy`. Production `pwgqwcvultxihntvaewo` was neither queried nor changed. `vercel.json` still disables deployment for this branch. No merge, deployment, production migration, legacy migration 008/010, account purge, or Stage 5/6 implementation occurred. Stage 3 SQL remains a tested candidate, not a release migration.
+
+### Exact changes
+
+- Added the Stage 4 test-only entry at `stage4.html` and `src/stage4/`. It uses the published owner-scoped read tables and versioned initialize, session, roster, correction, and settings RPCs. The legacy app entry and secured admin backend are unchanged. `vite.config.ts` requires the exact test-project URL and a test publishable key in `stage4-test` mode, with no credential fallback. `.env.stage4-test.example` documents the required values; the real `.env.stage4-test.local` stays ignored. Run locally with `npm run stage4:dev` or build with `npm run stage4:build`; open `/stage4.html`.
+- Added a versioned owner-keyed IndexedDB record containing prepared roster, memberships, teams, current round, settings, the PIN verifier, session snapshots and an ordered operation queue. A single transaction saves each visible change with its immutable operation ID, device ID/sequence, session ID, base revision and payload. Unknown storage versions block access without deleting work. The app caches its HTML, built assets and service worker, verifies the cached files on reopen, and gates new starts on preparation. An update that changes the asset fingerprint visibly requires re-preparation while retaining pending sessions.
+- Added Start Practice and Optional Training, the selected-team/All Kaizen expected union, Expected and Other player views, attendance mark/undo, backdated paper entry, multiple memberships, roster/team create and edit, player retire/restore with the same ID, completed-session attendance corrections, and online PIN set/reset. New sessions credit 1.5 hours; loaded historical durations stay intact. The cached PIN verifier is ready for Stage 5 kiosk use. A local finish allows the next session even while earlier operations wait.
+- Added ordered replay and a five-second retry while online. Acknowledgment removes only the exact queue head. `40001`, `23505`, `55000`, `22023` and `22P02` retain intended work as conflicts; auth errors pause upload, show a same-coach sign-in action, and keep the queue. Sign-out with pending changes has an explicit in-page warning. Isolated browser test controls can simulate failed local writes, network loss, a lost RPC response and an expired auth check.
+- Added seven IndexedDB/workflow tests covering transaction failure, owner separation, unsupported storage version, immutable queue order, A/B finished plus C active, identical retry after a lost response, conflict retention and auth ownership.
+
+### Verification actually run
+
+- `npx tsc --noEmit`, `npm run build`, `npm run stage4:build`, `git diff --check`, and all seven Stage 4 tests passed. The default build was checked only; its generated `dist/` files were restored, so no build artifact or legacy entry change is in the commit.
+- In the in-app browser against the isolated test project, prepared online, stopped the local server, reopened the page without that server, and saw the cached coach UI return to **Ready offline** after validating files. The browser test control then blocked Supabase requests; two completed sessions survived reopen and synchronized on reconnect. A separate A/B/C sequence had A and B completed locally, C active after reopen, and all queued operations delivered in order. Test SQL showed one row per session, 1.50 hours per new session, no practice tickets, and exactly one ticket for a completed training with one present player.
+- Verified selected-team/All Kaizen deduplication with a shared player (three unique players across two teams), `0` versus `00`, unexpected attendance, mark then undo, a backdated training dated 2026-09-20 bound to the current round, and retirement/restoration of Kayla under the same player UUID with history and an earned ticket retained. A completed-training correction changed one present player to absent and removed its derived ticket without changing the session date or round. Set a custom PIN, refreshed its verifier from the backend, and reset to `0000`.
+- Simulated one local write failure: the card remained absent and the UI showed a save error. Simulated a lost RPC acknowledgment after server processing: the queued `finish_v1` retried, and test SQL showed one finish ledger row and revision 1. Simulated an expired auth check: upload paused with pending work, then resumed after same-coach sign-in. Signed out with a pending A operation, signed in as coach B on the same browser, saw no A session or queue, then returned as A and delivered it. Rebuilt the app while A work was pending: new starts were blocked as unprepared, but the pending session remained visible. A browser viewport check at 820 × 1180 showed the tablet layout.
+- Full `npx vitest run`: **62 passed, 3 failed, one collection failure** (65 collected tests; 8/11 files passed). The same legacy failures were reproduced from untouched remote baseline `447f72a` in a separate `/tmp` checkout: two `KioskScreen.test.tsx` assertions, one dated `LaunchPage.test.tsx` time-preset assertion, and `stats.test.ts` collection without `VITE_SUPABASE_URL`. Baseline was 55 passed and the identical three failures plus collection failure. These failures are not caused by this Stage 4 change.
+
+### Remaining verification and limits
+
+- Browser network controls and stopping a local preview are simulations, not a physical iPad airplane-mode pass. No actual iPad, iPadOS storage pressure, installed-home-screen lifecycle, or Safari eviction behavior was tested. The test entry was not hosted or deployed. The Stage 3 source-derived test schema still needs the separate production-compatibility release gate already documented above. The browser test accounts and synthetic roster/session data remain in the isolated test project for repeatable checks; no real roster was imported.
+- The 401 test used a one-shot simulated expired response. Same-coach reauthentication and queue preservation were observed; a natural JWT expiry over time still needs device testing. Likewise, the lost-response control demonstrated idempotent retry on the test backend but physical radio interruption remains untested. Browser tests did not exercise a round reset while an offline session waited; the Stage 3 role suite covers that server contract, and the client displays `needs_round_review` when returned.
+- Physical-iPad checklist before claiming device reliability: serve the isolated Stage 4 build over a secure test origin; sign in as a synthetic coach; prepare and confirm Ready offline; close the tab or installed app completely; enable airplane mode; reopen without an existing session; start practice, mark and undo, finish A and B, start C, and close/reopen again; check cached PIN behavior once Stage 5 kiosk exists; reconnect and verify A/B/C states, exact 1.5-hour credits and single training tickets in the test backend; repeat with a revoked/expired sign-in, an interrupted response, low-storage/quota failure, and an app update while work is pending. Do not clear Safari site data while work is queued.
+
+### Physical iPad follow-up — 2026-09-24
+
+- The owner ran the guided Coach A test in iPad Safari and explicitly confirmed that Practice C remained active after reopening the page in Airplane Mode. After reconnecting, the app reported that all saved changes had synced. The owner then finished C. This is a user-reported physical-device observation; no iPad logs or screen recording were captured.
+- A read-only check of isolated test project `viouquduxutuslafiooy` found the three new Coach A sessions: Practice A completed with two present, Optional Training B completed with one present, and Practice C completed with one present. Each has `credit_hours = 1.50` and exactly one `finish_v1` operation. The ticket-entitlement view has one ticket for B and none for the practices. This confirms server delivery and no duplicate finish or ticket for this run. Production was not queried or changed.
+- Follow-up commits `9fb1e1b` and `15a4a13` simplified test sign-in to a Coach A/B picker with short test-only passwords and removed a duplicate sync-success message. The local HTTPS preview was corrected to serve the Stage 4 build. The remaining device checks are natural auth expiry, interrupted radio response, storage pressure or Safari eviction, and an app update while changes are pending. Stage 5 kiosk/PIN interaction and the Stage 3 production-compatibility gate remain open.
+
+### Precise Stage 5 handoff
+
+Build kiosk presentation on the same active `OwnerData` session and call `markPresent`/`enqueue` for check-in and undo. Persist the kiosk/session binding in the owner record before showing the kiosk; restore it after offline reopen. Use exact player-wide string jersey lookup (`0` and `00` distinct), show all matching cards with labels and current present state, and require a card tap even for one match. Hide coach controls in kiosk. Use `verifyPin` against the prepared verifier; `0000` works only in default mode, a custom PIN replaces it, and exit returns to the same active session without finishing it. If the session has ended elsewhere, show the finished-session message rather than coach controls. Exercise local-write failure, same-device offline reopen, keyboard/focus/touch behavior, and real iPad airplane mode. Do not add raffle drawing or analytics here; those remain Stage 6. Keep the Stage 3 release gate and no-deploy guard intact.
+
+## Stage 4 review fixes — 2026-09-24
+
+Branch `claude/dazzling-sagan-hxrwfp`, starting at reviewed head `267f731`. This pass addressed the seven offline recovery and sync findings in the isolated Stage 4 entry. It did not start Stage 5, change the Stage 3 candidate SQL, query or change production `pwgqwcvultxihntvaewo`, load migration 008 or 010, alter the sole super-admin rule or secured admin backend, merge, deploy, or run a production migration. The branch no-deploy guard remains in place.
+
+### Changes and coach resolution choices
+
+- The device remembers the last signed-in owner ID. If auth refresh fails on offline reopen, that owner's prepared data opens with upload paused. Start, mark, and finish remain available. The coach signs in as the same owner after reconnecting to upload. Explicit sign-out clears the owner pointer, the local auth session, and the prepared PIN cache, including when offline; queued attendance stays owner-keyed for later sign-in.
+- A blocked queue head now shows its saved intent beside a freshly fetched affected server state. For `40001` or `55000`, the coach can explicitly resend on the displayed server revision with a new operation ID; dependent operations for that same revisioned record shift their base revisions and remain ordered. The coach can instead confirm discarding the blocked operation and operations that depend on it; the affected local records are replaced from the server. A `23505` operation-ID reuse is never automatically given a new ID. Its intent stays for review and can be explicitly discarded. Server refresh remains available with a blocked queue and preserves queued local changes.
+- PIN set/reset now use a separate, saved online request. A lost response leaves the exact operation ID and payload for an explicit retry. The cache changes only from an accepted `{mode, revision}` plus the submitted verifier; a stale revision reloads the server PIN state without touching attendance. Successful attendance sync refreshes `{mode, revision, verifier}`. The settings page offers retry or a confirmed review/discard of an unresolved PIN request.
+- RPC errors retain the HTTP status. HTTP 5xx, `PGRST000`–`PGRST003`, `08*`, `40P01`, `57014`, `53300`, and `57P0*` wait for retry with the same ID; HTTP 401 and `PGRST301`/`PGRST303` pause for auth. `42501` goes to review. Contract conflicts and validation errors retain the saved intent.
+- Session child reads filter by the loaded session IDs and page in 500-row batches. Preparation pages players, teams, and memberships. Local create/rename rejects an active team name with the same trimmed, case-folded spelling. The isolated browser controls can now force a one-shot 503 or `40001`, and can expire the stored test token before an offline reopen. The prepared shell version is 10.
+
+### Verification actually run
+
+- `npx tsc --noEmit`: passed.
+- `npx vitest run src/stage4`: 20/20 passed in four files. New cases cover expired-token offline owner recovery and Start Practice, offline sign-out followed by reload, another coach's auth event unable to take over saved work, conflict review/resend and ordered later operations, explicit discard after operation-ID reuse, transient 503 retry, 401 auth pause, 42501 review, pending PIN lost-response retry and stale revision, team-name collisions, server refresh with blocked work, HTTP status preservation, and 1,205-row session and preparation reads.
+- `npm run stage4:build`: passed. `git diff --check`: passed. Generated `dist/` files were restored/removed before commit and are not included.
+- Opened the local Stage 4 preview in the in-app browser and observed the isolated test sign-in screen. Live signed-in browser scenarios are pending a synthetic Coach A credential or signed-in preview session. The new expired-token, offline sign-out, forced-503, dropped-PIN-response, and resolved-conflict flows have **not** been claimed as live browser passes. No physical iPad check or test-project SQL verification was performed in this pass.
+
+### Signed-in isolated browser follow-up — 2026-09-25
+
+The owner signed into a local Stage 4 test preview as synthetic Coach A. The initial Vite development preview could not complete preparation because `/stage4-assets.json` returned HTML; the signed-in tab was reloaded from the actual `stage4-test` build at the same local origin. Preparation then reached **Ready offline**. This preview serves only the build compiled with the exact isolated test-project guard; no deployment occurred.
+
+- The browser's one-shot `PGRST002`/HTTP 503 control was armed before starting a new Optional Training. Its start first appeared as a saved local change and then reached **Synced**. A synthetic mark and finish also synced. This is a browser simulation of a temporary failure, not a physical network test.
+- The one-shot `40001` control was armed before marking a player in a new Practice. The browser displayed **Review required**, kept the local present mark, and showed the server's active session at revision 0 with zero present next to the local intent. Finishing locally left two changes queued. **Refresh prepared data** succeeded while preserving both queued changes and the conflict. The coach's explicit **Resend this change on current revision** action then cleared the queue; the UI reported **All saved changes synced**.
+- Read-only SQL in test project `viouquduxutuslafiooy` found both sessions from those two runs completed at revision 2. Each has one accepted `start_v1`, `set_present_v1`, and `finish_v1` ledger entry in device-sequence order. The rejected conflict did not create an accepted ledger entry. This corroborates delivery for these two runs; it does not by itself establish every physical-device condition.
+
+- The owner submitted a synthetic custom PIN after the browser's dropped-acknowledgment control was armed. The browser showed a failed fetch and kept the pending PIN request. The owner selected **Retry PIN request** once; the page then showed **PIN changed and synced** and **Custom four-digit PIN active**. Read-only test-project SQL found one accepted `set_exit_pin_v1` ledger entry for operation `046e8ff2-e66a-43f1-bb75-715dc8251728`, sequence 7, with custom mode at revision 3. Retrying produced no duplicate entry for that operation. A later read found a second, distinct PIN-set request at sequence 8 and revision 4; its submission was not observed in this browser run. The current server PIN mode is custom at revision 4.
+- The browser test control expired the stored test token and blocked Supabase requests. After reload, the saved Coach A data opened **Ready offline** with **Sync paused** and **Upload paused**. A new Optional Training was started, Kayla was marked present, and the session was finished while offline. History showed one present and **Saved on this device · waiting to sync**. Sign-out warned that three pending changes would remain on the device; after confirmation and another offline reload, only the sign-in screen appeared, with no coach data.
+- After the owner signed back in as Coach A, the saved device record still had the simulated offline flag. Restoring the test network in Settings let all three queued changes sync. Read-only test-project SQL showed one accepted `start_v1`, `set_present_v1`, and `finish_v1` in sequences 9–11 for the same session, completed at revision 2 with one present player, 1.50 credit hours, and one training ticket. **Refresh prepared data** then returned the page to **Ready offline** and showed the server's active custom PIN. No pending PIN retry remained in this browser.
+- The first offline reload briefly showed the sign-in screen while the expired-session check was unresolved, then recovered the saved owner. Startup now reads the remembered owner synchronously and pauses upload immediately. A new component test holds the auth check unresolved and verifies that prepared attendance still opens. Component tests are now 4/4; `npx tsc --noEmit` and `npm run stage4:build` passed after this adjustment. The browser test used a simulated expired token and blocked requests; natural JWT expiry and a fresh physical-iPad pass remain untested.
+
+## Stage 5 kiosk check-in — 2026-09-25 (in progress)
+
+The owner authorized the Stage 5 kiosk work after the Stage 4 handoff. This implementation remains in the isolated `stage4-test` entry and test project `viouquduxutuslafiooy`; it does not add a production migration, deploy, merge, raffle drawing or Stage 6 analytics. The branch no-deploy guard and the Stage 3 production-compatibility release gate remain in place.
+
+- The active session can enter kiosk only after its session ID is committed to the owner-keyed device record. Kiosk reopening reads that binding and hides the coach navigation, roster, settings and finish action. Exit clears the binding only after local PIN verification and returns to the same unfinished attendance session. A remotely completed bound session shows **Session finished — ask your coach**; online kiosk refresh also reloads the current exit-code verifier. A forgotten offline custom PIN keeps the kiosk bound, with a visible reconnect, same-coach sign-in and reset/refresh recovery path.
+- Kiosk lookup compares the complete jersey-number string, preserving `0` and `00`. It searches the active prepared roster, shows every player with the number and team labels, and requires a card tap even for one result. Check-in and undo use the Stage 4 durable desired-state operation. The screen waits for the local transaction before showing confirmation; a failed write shows an error and no success message. Number input, keypad, backspace, clear, Enter submission, touch-size buttons, no-match guidance and PIN exit are present. The shared number pad accepts one to three digits for jersey lookup and four digits for coach exit; an incorrect PIN clears the entry and keeps kiosk active. Default `0000` works only in default mode; a custom verifier rejects it.
+- `npx tsc --noEmit`, `npx vitest run src/stage4` (31/31), `npm run stage4:build` and `git diff --check` passed. Tests cover binding persistence and exit without finish, exact lookup and multiple matches, four-digit keypad exit and failed PIN feedback, custom PIN rejection of `0000`, local-write failure during both check-in and exit, remote finish with pending work retained, and refreshing a reset PIN. The shell cache version was raised to `stage5-shell-11`, so a device must prepare the new assets online before being marked ready for a new offline session.
+- In the isolated in-app browser, the upgraded build prepared to **Ready offline**. A synthetic Practice entered kiosk; `0` found only Kayla and `00` found only Owen. Kayla required a card tap, showed a saved-device confirmation, and synced; a repeated lookup showed **Checked in · Undo check-in**, and undo saved and synced. `999` showed no-match guidance. Stopping the local preview server and reloading restored the kiosk and its same session from the cached shell. The preview server was restored afterward. After the owner found that the keypad stopped at three digits, the revised preview showed the four-digit coach exit path. The owner entered the custom PIN in that preview and confirmed that it returned to coach attendance. Physical iPad airplane mode remains untested for Stage 5.
+- Read-only SQL in the isolated test project confirmed one `start_v1` and two `set_present_v1` operations (present then absent) at device sequences 12–14 for that Practice. Its server row remains active at revision 2 with zero present players and 1.50 hours per attendee. Kiosk entry/exit create no server attendance operation of their own.
+
+
+## Stage 6 raffle and rich reports — 2026-09-26 (implementation and guided iPad rehearsal ready for review)
+
+The owner authorized moving onto Stage 6 while the iPad is unavailable. Stage 5 code was committed and pushed at `eaeea7c`; its physical-iPad kiosk/PIN airplane-mode rehearsal is deferred. Stage 3 compatibility remains a separate release gate. Stage 6 remains in the isolated `stage4-test` entry on `claude/dazzling-sagan-hxrwfp`. No production access, legacy migration 008/010, account/data reset, merge or deployment occurred. The no-deploy guard and secured admin backend remain unchanged. An OpenAI API key is not required by this implementation.
+
+### Implemented
+
+- Owner-scoped raffle settings offer Off and atomic Keep / Start fresh / Cancel. Off preserves accrual; Start fresh opens a new round while keeping prior attendance, credits, tickets and draw history. Existing legacy off settings remain off. Optional-training ticket entitlement remains derived from completed attendance, one ticket per present player/session, including earned tickets of retired players. Practice never earns a ticket.
+- The authoritative server pool contains individual ticket rows. A weighted draw selects one ticket without consuming it, records the prize/winner snapshot, ticket identity, exclusions, pool count/hash and timestamp, and returns the durable result. Last-N exclusions use nonvoid winners in the current round. Undo marks only the last current-round draw void, with its own operation identity; history is retained.
+- Draw and reset require an online same-coach check, no attendance queue or pending PIN, and no active session. Requests are stored in IndexedDB before sending; lost responses reuse the exact operation and draw identity. Accepted results must be committed locally before winner feedback. Pending raffle requests block new attendance/roster/PIN/kiosk changes until confirmed in Settings. A server rejection refreshes the round and leaves a visible review message. Ticket writes and draws serialize on their assigned round. Other disconnected devices' unseen work remains outside what the server can prove.
+- Reports preserve 30/90/180/all ranges, overview metrics, coach insights, monthly area trends with years, weekday attendance and below-average callouts, attendance comparison bars and a sortable player table, individual chronological expected-practice history, latest-ten session logs/copy roster, and the top-three plus ranks four–ten effort leaderboard. Team views support current roster or saved session membership; All Kaizen credits each player/session once. Historical recorded durations are unchanged. Only saved regular-player expectations affect percentages and streaks; unrelated practices and guest attendance do not create absences. Later role or membership changes do not rewrite expectations.
+- CSV and print/PDF use the same report calculations and team/date/archive scope. Print/PDF is reachable from Reports and Settings, with selectable overview/player/comparison/session/notes sections, custom dates, archived-history inclusion, Letter/A4/Legal paper, portrait/landscape and report title. It opens a print-ready report; the user chooses Save as PDF in the print dialog. Guest appearances, session-hours and player credited hours are separate. Last-refresh and pending-device labels avoid implying a complete live server history.
+- Server history is paged beyond the earlier 100-session cap; child reads remain filtered/batched/paged. The shell is `stage6-shell-12`; devices must prepare updated assets online before starting new offline sessions. Pending data is retained.
+
+### Verification actually completed
+
+- Isolated project `viouquduxutuslafiooy` was checked before database changes. `stage6_isolated_raffle_draws_v1` and the repeat application `stage6_isolated_raffle_draws_v1_repeat_indexes` succeeded. The final stored migration MD5 `b6c85015a92f332e2357ab52142f8047` matches [the SQL candidate](simplification-stage6-test-migration.sql). This is not a production release migration. The repeat application preserved fixture rows.
+- [The authenticated role rehearsal](simplification-stage6-role-tests.sql) passed Keep replay, unchanged ticket count, draw replay without duplicate history or ticket consumption, auditable void, Start fresh replay opening one round, retention of earlier tickets/results, and Coach A being unable to read Coach B's draw. All test mutations rolled back. A subsequent isolated read found zero persisted draw records.
+- Advisors reported no new tracker security finding. Two new foreign-key index omissions found in the initial performance review were fixed; the final review found no new unindexed foreign key. Unused-index notices reflect the tiny fixture dataset; legacy advisories remain unchanged.
+- `npx vitest run src/stage4`: **42/42 passed**; `npx tsc --noEmit`, `npm run stage4:build` and `git diff --check` passed. Added checks cover 605-session pagination, expected-practice/guest/membership/historical-duration calculations, export scope and escaping, a later guest-role change, stale ticket pools, failed local saves, lost draw and fresh-round responses, rejection refresh, and attendance blocking while a raffle request is pending. Existing coach/kiosk/offline tests still pass. Full legacy suite was not repeated; baseline failures are recorded above.
+
+### Verification status after guided iPad rehearsal
+
+The guided physical-iPad rehearsal below now covers offline kiosk/Safari reopen, check-in/undo persistence, custom PIN exit, reconnect delivery, raffle draw/history/exclusions/void/Off/Keep/Cancel, controlled lost-response retry, Reports totals and Blue team scopes, CSV saving through the native share sheet, PDF preview/saving and Start fresh preserving earlier history/hours. Observations are owner-reported with selected read-only backend checks; no iPad device logs or exported artifact was captured. All 49 isolated app tests, type check, isolated build and diff check pass on the final source.
+
+Remaining release/acceptance work includes Stage 7 A01–A33 coverage and the Stage 3 production-compatibility review, natural auth expiry, storage pressure/Safari eviction, actual interrupted-radio responses, installed-home-screen lifecycle, app updates with pending work and multi-device races. The direct Download CSV route was corrected but only the native Save CSV to Files route was physically confirmed afterward. Full PDF custom-date/section/paper permutations, actual transfer/Gray report filters, archived fixtures and roster-copy output were not all physically exercised; calculation/export unit tests cover selected cases. The in-app browser runtime remains unavailable. Stage 6 has not been committed or pushed, and no production release is implied.
+
+Review checklist: refresh and prepare the local `/stage4.html` preview; compare Reports across date/team/membership/archive filters; inspect a player's expected-practice history and copy a session roster; download CSV; choose PDF sections/layout/custom dates and compare totals; turn the raffle on with Keep and Cancel; confirm draw/reset are blocked while attendance is active or waiting to sync; finish/sync a synthetic training; draw with a prize, retry a dropped response, exclude a recent winner and undo; Start fresh and verify old history and hours remain. Perform these only in the isolated test project.
+
+
+### iPad rehearsal setup — 2026-09-26
+
+The owner confirmed the iPad is on the same Wi-Fi as the Mac and already has the local test certificate installed. Updated the existing HTTPS preview at `https://192.168.0.161:4173/stage4.html` with the tested Stage 6 build; retained older asset files to preserve cached-page recovery. The certificate covers this address and is valid until 2026-10-01 05:11 UTC. A trusted-CA HTTPS check fetched the page, both current build assets, asset manifest and `stage6-shell-12` service worker successfully. This is local preview setup, not deployment or a physical-device pass. The guided iPad rehearsal is pending owner observations.
+
+
+### First physical iPad observations — 2026-09-26
+
+The owner reported **Ready offline** on the updated HTTPS preview, then entered kiosk, enabled Airplane Mode with Wi-Fi off, completely closed Safari and reopened/reloaded the tab. The owner reported that it returned to kiosk. This is a user-reported device observation; no device logs were captured. During the next jersey-0 lookup, the owner reported **Find player is not responding**. Lookup/check-in persistence is not passed; investigation is pending a screenshot/confirmation of whether the number field updates and whether the result appears below the button. The lookup is local and synchronous in source, and the existing ten kiosk tests pass; those tests do not establish Safari visual/touch behavior.
+
+
+The owner then confirmed that the jersey-0 result was below the keypad and had been missed without scrolling. Kayla initially showed absent; the owner tapped her card and reported that she was checked in while offline. Offline reload persistence and server delivery are still pending. Updated kiosk lookup to dismiss the input keyboard, focus the result section and scroll the matching cards or no-match message into view after submission. The existing card-selection test now verifies that focus/scroll behavior. The updated build will be prepared after the ongoing offline check-in is synchronized; the current offline build and its assets remain available.
+
+
+### Continued physical iPad observations — 2026-09-26
+
+The owner confirmed Kayla's jersey-0 check-in survived both an offline tab reload and a full Safari app close/reopen. With Airplane Mode on and Wi-Fi off, the owner then confirmed default `0000` was rejected, the custom four-digit PIN exited kiosk to coach attendance, the session remained active and Kayla remained present. These are owner-reported physical-device passes; no device logs or server delivery have yet been verified for this run. Undo persistence, distinct `00`, no-match feedback, reconnect delivery and Stage 6 raffle/reports/export checks remain in progress.
+
+
+The owner confirmed that undo persisted after an offline reload, `00` found Owen rather than Kayla, and `999` showed no match. Still offline, the owner checked Kayla back in, exited with the PIN and finished the practice, then started optional training, checked Owen in using `00`, exited with the PIN and finished training. The owner reported both sessions finished offline. Reconnect/server delivery and final credit/ticket counts have not yet been checked. The updated lookup-scroll build is available on the existing HTTPS origin; preparation will follow queue synchronization and an online page reload.
+
+
+### Physical iPad reconnect verification — 2026-09-26
+
+The owner reported **Synced and ready** after reconnecting, waiting for delivery, reloading online and preparing the updated assets. A read-only check against confirmed healthy isolated project `viouquduxutuslafiooy` found practice `4282aa79-48a4-44f2-8301-630e53a869d7` completed with Kayla `#0` present, 1.50 credit hours, zero tickets and exactly one `finish_v1` ledger row. Training `a17973f9-9521-4f66-bd28-7681fa168411` completed with Owen `#00` present, 1.50 credit hours, one ticket and exactly one `finish_v1` row. Both retain assigned round `08c10db6-bd8b-46ea-8b24-0c7852f1ccea` with no round-review flag. The practice retains its originally saved 2026-09-25 date; the new training is dated 2026-09-26. This verifies delivery and absence of duplicate finish/ticket for this run; production was not accessed. Physical Stage 6 reports/raffle/export checks remain pending.
+
+
+### First physical iPad raffle draw — 2026-09-26
+
+The owner reported Kayla won and six tickets remained. Isolated read-only SQL confirmed draw `12de39fb-19dc-40bf-85eb-c6faffe50d45` recorded `Kayla · #0`, six tickets at draw time and six current-round tickets afterward, with exactly one `draw_v1` operation. Excluding Kayla's four tickets should leave two eligible tickets. The saved prize is empty; whether the owner entered the instructed prize text is being clarified before treating that as a defect. Winner history reload, exclusion and void UI checks are next.
+
+
+The owner confirmed the recorded winner survived reload, recent-winner exclusion changed the eligible pool from six to two, removing the exclusion restored six, and Undo marked the draw void without changing the six tickets. The owner clarified that the prize field was intentionally left blank; no prize-loss defect is claimed.
+
+Before the iPad lost-response rehearsal, source review found that the browser fault controls also intercepted read-only RPCs. A raffle snapshot refresh could therefore consume the intended dropped-operation response. Narrowed dropped-response and forced-error controls to the five versioned operation RPCs; pool reads and owner initialization do not consume them. Two transport tests verify that snapshot reads leave each control armed and only the next operation is affected. The shell advances to `stage6-shell-13` so preparation waits for the updated worker. Type check, all **44/44** isolated app tests, isolated build and diff check passed before preparing the updated iPad rehearsal. This is test-tooling behavior only, not a production backend change.
+
+
+The subsequent server check confirmed the first draw has one `void_draw_v1` operation, a nonnull void timestamp and all six tickets retained. During lost-response setup the owner found the control appeared unresponsive. Its existing success status was displayed at the top of the long Settings screen. Added pending, success and failure feedback directly beside the dropped-response button, and disable it while setting the control. This feedback clears when changing pages/owners. The current already-armed test can proceed using the original top status; the UI update is available in the local preview without deleting cached assets or pending requests.
+
+
+### iPad lost-draw-response rehearsal — 2026-09-26 (retry pending)
+
+The owner confirmed the drop control's top status, then drew with prize `iPad retry test`. The iPad displayed a saved request awaiting confirmation and the service-worker error, with retry available. A read-only isolated check found one accepted draw `cf42fd2e-42cf-4ff3-9577-4ee0d5249a56`, operation `78ec794f-515c-48ba-a0cb-462d522b0392`, winner `Kayla · #0`, the correct saved prize and all six tickets retained. Thus the backend accepted the draw while the iPad withheld winner feedback after the dropped reply. Retry is still pending. Updated the pending-request error copy to explain the saved request/result uncertainty in plain language, and the global guidance now points to retry in either Raffle or Settings. The update preserves the pending request; the existing tab can complete the test before updating.
+
+
+The owner tapped Retry and reported Kayla as winner with the confirmation warning cleared, the correct `iPad retry test` prize in history and six tickets retained. The follow-up isolated read verifies one draw for that prize and one accepted operation `78ec794f-515c-48ba-a0cb-462d522b0392`; total history remains two rows, including the earlier voided draw. This passes the same-request lost-response recovery on the physical iPad using the controlled dropped-reply simulation. It does not establish behavior under a physical radio interruption.
+
+
+### iPad raffle settings and Reports baseline — 2026-09-26
+
+The owner reported that turning raffle Off hid its navigation, turning it back on and choosing Cancel kept it off, and choosing Keep restored the same six tickets and both draw records. The subsequent isolated server baseline showed raffle enabled in round generation 1 with six current tickets.
+
+In Reports, the owner selected All dates, All Kaizen and Include archived sessions, and reported all six overview totals matched the independently queried test-server baseline: 18 completed sessions, 12 practice session-hours, 15 optional session-hours, 22.5 player credited hours, 25% average regular-player practice attendance and zero guest appearances. These are owner-reported iPad UI observations with a read-only server comparison. Report filters/details, actual CSV/PDF export, Start fresh preservation and the updated lookup-scroll behavior remain to verify.
+
+
+### iPad Report filters and CSV download issue — 2026-09-26
+
+The owner confirmed both Current roster and Team at session showed 18 sessions and 18 player credited hours for Blue 7th, matching an isolated read-only calculation. Gray 7th's independently queried baseline is 18 sessions and 16.5 player credited hours in either mode; no physical Gray check is claimed. The identical mode totals are expected for these fixtures and do not exercise an actual transfer; the automated transfer case covers that calculation.
+
+The owner found the CSV in Files but reported 0% downloaded; CSV export is not passed. Source revoked its generated blob URL one second after clicking, potentially before Safari finished asking/saving. Removed timed revocation: the browser releases the URLs on document unload. Added capability-checked native CSV sharing, exposed as Save CSV to Files, plus visible requested/handed-off/cancelled/error feedback that does not claim filesystem completion. The file stays on the device unless the owner chooses a share target. Physical retry is pending.
+
+
+CSV fix verification: all **48/48** isolated app tests passed, including delayed Safari download URL availability, native file handoff, cancellation and unsupported-sharing behavior. Type check, isolated build and diff check passed. Updated the existing HTTPS iPad preview to `stage6-shell-14`, retaining older cached assets. Trusted-CA requests retrieved the current page, JavaScript, manifest and worker with HTTP 200; the served JavaScript includes Save CSV to Files. These checks establish implementation and preview availability, not successful saving on the iPad; the owner must retry.
+
+
+The owner reloaded/prepared the updated preview, used Save CSV to Files and reported the resulting CSV opened successfully. This establishes a physical native-share save/open pass; it does not yet verify every exported cell, iCloud download behavior, or the separate Download CSV retry. PDF export is next. Source review found the PDF export archive checkbox initializes from the report only at mount; the guided PDF test must explicitly check Include archived sessions in this export. The default archive-filter inheritance needs correction before final handoff.
+
+
+### iPad PDF preview — 2026-09-26 (saving pending)
+
+The owner checked the export archive checkbox explicitly and reported the PDF/print preview matched 18 completed sessions, 12 practice session-hours, 15 optional session-hours, 22.5 player hours and 25% attendance, with readable tables. The owner then could not find the instructed saving option. Saving/opening an actual PDF is pending clarification or a screenshot of the current print/report screen; no saved-PDF pass is claimed.
+
+Corrected export archive-filter inheritance so it follows later changes to the Reports archive filter while permitting an explicit export-only override. Updated help text to distinguish browser print/share controls and iPad Share → Save to Files instead of assuming every print dialog has a Save as PDF option. This source update is not yet rebuilt into the ongoing iPad preview, to avoid interrupting its open report.
+
+
+The owner subsequently found Share and reported the PDF was saved to Files. The preview's totals/readability were confirmed earlier; opening the saved file itself is not yet explicitly reported. The archive-filter inheritance regression test passed (1/1), type check and diff check passed. That source change remains pending the next preview rebuild/preparation.
+
+
+### iPad Start fresh preservation — 2026-09-26
+
+The owner reported the combined checkpoint passed: Start fresh opened round 2 with zero tickets, both earlier Kayla draws remained in history, and Reports with All dates / All Kaizen / Include archived sessions retained the 18 / 12 / 15 / 22.5 / 25% baseline. The instructions also asked the owner to open the saved PDF once to check readability; no PDF artifact or screenshot was captured for independent inspection. Final updated kiosk lookup-scroll confirmation remains.
+
+
+Isolated read-only verification after Start fresh found generation 1 no longer current with all six old tickets and both draws retained, and generation 2 current with zero tickets/zero draws. No active session remained. All **49/49** isolated app tests, type check, diff check and isolated build passed after the export archive-inheritance correction. The local HTTPS preview now serves `stage6-shell-15`; trusted-CA requests fetched the page, current JS/CSS, manifest and worker successfully. Older cached assets remain available. Production was not accessed. The final iPad lookup check will prepare this build before creating an empty synthetic Optional Training for UI verification.
+
+
+### Guided iPad rehearsal completion — 2026-09-26
+
+The owner confirmed jersey-0 Find player brought Kayla's card into view automatically without manual scrolling. The final empty synthetic Optional Training `cfc55b5d-237a-4ca9-977b-9ea234b4ac2a` is completed in round 2 at revision 1, with zero present players and zero tickets. Read-only isolated verification found exactly one finish operation and no active session. Its 1.50 session-hours bring the final all-date baseline to 19 completed sessions, 12 practice session-hours, 16.5 optional session-hours and 22.5 player credited hours; no practice expectations changed, so the existing 25% practice-attendance baseline is unaffected. Old round 1 retains six tickets and both draw records; current round 2 remains empty.
+
+The planned guided iPad rehearsal is complete. During this work, lookup scrolling, inline test-control feedback, operation-only fault injection, plain-language uncertain-response guidance, CSV saving and export archive-filter inheritance were fixed and checked. These changes remain local Stage 6 review work, with all 49 isolated tests passing and the served local preview at `stage6-shell-15`. Results distinguish physical owner observations, controlled simulations, automated assertions and read-only backend corroboration. Separate acceptance/release gates are listed above.
+
+
+## Stage 7 initial acceptance and compatibility review — 2026-09-26
+
+At the owner's request to explain and perform the next checks, reviewed all A01–A33 and created [the evidence matrix and release-gap handoff](simplification-stage7-review.md). Current full-suite results are 104 passed/3 failed plus one suite-import failure, compared with saved Stage 5 HEAD's 86 passed/the same 3 failed and same import failure. All 49 new-app tests pass. Re-ran Stage 3 real-role rollback tests (145/145, MD5 `12cbeb25637fe22342da21a532bfd55f`) and Stage 6 assertion-based rollback tests successfully. Stored test counts before/after match: 28 sessions, 109 operations, 5 rounds and 2 draws; the throwaway harness is absent.
+
+Identified release gaps: the admin view still reads legacy counts (Coach A 0 legacy sessions versus 19 tracker sessions); old clients still write the old store without a cutover/recovery strategy; coach attendance lacks the approved team sort/filter control; and historical Stage 3 candidate replay narrows the ledger constraint so it cannot be concatenated and rerun after accepted Stage 6 operations. Final additive release migration/recovery rehearsal remains necessary. No candidate migrations or narrowing constraint were executed in this review. Existing legacy advisor warnings remain for explicit compatibility review.
+
+Prepared [a read-only production/deployed-like catalog inspection](simplification-stage3-compatibility-inspect.sql), wrapped in a read-only transaction and returning no raw attendance/player/authentication records. It has not been executed against production: the Stage 3 handoff reserves that access for separate authorization. Natural expiry, real storage/network/update failure, multi-device races and the remaining full acceptance cases keep Stage 7 open. No production query, deployment, merge, admin-policy change or account cleanup occurred.
+
+
+The comprehensive SELECT-only catalog script's isolated validation was attempted twice. Automatic permission approval review did not finish before its deadline on either attempt; this was a timeout, not an unsafe-action rejection. No successful whole-script execution is claimed. The targeted isolated catalog/advisor queries and rollback role tests recorded above did succeed. Live read-only inspection still needs the separately reserved authorization.
+
+## Authorized live read-only compatibility review — 2026-09-26
+
+After the initial review, the owner replied **Granted** to the explicit request to inspect live project `pwgqwcvultxihntvaewo` read-only for structure, permissions, stored functions and designated-admin membership count. The owner then asked to continue. Focused catalog SELECTs and the aggregate succeeded in READ ONLY transactions ending in ROLLBACK. No production function was executed or production data/permissions changed. Earlier statements that live inspection was unauthorized describe the pre-grant work.
+
+[The completed compatibility review](simplification-stage3-compatibility-review.md) confirms exactly one designated administrator; the live admin summary denies anon/authenticated SELECT and permits service_role SELECT. Live has nine public tables and one view, all tables with RLS. Shared legacy policy definitions match the test baseline, but nullable ownership, raffle defaults, additional lifecycle/view columns, constraints/indexes, function bodies and execute grants differ.
+
+All live public functions have fixed search paths and deny browser execution; six legacy mutation/admin RPCs also deny service-role execution. Direct owner-scoped legacy table writes still exist, so these revocations do not close old-client cutover/recovery. Live remove_player scrubs legacy history if executed; it was not executed. Live process_purge_lifecycle deletes auth users eventually, conflicting with tracker history-preserving foreign keys, and its soft-delete code writes NULL to a NOT NULL team-name field. Scheduling/runtime cleanup was not inspected. Broad legacy TRUNCATE grants also require explicit review; no destructive operation or public exploit was attempted.
+
+Live security advisor returned only the disabled leaked-password-protection warning. Performance advisor returned two unindexed foreign keys, 15 RLS initialization-plan notices and six multiple-policy notices. Test-project security warnings must not be described as live findings.
+
+Stage 7 A20 moves to **Partial** because actual catalog/membership checks are now complete; runtime admin/nonadmin release checks remain. Matrix totals are **13 Covered / 17 Partial / 3 Gap**. Admin totals, attendance team sort/filter, combined migration repeat safety, legacy cutover/history preservation and the remaining acceptance cases still prevent release. Stage 6 remains local/uncommitted. No production migration, deployment, merge, account cleanup or new admin was authorized by this read-only grant.
+
+## Coach attendance team controls — 2026-09-26
+
+The owner approved tackling attendance team filtering next. Added the shared AttendancePlayers component to coach practice Expected/Other tabs and optional training. Filters include All teams, each active named team and Kaizen without a sub-team; with no custom teams the list remains simply Kaizen. Sort choices are team, jersey number and name. Current prepared memberships drive team filters/labels, while saved practice expectations and session snapshots remain intact. Shared players appear once. Hidden check-ins remain included in the displayed overall count, with explicit hidden-mark guidance. Mark/undo continue through the existing durable attendance operation.
+
+All **55/55 isolated app tests**, type check, isolated build and diff check pass. Six new tests cover shared identities/labels, numeric ordering with distinct 0/00 and missing numbers, default grouping, transfer without snapshot mutation, retired filter recovery/disabled marking and actual offline local writes through hide/reveal/finish with unchanged expectations. React review checked local derived state, stable keys and labelled native controls. Existing baseline legacy failures were not rerun for this bounded UI change.
+
+Built into the existing HTTPS iPad preview, retaining older files for recovery. Trusted-CA loopback requests verified the current page, stage4-0Mb7XMaz.js, stage4-MDsUosnS.css, manifest and **stage6-shell-16** worker; no certificate checks were disabled. Browser visual inspection was blocked by its certificate validation. The physical iPad controls check is pending and no screenshot/device pass is claimed.
+
+A24's missing feature gap is implemented; status moves to Partial pending physical control/layout verification. Current matrix totals at that checkpoint: **13 Covered / 18 Partial / 2 Gap**. Admin totals were the next proposed task. All changes remain local, uncommitted/unpushed; no database query, mutation, migration, permission change, production deployment or merge was part of this follow-up.
+
+## Isolated admin totals — 2026-09-27
+
+The owner selected admin reconciliation. Applied [the reviewed admin-summary candidate](simplification-stage7-admin-test-migration.sql) twice in isolated project `viouquduxutuslafiooy`; no production query/mutation occurred in this work. The service-role view now reports the physical-iPad synthetic coach at **3 active players, 19 completed sessions, 0 archives**, matching direct canonical aggregates. It combines distinct legacy/current records and suppresses matching player and session IDs. A rollback-only mixed fixture added matching-ID duplicates plus one legacy-only player, session and archive; counts rose by exactly 1/1/1, then returned to baseline after rollback.
+
+The view keeps its current output contract and service-only access. Direct anon/authenticated SELECT remain false. An intermediate isolated invoker-mode version could not read auth.users through service_role; the final candidate uses explicit `security_invoker=false` with revoked browser grants. The protected `admin-coach-actions` handler and sole-admin membership are unchanged. Final v3 and v4 candidate applications succeeded; 145/145 Stage 3 role checks, 8/8 admin handler tests, 4/4 Reports model tests, type check and diff check passed. [Full review](simplification-stage7-admin-review.md) records the data semantics, isolated iteration history and remaining release constraints.
+
+A18 moves to Partial because unmatched legacy imports need a mapping, legacy archive sets differ from archived tracker sessions, the extra live view columns need deployed-like rehearsal, and an actual authorized admin/nonadmin endpoint comparison has not run. Stage 7 totals are now **13 Covered / 19 Partial / 1 Gap**. The sole remaining feature/cutover gap is A21 old-client recovery. All repository changes remain local, uncommitted and unpushed.
+
+## First-launch scope clarification — 2026-09-27
+
+The owner confirmed again that this product has **never been released** and prelaunch history does not matter. D11 already classified existing accounts, attendance and archives as test/sample data. This supersedes the above release-gate language about old-client adapters, legacy identity mapping, historical archive reconciliation and test-data backfill. It does not authorize deleting or resetting production data/accounts.
+
+A21 now checks recovery of **new canonical writes and pending offline work** during a failed first-launch update or forward fix; it is Partial, not a missing old-client feature. A18 remains Partial for a real authorized admin endpoint comparison and deployed view-column compatibility. Current Stage 7 totals are **13 Covered / 20 Partial / 0 Gap**. The next Mac-side work is an isolated first-launch migration/admin/recovery rehearsal using a clean canonical dataset. Stage 6 and these review changes remain local, uncommitted and unpushed.
+
+## First-launch Mac-side rehearsal — 2026-09-27
+
+With the owner's approval, [the isolated first-launch candidate and test record](simplification-first-launch-rehearsal.md) now cover canonical-only admin totals, a rollback-only empty-coach launch fixture, repeat application of a combined Stage 3/6/admin migration and a simulated interrupted app update. The combined candidate preserves six accepted raffle operations; baseline counts remained **28 sessions / 109 operations / 5 rounds / 2 draws**. The role suite passed **145/145**, the raffle assertions passed, focused workflow/Reports/admin tests passed **25/25**, type check and isolated build passed. The protected admin view remains service-only. No production query/mutation, cleanup, deployment, commit or push occurred.
+
+The remaining Mac-side release checks need a fresh deployed-like isolated database with the live catalog's extra view columns and grants, plus an actual protected admin/nonadmin endpoint comparison. The isolated test project has no deployed admin Edge Function, and no physical app update was performed. Stage 7 remains **13 Covered / 20 Partial / 0 Gap**; A18, A19 and A21 remain Partial.
+
+## Fresh local first-launch database rehearsal — 2026-09-28
+
+The planned new free Supabase project could not be created because the account already has two active free projects. The owner had selected the same organization, and the cost check showed $0/month; no existing project was altered. A disposable local Supabase stack instead applied the legacy source migrations, a [live-catalog-shaped temporary baseline](simplification-first-launch-live-baseline-local.sql), and the [combined Stage 3/6/admin candidate](simplification-first-launch-combined-test-migration.sql) successfully from an empty database. The admin view retained all 26 live-shaped columns. Reapplying the combined candidate over invented saved records succeeded. [The detailed record](simplification-first-launch-rehearsal.md) distinguishes this approximation from an exact deployed clone.
+
+The unchanged local admin Edge Function accepted an invented super admin and rejected two ordinary users. Its 1 player / 1 completed archived session / 1 archive result matched Reports, CSV and printable HTML built from the same authenticated canonical rows; 1.5 player-hours agreed. Legacy sample rows had no effect. The Stage 3 role suite passed 145/145 before and after hardening (the latter with one obsolete direct-write fixture adapted locally); the raffle and admin rollback suites passed. Existing live legacy grants included unrestricted `TRUNCATE` for browser roles, so a [test-only hardening candidate](simplification-first-launch-legacy-hardening-test-migration.sql) revoked legacy browser writes. It applied twice locally; direct legacy write attempts returned 403 while coach reads and canonical RPCs continued working.
+
+The local rehearsal leaves A18, A19 and A21 Partial: release SQL is not yet reviewed/applied, the baseline cannot reproduce every live function and trigger, live purge scheduling may conflict with new history foreign keys, and the physical update/offline recovery test remains. No production migration, project cleanup, deployment, commit or push occurred in this follow-up.
+
+## First-launch purge lifecycle candidate — 2026-09-28
+
+The owner accepted preserving accounts with saved postlaunch tracker history while allowing empty unverified accounts to expire. A read-only live inspection confirmed the `process-purge-lifecycle` cron job is active, owned by `postgres`, and scheduled `0 3 * * *`; its current soft-delete code writes NULL to required `team_name`, and its hard-delete code deletes `auth.users`. The [review record](simplification-first-launch-release-review.md) and [single self-contained SQL candidate](simplification-first-launch-release-review-candidate.sql) now cover canonical schema/admin totals, legacy write revocations, and a guarded scheduled/manual purge lifecycle. Storage-object ownership is also protected, and verification after soft deletion restores a usable profile/team default. No production function or job was changed or invoked.
+
+The exact candidate applied on a fresh disposable local baseline and again in one transaction over invented saved records. A rollback-only lifecycle suite passed empty, protected, verified, Storage, manual, late-write and permission cases; two opposing save/purge concurrency checks passed. The Stage 3 owner suite passed 145/145 with its one obsolete direct-write fixture adapted locally, and the Stage 6 raffle suite passed. Final repeat application retained one invented canonical player, one completed session and one legacy event, a 26-column admin view, an active protected coach and revoked legacy browser inserts. The local advisor found only inherited source-derived logging-function search-path warnings. The baseline remains a catalog-based approximation; production-shaped staging, atomic rollout/backup review and physical iPad recovery still prevent release. All work remains local, uncommitted and unpushed.
+
+## Physical iPad update recovery — 2026-09-28
+
+The owner used the existing HTTPS preview at `https://192.168.0.161:4173/stage4.html` with the isolated Supabase test project. The iPad initially showed **Prepare online**; after preparation it showed **Ready offline** with no pending changes. The owner turned on Airplane Mode with Wi-Fi off, started an All Kaizen Practice, marked Kayla (`#0`) present and finished it. History showed one present and waiting to sync. A full Safari close and offline reopen retained the completed Practice and its pending state. The isolated server remained at 28 sessions and 109 operations, confirming the offline work had not uploaded.
+
+While the iPad was still offline, the owner enabled the test network control to keep Supabase uploads paused across reconnection. The local preview was advanced from `stage6-shell-16` to `stage6-shell-17` by changing only the app and service-worker version constants. The workflow suite passed 13/13, the TypeScript check and isolated build passed, and the served page, new JavaScript/CSS, manifest and worker returned HTTP 200. Older assets were retained. After reconnecting Wi-Fi and reloading, the owner reported **Prepare online** and the same completed Practice still waiting to sync. The server counts were still 28/109 at that point.
+
+After the owner restored the test network, the iPad reported **All saved changes synced** and History **Synced**. Read-only test-project verification found 29 sessions and 112 operations. The newest session `b1308639-7e49-4cb5-bbb4-9ba6d3975b31` is a completed Practice dated 2026-09-28, revision 2, with one present player, three operations and original `prepared_cache_version` `stage6-shell-16`. The owner refreshed prepared data, then again turned on Airplane Mode with Wi-Fi off and fully reopened Safari. The owner confirmed **Ready offline** and the completed Practice with one present player marked **Synced** on the new shell. The physical update/offline recovery check passed. The offline status line did not display a pending-operation count; History did show the saved state, which is a minor clarity follow-up. These are owner-reported device observations plus read-only backend corroboration, not captured device logs. This check does not establish a released deployment rollback or the production purge migration. No production query or change, release deployment, commit or push occurred during this check.
+
+## Separate first-launch coach build — 2026-09-28
+
+The [release client review](simplification-release-client-review.md) records a new `release:build` path. It turns the tested coach app into a root-page release candidate with ordinary coach email sign-in, release-only browser storage and worker/cache, and no packaged test worker or fault controls. The default build and branch deployment guard are unchanged. The offline status line now shows the number of saved unsent changes, addressing the clarity observation from the physical recovery check. TypeScript, all 58 focused tests, and separate test/release builds passed; a local dummy-key browser check showed the release sign-in form. No production sign-in, database change, deployment, commit or push occurred. Production-shaped database review and release-origin verification remain before first launch.
+
+## One-project cutover choice — 2026-09-29
+
+The owner chose to retain the existing **Kaizen Tracker** Supabase project and eventually remove the temporary **Kaizen Tracker Stage 3 Test** project. The [single-project cutover plan](simplification-single-project-cutover.md) distinguishes the old attendance tables/functions that can retire after launch from shared Auth, admin, settings, logging and purge objects still needed by the new app. Read-only live catalog names were reconfirmed. The existing release client already targets the retained project. No production records, objects, accounts or projects were changed or deleted for this choice.
+
+## Old tracker retirement candidate — 2026-09-29
+
+Prepared a [separate retirement candidate and review](simplification-first-launch-legacy-retirement-review.md) for the four obsolete attendance tables and their named write/log functions. It applied atomically in a disposable local database after the release-review migration, removing invented legacy rows while preserving invented canonical player/session/settings/admin records. The post-removal coach role suite passed 145/145; the raffle and purge-lifecycle suites passed. The legacy admin detail screens still query those old tables and must be replaced or retired before removal. No cloud project, live schema or data changed.
+
+## Private release backup preparation — 2026-09-29
+
+The owner approved retiring the old admin screens for first launch and proceeding with backup and release rehearsal. The release package rebuilt successfully and excludes those screens, legacy attendance paths and test controls; the secured admin backend remains. [The backup checkpoint](simplification-private-backup-checkpoint.md) records a private folder outside the repository, the deployed admin function source, a fresh read-only catalog snapshot and reviewed logical-export recipes. The hidden-password launcher is ready. The database password is required before a real export and restore rehearsal can run; no database backup or restore is yet claimed. Four Storage file contents and configuration recovery also remain. No production mutation, deployment, cleanup, commit or push occurred.
+
+## Verified private backup and restored release rehearsal — 2026-09-30
+
+The owner entered the correct database password privately. After fixing the script's handling of this project's absent CLI migration-history schema, all five required database exports completed and their checksums matched. The four public Storage files were also preserved privately with matching metadata sizes and verified hashes. [The restored rehearsal record](simplification-restored-release-rehearsal.md) replaces the earlier approximate public/Auth/Storage baseline with the actual exported schemas and saved rows.
+
+Restoration succeeded atomically in a database with no network access or exposed ports and scheduled execution disabled. An initial superuser-run candidate exposed an owner mismatch in purge helper permissions; a fresh restore, verified live public-schema ownership and execution as `postgres` resolved it without widening grants or changing the candidate. Owner tests passed 145/145, and admin/raffle/purge rollback suites passed. Reapplication preserved all 14 canonical table fingerprints, including five native operations and a blank-prize draw. Separate legacy retirement passed locally, preserving all 54 retained table fingerprints; owner 145/145, raffle and purge passed again afterward. The final 36-table comparison matched original retained backup records, excluding the explicit local invented coach. The private manifest records the restore verification, and the local database was stopped. No cloud migration, deployment, account/file cleanup, project deletion, commit or push occurred. Hosted release, configuration recovery and release-origin iPad checks remain.
+
+## Hosted release and live canonical setup — 2026-09-30
+
+Current follow-up, 2026-10-05: All planned public-origin iPad checks passed, including preparation, offline Practice, full Safari-close recovery, synchronization, kiosk lookup/check-in/exit, Optional Training, report totals, CSV/PDF saved in Files and the single-ticket raffle. A refreshed seven-file private backup restored successfully in the isolated local PostgreSQL copy. The guarded retirement rehearsal removed only the four old attendance tables and preserved all 55 retained table fingerprints; adapted admin, raffle and purge rollback checks passed. Live migration `20261006023411_kaizen_retire_prelaunch_attendance` then removed those four tables, preserving all 54 retained non-migration-history table fingerprints and adding its expected migration record. The live app retains Test #99, two completed sessions, one draw, five Auth accounts and four Storage objects. The protected admin backend (version 7, identical source to saved version 6), canonical summary and daily purge configuration remain. The temporary Stage 3 Test project still exists pending device-work confirmation and final deletion. No commit or push occurred. See the hosted checkpoint for the backup, hashes and verification scope.
+
+Public-origin recovery follow-up, 2026-10-04: After switching the iPad to the live custom address and signing in, the owner confirmed Ready offline and created Test #99, independently verified in the retained database. An offline All Kaizen Practice with that player present survived fully closing and reopening Safari, then showed Synced after reconnection. Production session `c1a90da2-488c-4d95-8339-d7e50bda867b` confirms completion at revision 2, one present and three operations. Public-origin offline recovery and sync passed; kiosk, reports and raffle remain before cleanup.
+
+Device follow-up, 2026-10-04: The owner reported successful preparation, offline Practice completion, full Safari-close persistence and reconnection/sync. Read-only backend checking found the matching new Practice in the temporary Stage 3 Test project (one present, three operations, three active players); the retained live project still has no canonical players or sessions. Public-origin iPad checks remain pending. The owner confirmed the iPad was on the local `https://192.168.0.161:4173/stage4.html` test build. Switch to the published custom address and prepare its separate origin before repeating device checks.
+
+Follow-up: The owner's public-origin screenshot confirms successful sign-in and Home opening, with “All saved changes synced · Signed in.” The badge remains “Prepare online.” Offline preparation and physical release-origin iPad checks are still pending; the screenshot does not identify the device.
+
+After the owner authorized the next release phase and completed Vercel sign-in, the guarded first-launch migration passed a fresh local restore and then applied atomically to the retained Kaizen Tracker project. All 40 original table fingerprints matched both before and after live application; five Auth accounts and four Storage records were preserved. Fourteen canonical tables have RLS, and the 26-column admin view is service-only. The unchanged scheduled job was not invoked. The security advisor has only its prior Auth leaked-password-protection warning.
+
+The new release was uploaded to the existing Vercel project, all six hosted files matched the prepared build, the public key passed the Auth service check, and the staged sign-in screen rendered. After database verification, the exact deployment was promoted to [the existing public address](https://teamtracker.leftbraincreative.xyz/). Future production builds select `release:build`; branch guards remain. The 58 application checks and TypeScript check passed again. Release artifacts, current uncommitted source and hosting recovery settings were saved privately. [The hosted checkpoint](simplification-hosted-release-checkpoint.md) records exact migration/deployment IDs and recovery limits. Actual public-origin coach sign-in and iPad checks are pending; old tables and the temporary test project remain. No commit or push occurred.
+
+## Superuser dashboard restored — 2026-10-07
+
+The owner clarified that prelaunch coach/user/player data is disposable, while the main superuser account and dashboard must remain, including overview, controls and coach details. The existing dashboard was adapted to canonical roster/session records and integrated into the release's Admin navigation with its shared Auth client. Invitation/recovery links support password setup at the public root. Account controls protect every superuser target; refresh-session revocation verifies the actual administrator JWT in a private helper.
+
+All 80 focused tests and TypeScript passed. The rollback-only isolated database role suite passed. Live migration `20261007211057_restore_superuser_dashboard` preserved all 54 table fingerprints, and protected backend version 8 deployed with JWT verification. Unsigned calls return 401. No live account action or email was exercised. Vercel deployment `dpl_GqXgSHmKbDvDiuzNKA77faembmG8` was staged, seven file hashes matched, then the exact artifact was promoted to the public address. The shell is version 18. The authenticated browser check passed: Admin loaded four coach summaries and live activity; selecting a coach loaded account access, canonical roster and attendance empty states correctly. All seven public-origin file hashes matched. Deletion of the temporary Stage 3 Test project remains. Main superuser and existing account/file/canonical records remain intact. Private recovery artifacts are preserved separately; no commit or push occurred.
+
+
+## Temporary project cleanup completed — 2026-10-07
+
+The owner signed in to Supabase and explicitly approved permanent deletion of Kaizen Tracker Stage 3 Test (`viouquduxutuslafiooy`). The named project was deleted through its Settings confirmation. Both the dashboard project list and independent MCP inventory confirm its removal. The main Kaizen Tracker project remains healthy, with its sole superuser and all five Auth accounts, four Storage objects and canonical smoke-test records intact. The restored dashboard is published and verified. No other project, source commit or push changed.

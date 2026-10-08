@@ -1,4 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+// The legacy store imports the Supabase client, which needs env vars. Stats tests do not use it.
+vi.mock("@/lib/supabase", () => ({ supabase: {} }));
 import {
   filterEventsByRange,
   playerAttendance,

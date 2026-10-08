@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kaizen Tracker · Coach Attendance Test</title>
+  <style>html,body,#root{min-height:100%;margin:0}</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    window.addEventListener('error', event => {
+      const root = document.getElementById('root');
+      if (root && !root.hasChildNodes()) root.textContent = 'The cached coach app could not start. Reconnect and prepare this device again. ' + (event.message || event.target?.src || event.target?.href || 'A required app file failed to load.');
+    }, true);
+  </script>
+  <script type="module" src="/src/stage4/main.tsx"></script>
+</body>
+</html>

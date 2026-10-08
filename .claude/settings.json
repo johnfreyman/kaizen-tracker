@@ -6,5 +6,19 @@
       "Bash(git remote *)",
       "Bash(git add *)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__[Ss]upabase__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/supabase-test-project-guard.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
   }
 }

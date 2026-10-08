@@ -82,12 +82,16 @@ describe("LaunchPage Dynamic Presets", () => {
       startSession: mockStartSession,
     } as any);
 
+    // Presets only count the last 30 days, so pin "today" near the fixture dates.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-05-25T12:00:00"));
     render(<LaunchPage onNavigate={vi.fn()} />);
+    vi.useRealTimers();
 
     // Verify top 3 times appear:
-    expect(screen.getByText("9:00 AM")).toBeDefined();
-    expect(screen.getByText("8:00 AM")).toBeDefined();
-    expect(screen.getByText("10:00 AM")).toBeDefined();
-    expect(screen.queryByText("11:00 AM")).toBeNull();
+    expect(screen.getByText(/^9:00\s?AM$/)).toBeDefined();
+    expect(screen.getByText(/^8:00\s?AM$/)).toBeDefined();
+    expect(screen.getByText(/^10:00\s?AM$/)).toBeDefined();
+    expect(screen.queryByText(/^11:00\s?AM$/)).toBeNull();
   });
 });

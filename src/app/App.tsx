@@ -88,7 +88,7 @@ function AppContent() {
 
   if (isPasswordRecovery) return <ResetPasswordPage />;
   if (!isAuthenticated)   return <LoginPage />;
-  if (isSuperAdmin)       return <SuperAdminDashboard />;
+  if (isSuperAdmin)       return <SuperAdminDashboard onLogout={logout} />;
   if (isNewCoach)         return <OnboardingPage />;
 
   /* ── Nav item definitions ────────────────────────────────────── */

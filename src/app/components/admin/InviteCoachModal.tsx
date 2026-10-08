@@ -6,9 +6,10 @@ import { supabase } from "@/lib/supabase";
 interface InviteCoachModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-export default function InviteCoachModal({ isOpen, onClose }: InviteCoachModalProps) {
+export default function InviteCoachModal({ isOpen, onClose, onSuccess }: InviteCoachModalProps) {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -50,6 +51,7 @@ export default function InviteCoachModal({ isOpen, onClose }: InviteCoachModalPr
       }
 
       toast.success(`Invite sent to ${trimmed}`);
+      onSuccess?.();
       onClose();
     } catch (err: any) {
       toast.error(err.message ?? "Failed to send invite.");

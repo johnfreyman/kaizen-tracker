@@ -1,0 +1,26 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run release:build",
+  "outputDirectory": "dist",
+  "headers": [
+    {
+      "source": "/(.*\\.html)?",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+    },
+    {
+      "source": "/sw-release.js",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+    },
+    {
+      "source": "/release-assets.json",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+    }
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "codex/simplification-plan": false,
+      "claude/stage-2-prototype": false,
+      "claude/dazzling-sagan-hxrwfp": false
+    }
+  }
+}

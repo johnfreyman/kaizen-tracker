@@ -220,63 +220,18 @@ function CommandPalette({
 // Admin Action Bar Component
 // ---------------------------------------------------------------------------
 
-export default function AdminActionBar() {
+export default function AdminActionBar({ onExport, onAuditLogs, onRefresh }: { onExport: () => void; onAuditLogs: () => void; onRefresh: () => void }) {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<AdminAction | null>(null);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
 
   // Define the available actions
-  const actions: AdminAction[] = useMemo(
-    () => [
-      {
-        id: "invite-coach",
-        label: "Invite Coach",
-        icon: UserPlus,
-        type: "primary",
-        onExecute: () => setIsInviteOpen(true),
-      },
-      {
-        id: "export-data",
-        label: "Export Data",
-        icon: Download,
-        type: "secondary",
-        onExecute: () => toast.info("Export Data is not yet implemented."),
-      },
-      {
-        id: "view-audit-logs",
-        label: "View Audit Logs",
-        icon: FileText,
-        type: "secondary",
-        onExecute: () => toast.info("Audit logs viewer would open here."),
-      },
-      {
-        id: "send-announcement",
-        label: "Send Announcement",
-        icon: Megaphone,
-        type: "danger",
-        requiresConfirmation: true,
-        confirmationMessage: "This will send an email/push notification to all coaches. Proceed?",
-        onExecute: () => toast.info("Send Announcement is not yet implemented."),
-      },
-      {
-        id: "open-diagnostics",
-        label: "Open Diagnostics",
-        icon: Activity,
-        type: "secondary",
-        onExecute: () => toast.info("Diagnostics dashboard would open here."),
-      },
-      {
-        id: "bulk-actions",
-        label: "Bulk Actions",
-        icon: Layers,
-        type: "danger",
-        requiresConfirmation: true,
-        confirmationMessage: "Are you sure you want to perform a bulk action? This might affect multiple accounts.",
-        onExecute: () => toast.info("Bulk actions modal would open here."),
-      },
-    ],
-    []
-  );
+  const actions: AdminAction[] = useMemo(() => [
+    { id: 'invite-coach', label: 'Invite Coach', icon: UserPlus, type: 'primary', onExecute: () => setIsInviteOpen(true) },
+    { id: 'export-data', label: 'Export Overview', icon: Download, type: 'secondary', onExecute: onExport },
+    { id: 'view-audit-logs', label: 'View Activity', icon: FileText, type: 'secondary', onExecute: onAuditLogs },
+    { id: 'refresh-dashboard', label: 'Refresh Dashboard', icon: Activity, type: 'secondary', onExecute: onRefresh },
+  ], [onExport, onAuditLogs, onRefresh]);
 
   const topLevelActions = actions.slice(0, 3);
   const dropdownActions = actions.slice(3);
@@ -395,7 +350,7 @@ export default function AdminActionBar() {
         }))}
       />
 
-      <InviteCoachModal isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} />
+      <InviteCoachModal isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} onSuccess={onRefresh} />
     </>
   );
 }

@@ -1,0 +1,11 @@
+/* Tailwind entry for the dev-only Stage 2 prototype.
+   Same fonts and same theme tokens as the app, but its own source scan so the
+   prototype's utility classes never reach the production stylesheet. */
+@import '../styles/fonts.css';
+
+@import 'tailwindcss' source(none);
+@source '../**/*.{js,ts,jsx,tsx}';
+
+@import 'tw-animate-css';
+
+@import '../styles/theme.css';
