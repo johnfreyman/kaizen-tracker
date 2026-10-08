@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { client } from './api';
 import { changeOwner, readOwner, setTestWriteFailure } from './db';
-import { AUTH_STORAGE_KEY, INITIAL_PASSWORD_SETUP, clearDeviceSignIn, lastOwner, rememberOwner } from './deviceAuth';
+import { AUTH_STORAGE_KEY, INITIAL_AUTH_REDIRECT_ERROR, INITIAL_PASSWORD_SETUP, clearDeviceSignIn, completePasswordSetup, lastOwner, passwordSetupPending, rememberOwner, requestPasswordSetup } from './deviceAuth';
 import { activeSession, displayPlayer, expectedPlayers, SHELL_VERSION, type OwnerData, type Player, type Session } from './types';
 import { correctAttendance, discardBlocked, finishSession, markPresent, prepare, refreshKeepingQueue, resendBlocked, retireOrRestore, reviewBlocked, savePlayer, saveTeam, sessionDelivery, startSession, sync, today } from './workflow';
 import { derivePin } from './pin';
@@ -11,6 +11,7 @@ import ReportsScreen from './ReportsScreen';
 import RaffleScreen from './RaffleScreen';
 import AttendancePlayers from './AttendancePlayers';
 import PasswordSetup from './PasswordSetup';
+import SwitchCoach from './SwitchCoach';
 import { Toaster } from 'sonner';
 import { IS_RELEASE } from './runtime';
 import { enterKiosk, exitKiosk, refreshKioskState } from './kiosk';
@@ -52,7 +53,11 @@ export default function CoachApp() {
   useEffect(() => { setDropFeedback(''); }, [page, ownerId]);
   const [logoutWarning, setLogoutWarning] = useState(false);
   const [adminOwner, setAdminOwner] = useState<string | null>(null);
-  const [passwordSetup, setPasswordSetup] = useState(INITIAL_PASSWORD_SETUP);
+  const [passwordSetup, setPasswordSetup] = useState(false);
+  const [coachEmail, setCoachEmail] = useState<string | undefined>();
+  const [pendingCoach, setPendingCoach] = useState<{ id: string; email?: string; needsPassword: boolean } | null>(null);
+  const [authLinkError, setAuthLinkError] = useState(INITIAL_AUTH_REDIRECT_ERROR);
+  const redirectPasswordSetup = useRef(INITIAL_PASSWORD_SETUP);
   const [verifiedShell, setVerifiedShell] = useState<string | null>(null);
   const [shellChecked, setShellChecked] = useState(false);
   const [preparing, setPreparing] = useState(false);
@@ -67,12 +72,37 @@ export default function CoachApp() {
     setData(current => current?.ownerId === next.ownerId && lastOwner() === next.ownerId ? next : current);
   }, []);
 
+  const acceptSignedInUser = useCallback((user: { id: string; email?: string }, recovery = false) => {
+    const needsPassword = recovery || redirectPasswordSetup.current || passwordSetupPending(user.id);
+    redirectPasswordSetup.current = false;
+    if (needsPassword) requestPasswordSetup(user.id);
+    if (lastOwner() && lastOwner() !== user.id) {
+      setPendingCoach({ id: user.id, email: user.email, needsPassword });
+      setAuthPaused(true); setStatus('');
+      return;
+    }
+    rememberOwner(user.id); setOwnerId(user.id); setCoachEmail(user.email);
+    setPendingCoach(null); setPasswordSetup(needsPassword); setAuthPaused(false);
+  }, []);
+
   useEffect(() => {
     let live = true;
-    client.auth.getSession().then(({ data: auth }) => { if (!live || explicitLogout.current) return; const id = auth.session?.user.id; if (id && (!lastOwner() || lastOwner() === id)) { rememberOwner(id); setOwnerId(id); setAuthPaused(false); } else if (lastOwner()) { setOwnerId(lastOwner()); setAuthPaused(true); } }).catch(() => { if (live && lastOwner() && !explicitLogout.current) { setOwnerId(lastOwner()); setAuthPaused(true); } });
-    const { data: subscription } = client.auth.onAuthStateChange((event, session) => { if (!live || explicitLogout.current) return; if (event === 'PASSWORD_RECOVERY') setPasswordSetup(true); if (session?.user.id) { if (lastOwner() && lastOwner() !== session.user.id) { setAuthPaused(true); setStatus('Sign in as the coach whose work is stored on this device.'); return; } rememberOwner(session.user.id); setOwnerId(session.user.id); setAuthPaused(false); } else if (lastOwner()) { setOwnerId(lastOwner()); setAuthPaused(true); } });
+    let authEventVersion = 0;
+    const initialVersion = authEventVersion;
+    client.auth.getSession().then(({ data: auth, error }) => {
+      if (!live || explicitLogout.current || authEventVersion !== initialVersion) return;
+      if (error && redirectPasswordSetup.current) { setAuthLinkError(true); return; }
+      if (auth.session?.user) acceptSignedInUser(auth.session.user);
+      else if (lastOwner()) { setOwnerId(lastOwner()); setAuthPaused(true); }
+    }).catch(() => { if (live && lastOwner() && !explicitLogout.current && authEventVersion === initialVersion) { setOwnerId(lastOwner()); setAuthPaused(true); } });
+    const { data: subscription } = client.auth.onAuthStateChange((event, session) => {
+      if (!live || explicitLogout.current) return;
+      authEventVersion += 1;
+      if (session?.user) acceptSignedInUser(session.user, event === 'PASSWORD_RECOVERY');
+      else if (lastOwner()) { setPendingCoach(null); setOwnerId(lastOwner()); setAuthPaused(true); }
+    });
     return () => { live = false; subscription.subscription.unsubscribe(); };
-  }, []);
+  }, [acceptSignedInUser]);
   useEffect(() => { if (!ownerId) return; let live = true; readOwner(ownerId).then(value => { if (live) setData(value); }).catch(error => { if (live) setStatus(`Local data blocked: ${message(error)}`); }); return () => { live = false; }; }, [ownerId]);
   useEffect(() => {
     let live = true;
@@ -105,7 +135,7 @@ export default function CoachApp() {
   // Take the shared guard before reading storage so refresh, upload and setup
   // cannot start concurrently. Preserve queued edits during the download.
   const refreshHistory = useCallback(async (force = false) => {
-    if (!ownerId || authPaused || syncInFlight.current || !navigator.onLine) return false;
+    if (!ownerId || authPaused || pendingCoach || passwordSetup || syncInFlight.current || !navigator.onLine) return false;
     if (!force && Date.now() - lastHistoryRefresh.current < 60_000) return false;
     syncInFlight.current = true; setRefreshingHistory(true);
     try {
@@ -116,10 +146,10 @@ export default function CoachApp() {
       return true;
     } catch { return false; }
     finally { syncInFlight.current = false; setRefreshingHistory(false); }
-  }, [ownerId, authPaused]);
+  }, [ownerId, authPaused, pendingCoach, passwordSetup]);
 
   const runSync = useCallback(async () => {
-    if (!ownerId || syncInFlight.current) return;
+    if (!ownerId || authPaused || pendingCoach || passwordSetup || syncInFlight.current) return;
     syncInFlight.current = true;
     let refreshAfterSync = false;
     try {
@@ -136,7 +166,7 @@ export default function CoachApp() {
     finally { syncInFlight.current = false; }
     // The upload guard must be released before asking for the server snapshot.
     if (refreshAfterSync) await refreshHistory();
-  }, [ownerId, refreshHistory]);
+  }, [ownerId, authPaused, pendingCoach, passwordSetup, refreshHistory]);
   const markInKiosk = useCallback(async (playerId: string, present: boolean) => {
     if (!ownerId) throw new Error('Sign in as the same coach.');
     const current = await readOwner(ownerId);
@@ -170,7 +200,7 @@ export default function CoachApp() {
   const needsPrepare = !!data && shellChecked && !(data.prepared && data.prepared.version === 1 && data.prepared.shellVersion === SHELL_VERSION && data.prepared.shellAssets === shellFingerprint() && verifiedShell === data.prepared.shellAssets);
   const blockedQueue = !!data?.queue.some(op => op.status !== 'pending');
   useEffect(() => {
-    if (!ownerId || !data || !needsPrepare || authPaused || busy || preparing || blockedQueue || syncInFlight.current || data.kioskSessionId || data.pendingRaffle || data.testOffline || !navigator.onLine) return;
+    if (!ownerId || !data || !needsPrepare || authPaused || busy || preparing || blockedQueue || pendingCoach || passwordSetup || syncInFlight.current || data.kioskSessionId || data.pendingRaffle || data.testOffline || !navigator.onLine) return;
     const key = `${ownerId}|${SHELL_VERSION}|${shellFingerprint()}|${data.prepared ? 'refresh' : 'first'}`;
     if (autoPrepareKey.current === key) return;
     autoPrepareKey.current = key;
@@ -191,20 +221,45 @@ export default function CoachApp() {
     if (!address) throw new Error('Enter your coach email.');
     const result = await client.auth.signInWithPassword({ email: address, password: secret });
     if (result.error) throw result.error;
-    if (lastOwner() && lastOwner() !== result.data.user.id) {
-      await client.auth.signOut({ scope: 'local' });
-      throw new Error('Sign in as the coach whose work is stored on this device, or sign out explicitly first.');
-    }
     explicitLogout.current = false;
-    rememberOwner(result.data.user.id);
-    setOwnerId(result.data.user.id);
-    setAuthPaused(false);
-    setStatus('Signed in.');
+    acceptSignedInUser(result.data.user);
+    setStatus(lastOwner() === result.data.user.id ? 'Signed in.' : '');
   }
   async function signIn(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setStatus('Signing in…');
     try { await authenticate(IS_RELEASE ? email : testCoach, password); setPassword(''); }
     catch (error) { setStatus(`Sign-in failed: ${message(error)}`); }
+    finally { setBusy(false); }
+  }
+  async function switchCoach(setPassword: boolean) {
+    if (!pendingCoach || busy) return;
+    if (syncInFlight.current) { setStatus('Wait for the current save to finish, then switch.'); return; }
+    setBusy(true); setStatus('');
+    try {
+      const identity = await client.auth.getUser();
+      if (identity.error || identity.data.user?.id !== pendingCoach.id) throw new Error('This sign-in has changed. Open your invitation again or sign in as the intended coach.');
+      if (setPassword) requestPasswordSetup(pendingCoach.id);
+      rememberOwner(pendingCoach.id);
+      setOwnerId(pendingCoach.id); setCoachEmail(identity.data.user.email); setData(null); setAdminOwner(null);
+      setPasswordSetup(passwordSetupPending(pendingCoach.id)); setAuthPaused(false); setPendingCoach(null);
+      setPage('home'); setExpectedOpen(false); setTeamIds([]); setAllKaizen(false); setDate(today()); setDateOpen(false); setView('expected');
+      clearPlayerForm(); setTeamName(''); setPin(''); setRestoreLabels({}); setCorrectionSession(null); setReason(''); setLogoutWarning(false);
+      setHistoryKind('all'); setHistoryFrom(''); setHistoryTo(''); setHistoryShown(20);
+      setPrepareError(''); autoPrepareKey.current = null; lastHistoryRefresh.current = 0; correctionScrolled.current = null;
+      setVerifiedShell(null); setShellChecked(false);
+    } catch (error) { setStatus(message(error)); }
+    finally { setBusy(false); }
+  }
+  async function keepPreviousCoach() {
+    if (busy) return;
+    setBusy(true); setStatus(''); explicitLogout.current = true;
+    try {
+      const result = await client.auth.signOut({ scope: 'local' });
+      if (result.error) throw result.error;
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      setPendingCoach(null); setPasswordSetup(false); setAuthPaused(true);
+      setStatus('Previous coach’s work is still saved. Sign in as that coach to upload.');
+    } catch (error) { explicitLogout.current = false; setStatus(message(error)); }
     finally { setBusy(false); }
   }
   async function logout() {
@@ -216,6 +271,7 @@ export default function CoachApp() {
     try { if (navigator.onLine && !data?.testOffline) { const result = await client.auth.signOut({ scope: 'local' }); if (result.error) throw result.error; } }
     catch (error) { signOutStatus = `Server sign-out could not finish: ${message(error)}. Signed out on this device.`; }
     clearDeviceSignIn(); setOwnerId(null); setData(null); setAuthPaused(false); setLogoutWarning(false);
+    setPendingCoach(null); setPasswordSetup(false); setCoachEmail(undefined); redirectPasswordSetup.current = false;
     setStatus(signOutStatus);
   }
   async function prepareDevice(automatic = false) {
@@ -260,10 +316,12 @@ export default function CoachApp() {
   function clearPlayerForm() { setEditingPlayer(null); setFirstName(''); setNumber(''); setLabel(''); setGuest(false); setPlayerTeams([]); }
   function editPlayer(player: Player) { setEditingPlayer(player.id); setFirstName(player.first_name); setNumber(player.jersey_number ?? ''); setLabel(player.short_label); setGuest(player.is_guest); setPlayerTeams(player.team_ids); }
 
-  if (passwordSetup && ownerId && !authPaused) return <PasswordSetup onComplete={() => { setPasswordSetup(false); setStatus('Password saved.'); }} onCancel={() => { setPasswordSetup(false); setPage('settings'); void logout(); }} />;
+  if (authLinkError) return <main className="coach-app auth"><section className="coach-panel"><h1>Sign-in link could not be opened</h1><p>The link may have expired or already been used. Ask your administrator for a new invitation or password-reset link.</p><button onClick={() => { setAuthLinkError(false); setPage('home'); }}>Return to the app</button></section></main>;
+  if (pendingCoach) return <SwitchCoach email={pendingCoach.email} needsPassword={pendingCoach.needsPassword} busy={busy} error={status} onContinue={setPassword => void switchCoach(setPassword)} onCancel={() => void keepPreviousCoach()} />;
+  if (passwordSetup && ownerId && !authPaused) return <PasswordSetup ownerId={ownerId} email={coachEmail} onComplete={() => { completePasswordSetup(ownerId); setPasswordSetup(false); setStatus('Password saved.'); }} onCancel={() => { setPasswordSetup(false); setPage('settings'); void logout(); }} />;
 
   if (!ownerId) return <main className="coach-app auth"><div className="coach-panel"><h1>Kaizen Tracker</h1><p>{IS_RELEASE ? 'Coach attendance' : 'Coach attendance · isolated test environment'}</p><form onSubmit={signIn}>{IS_RELEASE ? <label>Email<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required /></label> : <label>Test coach<select value={testCoach} onChange={e => { setTestCoach(e.target.value as keyof typeof TEST_COACH_EMAIL); setPassword(''); setStatus(''); }}><option value="a">Coach A</option><option value="b">Coach B</option></select></label>}<label>Password<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required /></label><button disabled={busy}>Sign in</button></form>{!IS_RELEASE && <button className="quiet" onClick={async () => { try { await setSimulatedOffline(false); setStatus('Test network restored for sign-in.'); } catch (error) { setStatus(message(error)); } }}>Restore test network</button>}<p role="status">{status}</p></div></main>;
-  if (!data) return <main className="coach-app"><p role="status">{status || 'Opening saved device data…'}</p></main>;
+  if (!data || data.ownerId !== ownerId) return <main className="coach-app"><p role="status">{status || 'Opening saved device data…'}</p></main>;
 
   if (data.kioskSessionId) return <KioskScreen data={data} authPaused={authPaused} onMark={markInKiosk} onExit={exitCurrentKiosk} onRefresh={refreshCurrentKiosk} onSignIn={authenticate} />;
 

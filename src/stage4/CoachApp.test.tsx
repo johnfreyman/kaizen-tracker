@@ -3,12 +3,18 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { changeOwner, readOwner } from './db';
-import { AUTH_STORAGE_KEY, lastOwner, rememberOwner } from './deviceAuth';
+import { AUTH_STORAGE_KEY, lastOwner, passwordSetupPending, rememberOwner } from './deviceAuth';
 import { SHELL_VERSION, STORAGE_VERSION } from './types';
 
-const auth = vi.hoisted(() => ({ getSession: vi.fn(), onAuthStateChange: vi.fn(), signOut: vi.fn(), getUser: vi.fn() }));
+const auth = vi.hoisted(() => ({ getSession: vi.fn(), onAuthStateChange: vi.fn(), signOut: vi.fn(), getUser: vi.fn(), updateUser: vi.fn(), signInWithPassword: vi.fn() }));
 vi.mock('./api', () => ({ client: { auth }, loadExitCode: vi.fn(), loadServerSessions: vi.fn(), prepareFromServer: vi.fn(), sendOperation: vi.fn() }));
 vi.mock('./shell', () => ({ shellFingerprint: () => 'test-shell', shellCacheReady: async () => true, prepareShell: vi.fn(), dropNextAcknowledgment: vi.fn(), expireNextAuthCheck: vi.fn(), setSimulatedOffline: vi.fn() }));
+const authRedirect = vi.hoisted(() => ({ passwordSetup: false, error: false }));
+vi.mock('./deviceAuth', async importOriginal => ({
+  ...await importOriginal<typeof import('./deviceAuth')>(),
+  get INITIAL_PASSWORD_SETUP() { return authRedirect.passwordSetup; },
+  get INITIAL_AUTH_REDIRECT_ERROR() { return authRedirect.error; },
+}));
 import CoachApp from './CoachApp';
 
 async function savedCoach() {
@@ -19,6 +25,8 @@ async function savedCoach() {
   return id;
 }
 beforeEach(() => {
+  authRedirect.passwordSetup = false; authRedirect.error = false;
+  auth.getUser.mockReset(); auth.updateUser.mockReset(); auth.signInWithPassword.mockReset();
   history.replaceState(null, '', '/');
   const memory = new Map<string, string>();
   vi.stubGlobal('localStorage', { getItem: (key: string) => memory.get(key) ?? null, setItem: (key: string, value: string) => { memory.set(key, value); }, removeItem: (key: string) => { memory.delete(key); }, clear: () => memory.clear() });
@@ -74,8 +82,8 @@ describe('offline auth recovery', () => {
     await screen.findByRole('button', { name: 'Start Practice' });
     const listener = auth.onAuthStateChange.mock.calls[0][0];
     listener('SIGNED_IN', { user: { id: 'coach-b' } });
-    await waitFor(() => expect(screen.getByText(/Sign in as the coach whose work/)).toBeTruthy());
-    expect(screen.getByRole('button', { name: 'Start Practice' })).toBeTruthy();
+    await screen.findByRole('heading', { name: 'Use this coach account?' });
+    expect(screen.queryByRole('button', { name: 'Start Practice' })).toBeNull();
     expect(lastOwner()).not.toBe('coach-b');
   });
 });
@@ -196,5 +204,96 @@ describe('server history refresh after upload (audit A3)', () => {
     await waitFor(() => expect(api.loadServerSessions).toHaveBeenCalledTimes(1));
     await waitFor(async () => expect((await readOwner(id)).sessions.map(session => session.id)).toContain('remote-only-session'));
     expect(api.sendOperation).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('invited coach onboarding', () => {
+  function invitedSession(id = 'invited-coach') {
+    const user = { id, email: 'new-coach@example.test' };
+    auth.getSession.mockResolvedValue({ data: { session: { user } }, error: null });
+    auth.onAuthStateChange.mockImplementation(callback => { queueMicrotask(() => callback('INITIAL_SESSION', { user })); return { data: { subscription: { unsubscribe() {} } } }; });
+    auth.getUser.mockResolvedValue({ data: { user }, error: null });
+    return user;
+  }
+  it('asks a fresh invited coach to create a password before preparing team data', async () => {
+    authRedirect.passwordSetup = true;
+    const user = invitedSession(crypto.randomUUID());
+    const api = await import('./api'); vi.mocked(api.prepareFromServer).mockClear();
+    render(<CoachApp />);
+    await screen.findByRole('heading', { name: 'Set your password' });
+    expect(screen.getByText(`For ${user.email}`)).toBeTruthy();
+    expect(lastOwner()).toBe(user.id);
+    expect(api.prepareFromServer).not.toHaveBeenCalled();
+    const shell = await import('./shell');
+    vi.mocked(api.prepareFromServer).mockResolvedValue({ version: STORAGE_VERSION, shellVersion: SHELL_VERSION, shellAssets: '', savedAt: '', players: [], teams: [], roundId: 'invited-round', roundRevision: 0, raffleEnabled: false, exitCode: { mode: 'default', revision: 0, verifier: null } });
+    vi.mocked(api.loadServerSessions).mockResolvedValue([]);
+    vi.mocked(shell.prepareShell).mockResolvedValue('test-shell');
+    auth.updateUser.mockResolvedValue({ error: null });
+    vi.stubGlobal('navigator', { ...window.navigator, onLine: true });
+    for (const label of ['New password', 'Confirm password']) fireEvent.change(screen.getByLabelText(label), { target: { value: 'synthetic-coach-password' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save password' }));
+    await screen.findByRole('button', { name: 'Start Practice' });
+    await waitFor(() => expect(screen.getByText('Ready offline')).toBeTruthy());
+    expect(passwordSetupPending(user.id)).toBe(false);
+    expect(api.prepareFromServer).toHaveBeenCalledTimes(1);
+  });
+  it('resumes password creation after the invitation URL has been consumed and the app reloads', async () => {
+    authRedirect.passwordSetup = true;
+    invitedSession(crypto.randomUUID());
+    const first = render(<CoachApp />);
+    await screen.findByRole('heading', { name: 'Set your password' });
+    first.unmount(); authRedirect.passwordSetup = false;
+    render(<CoachApp />);
+    await screen.findByRole('heading', { name: 'Set your password' });
+  });
+  it('switches to the invited coach explicitly and preserves the previous coach’s pending work', async () => {
+    const previousId = await savedCoach();
+    await changeOwner(previousId, data => { data.queue.push({ id: 'previous-change', deviceId: data.deviceId, sequence: 1, kind: 'finish_v1', sessionId: 'previous-session', baseRevision: 1, payload: {}, status: 'pending' }); return data; });
+    const previous = await readOwner(previousId);
+    authRedirect.passwordSetup = true; const user = invitedSession(crypto.randomUUID());
+    render(<CoachApp />);
+    await screen.findByRole('heading', { name: 'Use this coach account?' });
+    expect(lastOwner()).toBe(previousId);
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to password setup' }));
+    await screen.findByRole('heading', { name: 'Set your password' });
+    expect(lastOwner()).toBe(user.id);
+    expect(await readOwner(previousId)).toEqual(previous);
+    expect((await readOwner(user.id)).queue).toHaveLength(0);
+  });
+  it('offers password setup when a previously consumed invitation has no redirect marker', async () => {
+    const previousId = await savedCoach(); const user = invitedSession(crypto.randomUUID());
+    render(<CoachApp />);
+    await screen.findByRole('heading', { name: 'Use this coach account?' });
+    fireEvent.click(screen.getByRole('button', { name: 'Set a password and switch' }));
+    await screen.findByRole('heading', { name: 'Set your password' });
+    expect(lastOwner()).toBe(user.id);
+    expect((await readOwner(previousId)).prepared).not.toBeNull();
+  });
+  it('lets the user keep the previous coach without clearing its offline copy', async () => {
+    const previousId = await savedCoach(); const previous = await readOwner(previousId);
+    invitedSession(crypto.randomUUID()); auth.signOut.mockResolvedValue({ error: null });
+    render(<CoachApp />);
+    await screen.findByRole('heading', { name: 'Use this coach account?' });
+    fireEvent.click(screen.getByRole('button', { name: 'Keep previous coach' }));
+    await screen.findByRole('heading', { name: 'Upload paused' });
+    expect(auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(lastOwner()).toBe(previousId); expect(await readOwner(previousId)).toEqual(previous);
+  });
+  it('refuses to switch if the authenticated account changes before confirmation', async () => {
+    const previousId = await savedCoach(); invitedSession(crypto.randomUUID());
+    auth.getUser.mockResolvedValue({ data: { user: { id: 'unexpected-coach' } }, error: null });
+    render(<CoachApp />);
+    await screen.findByRole('heading', { name: 'Use this coach account?' });
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to this coach' }));
+    await screen.findByText(/This sign-in has changed/);
+    expect(lastOwner()).toBe(previousId);
+  });
+  it('shows an actionable expired-link message instead of a password form', async () => {
+    authRedirect.error = true;
+    render(<CoachApp />);
+    await screen.findByRole('heading', { name: 'Sign-in link could not be opened' });
+    expect(screen.getByText(/new invitation or password-reset link/)).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Set your password' })).toBeNull();
   });
 });
