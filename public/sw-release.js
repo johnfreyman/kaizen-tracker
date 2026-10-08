@@ -1,4 +1,4 @@
-const CACHE = 'kaizen-release-stage6-shell-18';
+const CACHE = 'kaizen-release-stage6-shell-19';
 self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
 self.addEventListener('message', event => {

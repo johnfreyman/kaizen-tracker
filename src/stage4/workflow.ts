@@ -1,11 +1,11 @@
-import { activeSession, expectedPlayers, type Operation, type OwnerData, type Player, type Session } from './types';
+import { activeSession, displayPlayer, expectedPlayers, type Operation, type OwnerData, type Player, type Session } from './types';
 import { changeOwner, enqueue } from './db';
 import { client, loadExitCode, loadServerSessions, prepareFromServer, sendOperation } from './api';
 import { prepareShell } from './shell';
 
 export function today(): string { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; }
 function snapshot(player: Player) { return { player_id: player.id, first_name: player.first_name, jersey_number: player.jersey_number, short_label: player.short_label, is_guest: player.is_guest, team_ids: player.team_ids }; }
-function requirePrepared(data: OwnerData) { if (!data.prepared) throw new Error('Prepare this iPad online first.'); return data.prepared; }
+function requirePrepared(data: OwnerData) { if (!data.prepared) throw new Error('Connect to the internet once so this device can load your roster.'); return data.prepared; }
 
 export async function prepare(ownerId: string, current: OwnerData): Promise<OwnerData> {
   if (current.queue.length) throw new Error('Sync or review pending work before refreshing the prepared roster.');
@@ -17,25 +17,29 @@ export async function prepare(ownerId: string, current: OwnerData): Promise<Owne
     if (data.queue.length) throw new Error('Pending work appeared during preparation. Retry after sync.');
     data.prepared = prepared;
     data.sessions = serverSessions;
-    data.lastSyncAt = new Date().toISOString();
+    data.lastSyncAt = data.lastServerRefreshAt = new Date().toISOString();
     return data;
   });
 }
 
-export async function refreshKeepingQueue(ownerId: string): Promise<OwnerData> {
+export async function refreshKeepingQueue(ownerId: string, options: { shell?: boolean } = {}): Promise<OwnerData> {
   const [serverPrepared, serverSessions] = await Promise.all([prepareFromServer(ownerId), loadServerSessions()]);
+  // Audit A5: caching the new app shell does not touch saved attendance, so do
+  // it even while changes wait to upload. If it fails, keep the old shell.
+  let shellAssets: string | null = null;
+  if (options.shell !== false) { try { shellAssets = await prepareShell(); } catch { shellAssets = null; } }
   return changeOwner(ownerId, data => {
     const pendingSessions = new Set(data.queue.map(op => op.sessionId).filter(Boolean));
     const pendingPlayers = new Set(data.queue.map(op => op.payload.player_id).filter((id): id is string => typeof id === 'string'));
     const pendingTeams = new Set(data.queue.map(op => op.payload.team_id).filter((id): id is string => typeof id === 'string'));
     const local = data.prepared;
-    serverPrepared.shellAssets = local?.shellAssets ?? '';
-    serverPrepared.shellVersion = local?.shellVersion ?? serverPrepared.shellVersion;
+    if (shellAssets !== null) serverPrepared.shellAssets = shellAssets;
+    else { serverPrepared.shellAssets = local?.shellAssets ?? ''; serverPrepared.shellVersion = local?.shellVersion ?? serverPrepared.shellVersion; }
     serverPrepared.players = [...serverPrepared.players.filter(p => !pendingPlayers.has(p.id)), ...(local?.players.filter(p => pendingPlayers.has(p.id)) ?? [])];
     serverPrepared.teams = [...serverPrepared.teams.filter(t => !pendingTeams.has(t.id)), ...(local?.teams.filter(t => pendingTeams.has(t.id)) ?? [])];
     data.prepared = serverPrepared;
     data.sessions = [...serverSessions.filter(s => !pendingSessions.has(s.id)), ...data.sessions.filter(s => pendingSessions.has(s.id))];
-    data.lastSyncAt = new Date().toISOString();
+    data.lastSyncAt = data.lastServerRefreshAt = new Date().toISOString();
     return data;
   });
 }
@@ -140,11 +144,11 @@ export async function reviewBlocked(ownerId: string, opId: string): Promise<Owne
   let revision: number | null = null, summary = 'The server has no matching record.';
   if (op.sessionId) {
     const session = (await loadServerSessions(op.sessionId))[0];
-    if (session) { revision = session.revision; summary = `${session.kind} ${session.date}: ${session.state}, revision ${revision}; ${Object.values(session.present).filter(Boolean).length} present.`; }
+    if (session) { revision = session.revision; const marked = typeof op.payload.player_id === 'string' && op.payload.player_id in session.present ? ` This player is marked ${session.present[op.payload.player_id] ? 'present' : 'absent'}.` : ''; summary = `${session.kind} · ${session.date} · ${session.state === 'completed' ? 'finished' : 'in progress'} · ${Object.values(session.present).filter(Boolean).length} present.${marked}`; }
   } else if (op.kind.includes('player') || op.kind.includes('team')) {
     const roster = await prepareFromServer(ownerId);
     const entity = op.kind.includes('player') ? roster.players.find(p => p.id === op.payload.player_id) : roster.teams.find(t => t.id === op.payload.team_id);
-    if (entity) { revision = entity.revision; summary = JSON.stringify(entity); }
+    if (entity) { revision = entity.revision; summary = 'first_name' in entity ? `${displayPlayer(entity)}${entity.retired_at ? ' · retired' : ''}` : `Team “${entity.name}”${entity.retired_at ? ' · retired' : ''}`; }
   }
   return changeOwner(ownerId, data => {
     const target = data.queue.find(item => item.id === opId);
@@ -215,14 +219,14 @@ export async function sync(ownerId: string, current: OwnerData): Promise<SyncRes
         const session = latest.sessions.find(s => s.id === op.sessionId);
         if (session && result.needs_round_review === true) session.needsRoundReview = true;
         latest.queue.shift();
-        latest.lastSyncAt = new Date().toISOString();
+        latest.lastUploadAt = new Date().toISOString();
         return latest;
       });
     } catch (error) {
       const issue = error as { code?: string; status?: number; message?: string }, state = classify(issue);
       if (state === 'auth') return { data, state, error: 'Sign in again as the same coach to sync.' };
       if (state === 'waiting') return { data, state, error: 'Waiting to retry the same saved operation.' };
-      data = await changeOwner(ownerId, latest => { const head = latest.queue[0]; if (head?.id !== op.id) throw new Error('Queue changed during failure handling.'); head.status = state; head.errorCode = issue.code; head.error = `${issue.code ?? issue.status ?? 'ERROR'}: ${issue.message ?? String(error)}`; return latest; });
+      data = await changeOwner(ownerId, latest => { const head = latest.queue[0]; if (head?.id !== op.id) throw new Error('Queue changed during failure handling.'); head.status = state; head.errorCode = issue.code; head.error = `${issue.code ?? issue.status ?? 'ERROR'}: ${issue.message ?? String(error)}`; /* technical detail; coaches see blockedReason() */ return latest; });
       if (issue.code === '40001' || issue.code === '55000') { try { data = await reviewBlocked(ownerId, op.id); } catch { /* keep local intent for review after connectivity returns */ } }
       return { data, state, error: data.queue[0]?.error };
     }

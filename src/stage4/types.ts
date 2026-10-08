@@ -1,5 +1,5 @@
 export const STORAGE_VERSION = 1;
-export const SHELL_VERSION = 'stage6-shell-18';
+export const SHELL_VERSION = 'stage6-shell-19';
 
 export type Player = { id: string; first_name: string; jersey_number: string | null; short_label: string; is_guest: boolean; retired_at: string | null; revision: number; team_ids: string[] };
 export type Team = { id: string; name: string; revision: number; retired_at: string | null };
@@ -11,7 +11,7 @@ export type Operation = { id: string; deviceId: string; sequence: number; kind: 
 export type RaffleTicket = { session_id: string; player_id: string; display_name: string };
 export type RaffleDraw = { id: string; round_id: string; player_id: string; display_name: string; prize: string; drawn_at: string; voided_at: string | null; pool_count: number };
 export type RaffleSnapshot = { round_id: string; round_revision: number; generation: number; raffle_enabled: boolean; tickets: RaffleTicket[]; pool_count: number; pool_hash: string; excluded_player_ids: string[]; draws: RaffleDraw[] };
-export type OwnerData = { version: number; ownerId: string; deviceId: string; nextSequence: number; prepared: Prepared | null; sessions: Session[]; queue: Operation[]; pendingPin?: Operation; pendingRaffle?: Operation; rafflePreferences?: { roundId: string; prize: string; excludeLastN: number }; kioskSessionId?: string; kioskClosedSessionId?: string; lastSyncAt: string | null; testOffline?: boolean };
+export type OwnerData = { version: number; ownerId: string; deviceId: string; nextSequence: number; prepared: Prepared | null; sessions: Session[]; queue: Operation[]; pendingPin?: Operation; pendingRaffle?: Operation; rafflePreferences?: { roundId: string; prize: string; excludeLastN: number }; kioskSessionId?: string; kioskClosedSessionId?: string; lastSyncAt: string | null; /** Last time sessions and roster were downloaded from the server (audit A3). */ lastServerRefreshAt?: string | null; /** Last time a saved change was uploaded. */ lastUploadAt?: string | null; testOffline?: boolean };
 export function emptyOwner(ownerId: string): OwnerData { return { version: STORAGE_VERSION, ownerId, deviceId: crypto.randomUUID(), nextSequence: 1, prepared: null, sessions: [], queue: [], lastSyncAt: null }; }
 export function activeSession(data: OwnerData): Session | undefined { return data.sessions.find(s => s.state === 'active'); }
 export function displayPlayer(p: Player): string { return `${p.first_name}${p.short_label ? ` ${p.short_label}` : ''}${p.jersey_number === null ? '' : ` · #${p.jersey_number}`}`; }

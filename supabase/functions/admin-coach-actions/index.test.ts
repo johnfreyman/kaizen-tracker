@@ -57,7 +57,8 @@ function setup({ authenticated = true, admin = true, adminError = false, queryEr
       headers: authorization ? { Authorization: authorization } : {},
       body: JSON.stringify(body),
     }));
-  return { request, createClient, privilegedFrom, selectCoaches, callerFrom, eq, coaches, queries, resend, rpc, updateUserById, getUserById };
+  const requestFrom = (origin: string) => handler(new Request("https://example.test/admin-coach-actions", { method: "POST", headers: { Authorization: "Bearer test-session", Origin: origin }, body: JSON.stringify({ action: "list-coaches" }) }));
+  return { request, requestFrom, createClient, privilegedFrom, selectCoaches, callerFrom, eq, coaches, queries, resend, rpc, updateUserById, getUserById };
 }
 
 describe("admin-coach-actions list-coaches authorization", () => {
@@ -166,5 +167,23 @@ describe('canonical admin coach details and account controls', () => {
     const app = setup();
     expect((await app.request({ action: 'force-logout', coachId, adminId: 'forged' })).status).toBe(200);
     expect(app.rpc).toHaveBeenCalledWith('admin_revoke_coach_sessions_v1', { p_coach_id: coachId });
+  });
+});
+
+describe("admin-coach-actions hardening (audit A9)", () => {
+  it("allows the coach app origin and omits CORS approval for other sites", async () => {
+    const allowed = await setup().requestFrom("https://teamtracker.leftbraincreative.xyz");
+    expect(allowed.status).toBe(200);
+    expect(allowed.headers.get("Access-Control-Allow-Origin")).toBe("https://teamtracker.leftbraincreative.xyz");
+    const other = await setup().requestFrom("https://evil.example");
+    expect(other.headers.get("Access-Control-Allow-Origin")).toBeNull();
+    expect(other.headers.get("Vary")).toBe("Origin");
+  });
+
+  it("no longer offers the unused view-as-coach magic link", async () => {
+    const app = setup();
+    const response = await app.request({ action: "view-as-coach", coachId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" });
+    expect(response.status).toBe(400);
+    expect(JSON.stringify(await response.json())).not.toContain("link");
   });
 });
