@@ -6,7 +6,7 @@ import { changeOwner, readOwner } from './db';
 import { AUTH_STORAGE_KEY, lastOwner, passwordSetupPending, rememberOwner } from './deviceAuth';
 import { SHELL_VERSION, STORAGE_VERSION } from './types';
 
-const auth = vi.hoisted(() => ({ getSession: vi.fn(), onAuthStateChange: vi.fn(), signOut: vi.fn(), getUser: vi.fn(), updateUser: vi.fn(), signInWithPassword: vi.fn() }));
+const auth = vi.hoisted(() => ({ getSession: vi.fn(), onAuthStateChange: vi.fn(), signOut: vi.fn(), getUser: vi.fn(), updateUser: vi.fn(), signInWithPassword: vi.fn(), resetPasswordForEmail: vi.fn() }));
 vi.mock('./api', () => ({ client: { auth }, loadExitCode: vi.fn(), loadServerSessions: vi.fn(), prepareFromServer: vi.fn(), sendOperation: vi.fn() }));
 vi.mock('./shell', () => ({ shellFingerprint: () => 'test-shell', shellCacheReady: async () => true, prepareShell: vi.fn(), dropNextAcknowledgment: vi.fn(), expireNextAuthCheck: vi.fn(), setSimulatedOffline: vi.fn() }));
 const authRedirect = vi.hoisted(() => ({ passwordSetup: false, error: false }));
@@ -222,7 +222,7 @@ describe('invited coach onboarding', () => {
     const api = await import('./api'); vi.mocked(api.prepareFromServer).mockClear();
     render(<CoachApp />);
     await screen.findByRole('heading', { name: 'Set your password' });
-    expect(screen.getByText(`For ${user.email}`)).toBeTruthy();
+    expect(screen.getByText(user.email)).toBeTruthy();
     expect(lastOwner()).toBe(user.id);
     expect(api.prepareFromServer).not.toHaveBeenCalled();
     const shell = await import('./shell');
@@ -296,4 +296,17 @@ describe('invited coach onboarding', () => {
     expect(screen.getByText(/new invitation or password-reset link/)).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Set your password' })).toBeNull();
   });
+  it('keeps unfinished password setup visible when its authenticated session ends', async () => {
+    authRedirect.passwordSetup = true; invitedSession(crypto.randomUUID());
+    render(<CoachApp />);
+    await screen.findByRole('heading', { name: 'Set your password' });
+    auth.onAuthStateChange.mock.calls[0][0]('SIGNED_OUT', null);
+    auth.getUser.mockResolvedValue({ data: { user: null }, error: { name: 'AuthSessionMissingError', status: 400 } });
+    for (const label of ['New password', 'Confirm password']) fireEvent.change(screen.getByLabelText(label), { target: { value: 'synthetic-password' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save password' }));
+    await screen.findByRole('button', { name: 'Send a new setup link' });
+    expect(screen.queryByRole('heading', { name: 'Upload paused' })).toBeNull();
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+
 });
