@@ -23,3 +23,15 @@
 .collapsible-panel summary::after{content:"";margin-left:auto;width:10px;height:10px;border-right:2px solid #173e6b;border-bottom:2px solid #173e6b;transform:rotate(45deg);transition:transform .15s}
 .collapsible-panel[open] summary::after{transform:rotate(-135deg)}
 .collapsible-panel[open] summary{margin-bottom:12px}
+
+.coach-app.auth .onboarding-panel{width:min(480px,calc(100vw - 32px));padding:28px}
+.onboarding-panel .onboarding-intro{margin-bottom:24px}
+.onboarding-panel p{line-height:1.5;margin:10px 0}
+.onboarding-panel .onboarding-account{font-size:14px;color:#607b95;overflow-wrap:anywhere}
+.onboarding-panel .onboarding-actions{display:flex;gap:12px;align-items:stretch;margin-top:24px}
+.onboarding-panel .onboarding-actions button{flex:1;min-height:48px}
+.onboarding-panel .onboarding-actions button.quiet{background:white;border:1px solid #cbd8e6;color:#173351}
+.onboarding-panel .onboarding-notice{margin:16px 0;padding:12px 14px;border:1px solid #e9cfae;border-radius:8px;background:#fff7ec;color:#75471c}
+.onboarding-panel .onboarding-notice p{margin:0}
+.onboarding-panel button.onboarding-inline-action{padding:8px 0;background:transparent;color:#1763bb;text-decoration:underline;font-weight:550}
+@media(max-width:480px){.coach-app.auth .onboarding-panel{padding:24px}.onboarding-panel .onboarding-actions{flex-direction:column}.onboarding-panel .onboarding-actions button{width:100%}}
